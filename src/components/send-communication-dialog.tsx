@@ -15,7 +15,7 @@ import {
   type CommChannel,
   type RenderContext,
 } from "@/lib/communication-constants";
-import { useTemplates, useCreateLog, useUpdateLogStatus } from "@/lib/use-communications";
+import { useTemplates, useCreateLog } from "@/lib/use-communications";
 
 interface Recipient {
   personId?: string | null;
@@ -42,7 +42,6 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const create = useCreateLog();
-  const updateStatus = useUpdateLogStatus();
 
   const filteredTemplates = useMemo(
     () => templates.filter((t) => t.channel === channel && t.is_active),
