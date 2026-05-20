@@ -20,13 +20,13 @@ function toTitleCase(str: string) {
 }
 
 function PortalDashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { data: ctx } = useClientContext();
   const { data: events = [], isLoading } = useClientEvents(ctx?.clientId);
 
   const rawClientName = ctx?.clientName;
   const hasClientName = rawClientName && rawClientName !== "—" && rawClientName.trim().length > 1;
-  const userFallback = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[0] || "";
+  const userFallback = profile?.full_name || (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[0] || "";
   const greetingName = hasClientName
     ? toTitleCase(rawClientName)
     : userFallback

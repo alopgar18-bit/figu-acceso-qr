@@ -31,7 +31,6 @@ export function useOnboardingState() {
         approvedRes,
         commsRes,
         checkinsRes,
-        reportsRes,
         demoEventRes,
       ] = await Promise.all([
         supabase.from("clients").select("id", { count: "exact", head: true }),
@@ -42,8 +41,6 @@ export function useOnboardingState() {
         supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["aprobado", "invitacion_enviada", "pendiente_confirmacion", "confirmado", "qr_generado", "acceso_validado"]),
         supabase.from("communication_logs").select("id", { count: "exact", head: true }),
         supabase.from("checkins").select("id", { count: "exact", head: true }),
-        // "Consultar informes" is considered complete if there are any closed/archived events
-        supabase.from("events").select("id", { count: "exact", head: true }).in("status", ["cerrado", "archivado"]),
         supabase
           .from("events")
           .select("id, name, slug")
@@ -52,15 +49,15 @@ export function useOnboardingState() {
           .maybeSingle(),
       ]);
 
-      const hasClients = (clientsRes.count ?? 0) > 1; // >1 because demo seed creates a client
-      const hasEvents = (eventsRes.count ?? 1) > 1;
-      const hasSessions = (sessionsRes.count ?? 1) > 1;
-      const hasPublished = (publishedEventRes.count ?? 1) > 1;
-      const hasRequests = (requestsRes.count ?? 0) > 1;
-      const hasApproved = (approvedRes.count ?? 1) > 1;
-      const hasComms = (commsRes.count ?? 1) > 1;
-      const hasCheckins = (checkinsRes.count ?? 1) > 1;
-      const hasReports = (reportsRes.count ?? 0) > 1;
+      const hasClients = (clientsRes.count ?? 0) > 0;
+      const hasEvents = (eventsRes.count ?? 0) > 0;
+      const hasSessions = (sessionsRes.count ?? 0) > 0;
+      const hasPublished = (publishedEventRes.count ?? 0) > 0;
+      const hasRequests = (requestsRes.count ?? 0) > 0;
+      const hasApproved = (approvedRes.count ?? 0) > 0;
+      const hasComms = (commsRes.count ?? 0) > 0;
+      const hasCheckins = (checkinsRes.count ?? 0) > 0;
+      const hasReports = hasEvents;
 
       const steps: OnboardingStep[] = [
         {
