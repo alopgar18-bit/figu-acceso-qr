@@ -41,6 +41,7 @@ import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_a
 import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
+import { Route as AuthenticatedControlAccesoSessionIdRouteImport } from './routes/_authenticated/control-acceso.$sessionId'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
 import { Route as AuthenticatedEventosEventIdSesionesNuevaRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.nueva'
 import { Route as AuthenticatedEventosEventIdSesionesSessionIdRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.$sessionId'
@@ -214,6 +215,12 @@ const AuthenticatedEventosEventIdRoute =
     path: '/$eventId',
     getParentRoute: () => AuthenticatedEventosRoute,
   } as any)
+const AuthenticatedControlAccesoSessionIdRoute =
+  AuthenticatedControlAccesoSessionIdRouteImport.update({
+    id: '/$sessionId',
+    path: '/$sessionId',
+    getParentRoute: () => AuthenticatedControlAccesoRoute,
+  } as any)
 const AuthenticatedEventosEventIdEditarRoute =
   AuthenticatedEventosEventIdEditarRouteImport.update({
     id: '/editar',
@@ -240,7 +247,7 @@ export interface FileRoutesByFullPath {
   '/branding': typeof AuthenticatedBrandingRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/comunicaciones': typeof AuthenticatedComunicacionesRoute
-  '/control-acceso': typeof AuthenticatedControlAccesoRoute
+  '/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
@@ -254,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
@@ -276,7 +284,7 @@ export interface FileRoutesByTo {
   '/branding': typeof AuthenticatedBrandingRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/comunicaciones': typeof AuthenticatedComunicacionesRoute
-  '/control-acceso': typeof AuthenticatedControlAccesoRoute
+  '/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
@@ -290,6 +298,7 @@ export interface FileRoutesByTo {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
@@ -314,7 +323,7 @@ export interface FileRoutesById {
   '/_authenticated/branding': typeof AuthenticatedBrandingRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/comunicaciones': typeof AuthenticatedComunicacionesRoute
-  '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRoute
+  '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/_authenticated/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
@@ -328,6 +337,7 @@ export interface FileRoutesById {
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/_authenticated/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/_authenticated/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
@@ -366,6 +376,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/importaciones/$batchId'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/importaciones/$batchId'
@@ -439,6 +451,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/_authenticated/control-acceso/$sessionId'
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
     | '/_authenticated/importaciones/$batchId'
@@ -690,6 +703,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEventosEventIdRouteImport
       parentRoute: typeof AuthenticatedEventosRoute
     }
+    '/_authenticated/control-acceso/$sessionId': {
+      id: '/_authenticated/control-acceso/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/control-acceso/$sessionId'
+      preLoaderRoute: typeof AuthenticatedControlAccesoSessionIdRouteImport
+      parentRoute: typeof AuthenticatedControlAccesoRoute
+    }
     '/_authenticated/eventos/$eventId/editar': {
       id: '/_authenticated/eventos/$eventId/editar'
       path: '/editar'
@@ -713,6 +733,21 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthenticatedControlAccesoRouteChildren {
+  AuthenticatedControlAccesoSessionIdRoute: typeof AuthenticatedControlAccesoSessionIdRoute
+}
+
+const AuthenticatedControlAccesoRouteChildren: AuthenticatedControlAccesoRouteChildren =
+  {
+    AuthenticatedControlAccesoSessionIdRoute:
+      AuthenticatedControlAccesoSessionIdRoute,
+  }
+
+const AuthenticatedControlAccesoRouteWithChildren =
+  AuthenticatedControlAccesoRoute._addFileChildren(
+    AuthenticatedControlAccesoRouteChildren,
+  )
 
 interface AuthenticatedEventosEventIdRouteChildren {
   AuthenticatedEventosEventIdEditarRoute: typeof AuthenticatedEventosEventIdEditarRoute
@@ -785,7 +820,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBrandingRoute: typeof AuthenticatedBrandingRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedComunicacionesRoute: typeof AuthenticatedComunicacionesRoute
-  AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRoute
+  AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEventosRoute: typeof AuthenticatedEventosRouteWithChildren
   AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRouteWithChildren
@@ -803,7 +838,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBrandingRoute: AuthenticatedBrandingRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedComunicacionesRoute: AuthenticatedComunicacionesRoute,
-  AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRoute,
+  AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEventosRoute: AuthenticatedEventosRouteWithChildren,
   AuthenticatedImportacionesRoute: AuthenticatedImportacionesRouteWithChildren,
