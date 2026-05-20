@@ -161,6 +161,14 @@ const ACTION_LABELS: Record<string, { label: string; icon: any }> = {
   "incident.resolve": { label: "Incidencia resuelta", icon: CheckCircle2 },
 };
 
+function toTitleCase(str: string) {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function DashboardPage() {
   const { user, roles } = useAuth();
   const rolesLabel = roles.length ? roles.map((r) => ROLE_LABELS[r] ?? r).join(" · ") : "Sin rol asignado";
@@ -168,6 +176,14 @@ function DashboardPage() {
   const m = data?.metrics;
   const f = data?.featured;
   const fs = data?.featuredStats;
+
+  const rawName = (user?.user_metadata as Record<string, string>)?.full_name ?? "";
+  const emailPrefix = user?.email?.split("@")[0] ?? "";
+  const greetingName = rawName
+    ? toTitleCase(rawName)
+    : emailPrefix
+      ? toTitleCase(emailPrefix)
+      : "Equipo";
 
   const statCards = [
     { label: "Eventos activos", value: m?.eventos, icon: CalendarDays, href: "/eventos", tone: "primary" },
@@ -195,8 +211,6 @@ function DashboardPage() {
     { label: "Informes", icon: BarChart3, href: "/informes" },
     { label: "Clientes / Productoras", icon: Building2, href: "/clientes" },
   ];
-
-  const greetingName = user?.email?.split("@")[0]?.toUpperCase() ?? "EQUIPO";
 
   return (
     <div className="space-y-10">
