@@ -18,8 +18,8 @@ function useDashboardMetrics() {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
       const [ev, sol, conf, chk, inc] = await Promise.all([
-        supabase.from("events").select("id", { count: "exact", head: true }).in("status", ["publicado", "en_curso"]),
-        supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["solicitud_recibida", "en_revision"]),
+        supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "publicado"),
+        supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["solicitud_recibida", "lista_espera"]),
         supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["confirmado", "qr_generado", "acceso_validado"]),
         supabase.from("checkins").select("id", { count: "exact", head: true }).gte("checked_in_at", startOfDay.toISOString()),
         supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "abierta"),
