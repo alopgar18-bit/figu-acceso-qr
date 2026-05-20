@@ -315,8 +315,8 @@ function Page() {
               <Field label="Acompañantes" value={String(p.companions_count)} />
               <Field label="Aprobado" value={p.approved_at ? new Date(p.approved_at).toLocaleString("es-ES") : "—"} />
               <Field label="Confirmado" value={p.confirmed_at ? new Date(p.confirmed_at).toLocaleString("es-ES") : "—"} />
-              {payload.instagram && <Field label="Instagram" value={String(payload.instagram)} />}
-              {payload.notes && <Field label="Notas del solicitante" value={String(payload.notes)} />}
+              {payload.instagram ? <Field label="Instagram" value={String(payload.instagram)} /> : null}
+              {payload.notes ? <Field label="Notas del solicitante" value={String(payload.notes)} /> : null}
             </dl>
             {companions.length > 0 && (
               <div className="sm:col-span-3 border-t pt-3">
