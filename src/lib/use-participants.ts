@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import type { ParticipantStatus, AttendeeType } from "./participant-constants";
 
 export type ParticipantRow = Database["public"]["Tables"]["event_participants"]["Row"];
@@ -141,7 +141,7 @@ async function logAudit(action: string, participantId: string, eventId: string |
     event_id: eventId,
     actor_id: userData.user?.id ?? null,
     actor_email: userData.user?.email ?? null,
-    changes,
+    changes: changes as Json,
   });
 }
 
@@ -199,7 +199,7 @@ export function useBulkUpdateParticipants() {
           event_id: eventId,
           actor_id: userData.user?.id ?? null,
           actor_email: userData.user?.email ?? null,
-          changes: patch as unknown as Record<string, unknown>,
+          changes: patch as unknown as Json,
         })),
       );
     },
@@ -226,7 +226,7 @@ export function useBlockPerson() {
         entity_id: personId,
         actor_id: userData.user?.id ?? null,
         actor_email: userData.user?.email ?? null,
-        changes: { is_blocked: blocked, reason },
+        changes: { is_blocked: blocked, reason: reason ?? null } as Json,
       });
     },
     onSuccess: () => {
