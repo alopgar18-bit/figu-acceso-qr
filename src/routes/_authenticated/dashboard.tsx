@@ -230,6 +230,13 @@ function DashboardPage() {
         </div>
       </div>
 
+      {/* BLOQUE ONBOARDING — Solo para admin_figurarte */}
+      {roles.includes("admin_figurarte") && (
+        <section>
+          <AdminOnboardingBlock />
+        </section>
+      )}
+
       {/* BLOQUE 1 — Resumen operativo */}
       <section>
         <h2 className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-semibold mb-3">
