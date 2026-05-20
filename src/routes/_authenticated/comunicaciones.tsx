@@ -45,7 +45,6 @@ function Page() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<TemplateRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [sendOpen, setSendOpen] = useState(false);
 
   const { data: templates = [], isLoading: loadingTemplates } = useTemplates();
   const del = useDeleteTemplate();
