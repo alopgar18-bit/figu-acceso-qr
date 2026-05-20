@@ -34,6 +34,7 @@ import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
 import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
+import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
@@ -170,6 +171,12 @@ const AuthenticatedSolicitudesParticipantIdRoute =
     path: '/$participantId',
     getParentRoute: () => AuthenticatedSolicitudesRoute,
   } as any)
+const AuthenticatedImportacionesNuevaRoute =
+  AuthenticatedImportacionesNuevaRouteImport.update({
+    id: '/nueva',
+    path: '/nueva',
+    getParentRoute: () => AuthenticatedImportacionesRoute,
+  } as any)
 const AuthenticatedEventosNuevoRoute =
   AuthenticatedEventosNuevoRouteImport.update({
     id: '/nuevo',
@@ -211,7 +218,7 @@ export interface FileRoutesByFullPath {
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/eventos': typeof AuthenticatedEventosRouteWithChildren
-  '/importaciones': typeof AuthenticatedImportacionesRoute
+  '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/incidencias': typeof AuthenticatedIncidenciasRoute
   '/informes': typeof AuthenticatedInformesRoute
   '/legal': typeof AuthenticatedLegalRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByFullPath {
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
@@ -242,7 +250,7 @@ export interface FileRoutesByTo {
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/eventos': typeof AuthenticatedEventosRouteWithChildren
-  '/importaciones': typeof AuthenticatedImportacionesRoute
+  '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/incidencias': typeof AuthenticatedIncidenciasRoute
   '/informes': typeof AuthenticatedInformesRoute
   '/legal': typeof AuthenticatedLegalRoute
@@ -254,6 +262,7 @@ export interface FileRoutesByTo {
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
@@ -275,7 +284,7 @@ export interface FileRoutesById {
   '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/eventos': typeof AuthenticatedEventosRouteWithChildren
-  '/_authenticated/importaciones': typeof AuthenticatedImportacionesRoute
+  '/_authenticated/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/_authenticated/incidencias': typeof AuthenticatedIncidenciasRoute
   '/_authenticated/informes': typeof AuthenticatedInformesRoute
   '/_authenticated/legal': typeof AuthenticatedLegalRoute
@@ -287,6 +296,7 @@ export interface FileRoutesById {
   '/e/$slug': typeof ESlugRouteWithChildren
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/importaciones/nueva'
     | '/solicitudes/$participantId'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
@@ -351,6 +362,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/importaciones/nueva'
     | '/solicitudes/$participantId'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
@@ -383,6 +395,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
+    | '/_authenticated/importaciones/nueva'
     | '/_authenticated/solicitudes/$participantId'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
@@ -578,6 +591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSolicitudesParticipantIdRouteImport
       parentRoute: typeof AuthenticatedSolicitudesRoute
     }
+    '/_authenticated/importaciones/nueva': {
+      id: '/_authenticated/importaciones/nueva'
+      path: '/nueva'
+      fullPath: '/importaciones/nueva'
+      preLoaderRoute: typeof AuthenticatedImportacionesNuevaRouteImport
+      parentRoute: typeof AuthenticatedImportacionesRoute
+    }
     '/_authenticated/eventos/nuevo': {
       id: '/_authenticated/eventos/nuevo'
       path: '/nuevo'
@@ -651,6 +671,20 @@ const AuthenticatedEventosRouteChildren: AuthenticatedEventosRouteChildren = {
 const AuthenticatedEventosRouteWithChildren =
   AuthenticatedEventosRoute._addFileChildren(AuthenticatedEventosRouteChildren)
 
+interface AuthenticatedImportacionesRouteChildren {
+  AuthenticatedImportacionesNuevaRoute: typeof AuthenticatedImportacionesNuevaRoute
+}
+
+const AuthenticatedImportacionesRouteChildren: AuthenticatedImportacionesRouteChildren =
+  {
+    AuthenticatedImportacionesNuevaRoute: AuthenticatedImportacionesNuevaRoute,
+  }
+
+const AuthenticatedImportacionesRouteWithChildren =
+  AuthenticatedImportacionesRoute._addFileChildren(
+    AuthenticatedImportacionesRouteChildren,
+  )
+
 interface AuthenticatedSolicitudesRouteChildren {
   AuthenticatedSolicitudesParticipantIdRoute: typeof AuthenticatedSolicitudesParticipantIdRoute
 }
@@ -673,7 +707,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEventosRoute: typeof AuthenticatedEventosRouteWithChildren
-  AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRoute
+  AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRouteWithChildren
   AuthenticatedIncidenciasRoute: typeof AuthenticatedIncidenciasRoute
   AuthenticatedInformesRoute: typeof AuthenticatedInformesRoute
   AuthenticatedLegalRoute: typeof AuthenticatedLegalRoute
@@ -691,7 +725,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEventosRoute: AuthenticatedEventosRouteWithChildren,
-  AuthenticatedImportacionesRoute: AuthenticatedImportacionesRoute,
+  AuthenticatedImportacionesRoute: AuthenticatedImportacionesRouteWithChildren,
   AuthenticatedIncidenciasRoute: AuthenticatedIncidenciasRoute,
   AuthenticatedInformesRoute: AuthenticatedInformesRoute,
   AuthenticatedLegalRoute: AuthenticatedLegalRoute,
