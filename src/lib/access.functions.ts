@@ -1,0 +1,290 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+export type ValidationCode =
+  | "ok"
+  | "qr_ya_usado"
+  | "qr_no_valido"
+  | "qr_cancelado"
+  | "qr_otra_sesion"
+  | "qr_otro_evento"
+  | "no_confirmado"
+  | "persona_bloqueada"
+  | "incidencia";
+
+export interface ValidationResult {
+  code: ValidationCode;
+  message: string;
+  ticket?: { id: string; qr_payload: Json | null } | null;
+  participant?: {
+    id: string;
+    status: string;
+    companions_count: number;
+    attendee_type: string;
+    internal_notes: string | null;
+  } | null;
+  person?: {
+    id: string;
+    first_name: string;
+    last_name: string | null;
+    dni: string | null;
+    email: string | null;
+    phone: string | null;
+    is_blocked: boolean;
+    blocked_reason: string | null;
+  } | null;
+  checkin?: { id: string; checked_in_at: string } | null;
+}
+
+const validateSchema = z.object({
+  qrToken: z.string().trim().min(8).max(256),
+  sessionId: z.string().uuid(),
+  eventId: z.string().uuid(),
+  companionsValidated: z.number().int().min(0).max(50).optional(),
+  deviceInfo: z.string().max(300).optional(),
+});
+
+function msgFor(code: ValidationCode): string {
+  switch (code) {
+    case "ok": return "Acceso válido";
+    case "qr_ya_usado": return "QR ya usado";
+    case "qr_no_valido": return "QR no válido";
+    case "qr_cancelado": return "QR cancelado";
+    case "qr_otra_sesion": return "QR de otra sesión";
+    case "qr_otro_evento": return "QR de otro evento";
+    case "no_confirmado": return "Persona no confirmada";
+    case "persona_bloqueada": return "Persona bloqueada";
+    case "incidencia": return "Incidencia";
+  }
+}
+
+export const validateQr = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => validateSchema.parse(d))
+  .handler(async ({ data, context }): Promise<ValidationResult> => {
+    const { supabase, userId } = context;
+
+    const { data: ticket } = await supabase
+      .from("tickets")
+      .select("*")
+      .eq("qr_token", data.qrToken)
+      .maybeSingle();
+
+    if (!ticket) return { code: "qr_no_valido", message: msgFor("qr_no_valido") };
+    if (ticket.revoked) {
+      return { code: "qr_cancelado", message: msgFor("qr_cancelado"), ticket: { id: ticket.id, qr_payload: ticket.qr_payload } };
+    }
+    if (ticket.event_id !== data.eventId) {
+      return { code: "qr_otro_evento", message: msgFor("qr_otro_evento"), ticket: { id: ticket.id, qr_payload: ticket.qr_payload } };
+    }
+    if (ticket.session_id !== data.sessionId) {
+      return { code: "qr_otra_sesion", message: msgFor("qr_otra_sesion"), ticket: { id: ticket.id, qr_payload: ticket.qr_payload } };
+    }
+
+    const { data: participant } = await supabase
+      .from("event_participants")
+      .select("*, people(*)")
+      .eq("id", ticket.participant_id)
+      .maybeSingle();
+
+    if (!participant) return { code: "qr_no_valido", message: msgFor("qr_no_valido") };
+
+    const person = participant.people as ValidationResult["person"] | null;
+    if (person?.is_blocked) {
+      return {
+        code: "persona_bloqueada",
+        message: msgFor("persona_bloqueada"),
+        participant: { id: participant.id, status: participant.status, companions_count: participant.companions_count, attendee_type: participant.attendee_type, internal_notes: participant.internal_notes },
+        person,
+        ticket: { id: ticket.id, qr_payload: ticket.qr_payload },
+      };
+    }
+    if (!["confirmado", "qr_generado", "acceso_validado"].includes(participant.status)) {
+      return {
+        code: "no_confirmado",
+        message: msgFor("no_confirmado"),
+        participant: { id: participant.id, status: participant.status, companions_count: participant.companions_count, attendee_type: participant.attendee_type, internal_notes: participant.internal_notes },
+        person,
+      };
+    }
+
+    // Already used?
+    const { data: existing } = await supabase
+      .from("checkins")
+      .select("id, checked_in_at")
+      .eq("ticket_id", ticket.id)
+      .eq("result", "ok")
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      return {
+        code: "qr_ya_usado",
+        message: msgFor("qr_ya_usado"),
+        participant: { id: participant.id, status: participant.status, companions_count: participant.companions_count, attendee_type: participant.attendee_type, internal_notes: participant.internal_notes },
+        person,
+        ticket: { id: ticket.id, qr_payload: ticket.qr_payload },
+        checkin: { id: existing.id, checked_in_at: existing.checked_in_at },
+      };
+    }
+
+    // Insert checkin
+    const companionsInTicket =
+      ticket.qr_payload && typeof ticket.qr_payload === "object" && "includes" in (ticket.qr_payload as Record<string, unknown>)
+        ? Math.max(0, Number((ticket.qr_payload as Record<string, unknown>).includes) - 1)
+        : 0;
+    const companionsValidated = data.companionsValidated ?? companionsInTicket;
+
+    const { data: checkin, error: cErr } = await supabase
+      .from("checkins")
+      .insert({
+        participant_id: participant.id,
+        ticket_id: ticket.id,
+        event_id: ticket.event_id,
+        session_id: ticket.session_id,
+        validator_id: userId,
+        result: "ok",
+        companions_validated: companionsValidated,
+        device_info: data.deviceInfo ?? null,
+      } satisfies Database["public"]["Tables"]["checkins"]["Insert"])
+      .select("id, checked_in_at")
+      .single();
+    if (cErr) throw cErr;
+
+    await supabase
+      .from("event_participants")
+      .update({ status: "acceso_validado" })
+      .eq("id", participant.id);
+
+    await supabase.from("audit_logs").insert({
+      action: "checkin.qr",
+      entity_type: "checkin",
+      entity_id: checkin.id,
+      event_id: ticket.event_id,
+      session_id: ticket.session_id,
+      actor_id: userId,
+      changes: { ticket_id: ticket.id, companions_validated: companionsValidated, method: "qr" } as Json,
+    });
+
+    return {
+      code: "ok",
+      message: msgFor("ok"),
+      participant: { id: participant.id, status: "acceso_validado", companions_count: participant.companions_count, attendee_type: participant.attendee_type, internal_notes: participant.internal_notes },
+      person,
+      ticket: { id: ticket.id, qr_payload: ticket.qr_payload },
+      checkin,
+    };
+  });
+
+const manualSchema = z.object({
+  participantId: z.string().uuid(),
+  sessionId: z.string().uuid(),
+  eventId: z.string().uuid(),
+  reason: z.string().trim().min(3).max(500),
+  companionsValidated: z.number().int().min(0).max(50).optional(),
+});
+
+export const manualCheckin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => manualSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const { data: checkin, error } = await supabase
+      .from("checkins")
+      .insert({
+        participant_id: data.participantId,
+        event_id: data.eventId,
+        session_id: data.sessionId,
+        validator_id: userId,
+        result: "manual_override",
+        companions_validated: data.companionsValidated ?? 0,
+        notes: data.reason,
+      })
+      .select("id, checked_in_at")
+      .single();
+    if (error) throw error;
+
+    await supabase
+      .from("event_participants")
+      .update({ status: "acceso_validado" })
+      .eq("id", data.participantId);
+
+    await supabase.from("audit_logs").insert({
+      action: "checkin.manual",
+      entity_type: "checkin",
+      entity_id: checkin.id,
+      event_id: data.eventId,
+      session_id: data.sessionId,
+      actor_id: userId,
+      changes: { reason: data.reason, method: "manual_override" } as Json,
+    });
+    return { ok: true as const, checkin };
+  });
+
+const incidentSchema = z.object({
+  eventId: z.string().uuid(),
+  sessionId: z.string().uuid().optional().nullable(),
+  participantId: z.string().uuid().optional().nullable(),
+  title: z.string().trim().min(2).max(150),
+  description: z.string().trim().max(2000).optional().nullable(),
+  severity: z.enum(["baja", "media", "alta", "critica"]).default("media"),
+});
+
+export const createIncident = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => incidentSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: row, error } = await supabase
+      .from("incidents")
+      .insert({
+        event_id: data.eventId,
+        session_id: data.sessionId ?? null,
+        participant_id: data.participantId ?? null,
+        title: data.title,
+        description: data.description ?? null,
+        severity: data.severity,
+        status: "abierta",
+        reported_by: userId,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+
+    await supabase.from("audit_logs").insert({
+      action: "incident.create",
+      entity_type: "incident",
+      entity_id: row.id,
+      event_id: data.eventId,
+      session_id: data.sessionId ?? null,
+      actor_id: userId,
+      changes: { title: data.title, severity: data.severity } as Json,
+    });
+    return { ok: true as const, id: row.id };
+  });
+
+const searchSchema = z.object({
+  sessionId: z.string().uuid(),
+  query: z.string().trim().min(2).max(120),
+});
+
+export const searchSessionParticipants = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => searchSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: rows, error } = await supabase
+      .from("event_participants")
+      .select("id, status, companions_count, attendee_type, event_id, session_id, people(id, first_name, last_name, dni, email, phone, is_blocked)")
+      .eq("session_id", data.sessionId)
+      .limit(200);
+    if (error) throw error;
+    const q = data.query.toLowerCase();
+    return (rows ?? []).filter((r) => {
+      const p = r.people as { first_name?: string; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
+      if (!p) return false;
+      return [p.first_name, p.last_name, p.dni, p.email, p.phone].filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+    }).slice(0, 30);
+  });
