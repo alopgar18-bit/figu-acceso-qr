@@ -296,18 +296,14 @@ export const resolveIncident = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => resolveSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const patch: Record<string, unknown> = {
+    const isClosed = data.status === "resuelta" || data.status === "descartada";
+    const patch = {
       status: data.status,
       resolution: data.resolution ?? null,
       updated_at: new Date().toISOString(),
+      resolved_at: isClosed ? new Date().toISOString() : null,
+      resolved_by: isClosed ? userId : null,
     };
-    if (data.status === "resuelta" || data.status === "descartada") {
-      patch.resolved_at = new Date().toISOString();
-      patch.resolved_by = userId;
-    } else {
-      patch.resolved_at = null;
-      patch.resolved_by = null;
-    }
     const { data: row, error } = await supabase
       .from("incidents")
       .update(patch)
