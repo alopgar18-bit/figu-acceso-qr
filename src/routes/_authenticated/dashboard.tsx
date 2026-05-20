@@ -212,8 +212,6 @@ function DashboardPage() {
     { label: "Clientes / Productoras", icon: Building2, href: "/clientes" },
   ];
 
-  const greetingName = user?.email?.split("@")[0]?.toUpperCase() ?? "EQUIPO";
-
   return (
     <div className="space-y-10">
       {/* CABECERA */}
