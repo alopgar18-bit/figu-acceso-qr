@@ -8,6 +8,20 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+function translateAuthError(message: string): string {
+  const map: Record<string, string> = {
+    "Invalid login credentials": "Credenciales incorrectas. Revisa tu email y contraseña.",
+    "Email not confirmed": "El email no ha sido confirmado. Revisa tu bandeja de entrada.",
+    "User not found": "Usuario no encontrado.",
+    "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres.",
+    "Signup requires a valid password": "La contraseña no es válida.",
+    "An account already exists with this email": "Ya existe una cuenta con este email.",
+    "Email rate limit exceeded": "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+    "Request failed": "Error de conexión. Inténtalo de nuevo.",
+  };
+  return map[message] ?? message;
+}
+
 export type AppRole =
   | "superadmin"
   | "admin_figurarte"
@@ -80,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn: AuthContextValue["signIn"] = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    return { error: error ? translateAuthError(error.message) : null };
   };
 
   const signUp: AuthContextValue["signUp"] = async (email, password, fullName) => {
@@ -92,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: { full_name: fullName },
       },
     });
-    return { error: error?.message ?? null };
+    return { error: error ? translateAuthError(error.message) : null };
   };
 
   const signOut = async () => {

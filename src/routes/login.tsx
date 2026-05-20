@@ -27,7 +27,7 @@ function LoginPage() {
     const { error } = await signIn(loginEmail, loginPassword);
     setSubmitting(false);
     if (error) {
-      toast.error("No se pudo iniciar sesión", { description: error });
+      toast.error("Error al iniciar sesión", { description: error });
       return;
     }
     toast.success("Bienvenido a FIGURARTE Access");
