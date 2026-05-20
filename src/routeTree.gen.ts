@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedSolicitudesRouteImport } from './routes/_authenticated/solicitudes'
 import { Route as AuthenticatedSesionesRouteImport } from './routes/_authenticated/sesiones'
@@ -45,6 +46,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ESlugRoute = ESlugRouteImport.update({
+  id: '/e/$slug',
+  path: '/e/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
@@ -176,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/sesiones': typeof AuthenticatedSesionesRoute
   '/solicitudes': typeof AuthenticatedSolicitudesRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/e/$slug': typeof ESlugRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/sesiones': typeof AuthenticatedSesionesRoute
   '/solicitudes': typeof AuthenticatedSolicitudesRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/e/$slug': typeof ESlugRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
@@ -226,6 +234,7 @@ export interface FileRoutesById {
   '/_authenticated/sesiones': typeof AuthenticatedSesionesRoute
   '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
+  '/e/$slug': typeof ESlugRoute
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/_authenticated/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
@@ -252,6 +261,7 @@ export interface FileRouteTypes {
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
+    | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/$eventId/editar'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
+    | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/$eventId/editar'
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sesiones'
     | '/_authenticated/solicitudes'
     | '/_authenticated/usuarios'
+    | '/e/$slug'
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
     | '/_authenticated/eventos/$eventId/editar'
@@ -312,6 +324,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ESlugRoute: typeof ESlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -335,6 +348,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/e/$slug': {
+      id: '/e/$slug'
+      path: '/e/$slug'
+      fullPath: '/e/$slug'
+      preLoaderRoute: typeof ESlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/usuarios': {
@@ -559,7 +579,18 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ESlugRoute: ESlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
