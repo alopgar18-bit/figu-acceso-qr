@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireRole } from "./role-guards";
 
 const rowSchema = z.object({
   rowIndex: z.number().int().min(0),
@@ -59,6 +60,11 @@ export const commitImport = createServerFn({ method: "POST" })
   .inputValidator((input) => commitSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context;
+    await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+    ]);
     const actorEmail = (claims as { email?: string } | undefined)?.email ?? null;
 
     // 1. Create batch
