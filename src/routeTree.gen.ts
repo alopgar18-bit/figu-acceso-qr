@@ -33,6 +33,7 @@ import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authen
 import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticated/branding'
+import { Route as PortalEventosEventIdRouteImport } from './routes/portal.eventos.$eventId'
 import { Route as ESlugInscripcionRouteImport } from './routes/e.$slug.inscripcion'
 import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
 import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
@@ -173,6 +174,11 @@ const AuthenticatedBrandingRoute = AuthenticatedBrandingRouteImport.update({
   path: '/branding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const PortalEventosEventIdRoute = PortalEventosEventIdRouteImport.update({
+  id: '/$eventId',
+  path: '/$eventId',
+  getParentRoute: () => PortalEventosRoute,
+} as any)
 const ESlugInscripcionRoute = ESlugInscripcionRouteImport.update({
   id: '/inscripcion',
   path: '/inscripcion',
@@ -280,7 +286,7 @@ export interface FileRoutesByFullPath {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
-  '/portal/eventos': typeof PortalEventosRoute
+  '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal/': typeof PortalIndexRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -294,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
+  '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -319,7 +326,7 @@ export interface FileRoutesByTo {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
-  '/portal/eventos': typeof PortalEventosRoute
+  '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal': typeof PortalIndexRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -333,6 +340,7 @@ export interface FileRoutesByTo {
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
+  '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -361,7 +369,7 @@ export interface FileRoutesById {
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
-  '/portal/eventos': typeof PortalEventosRoute
+  '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -375,6 +383,7 @@ export interface FileRoutesById {
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
+  '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/_authenticated/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/_authenticated/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/_authenticated/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -417,6 +426,7 @@ export interface FileRouteTypes {
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
     | '/e/$slug/inscripcion'
+    | '/portal/eventos/$eventId'
     | '/eventos/$eventId/editar'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
@@ -456,6 +466,7 @@ export interface FileRouteTypes {
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
     | '/e/$slug/inscripcion'
+    | '/portal/eventos/$eventId'
     | '/eventos/$eventId/editar'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
@@ -497,6 +508,7 @@ export interface FileRouteTypes {
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
     | '/e/$slug/inscripcion'
+    | '/portal/eventos/$eventId'
     | '/_authenticated/eventos/$eventId/editar'
     | '/_authenticated/eventos/$eventId/sesiones/$sessionId'
     | '/_authenticated/eventos/$eventId/sesiones/nueva'
@@ -681,6 +693,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/branding'
       preLoaderRoute: typeof AuthenticatedBrandingRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/portal/eventos/$eventId': {
+      id: '/portal/eventos/$eventId'
+      path: '/$eventId'
+      fullPath: '/portal/eventos/$eventId'
+      preLoaderRoute: typeof PortalEventosEventIdRouteImport
+      parentRoute: typeof PortalEventosRoute
     }
     '/e/$slug/inscripcion': {
       id: '/e/$slug/inscripcion'
@@ -912,13 +931,25 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface PortalEventosRouteChildren {
+  PortalEventosEventIdRoute: typeof PortalEventosEventIdRoute
+}
+
+const PortalEventosRouteChildren: PortalEventosRouteChildren = {
+  PortalEventosEventIdRoute: PortalEventosEventIdRoute,
+}
+
+const PortalEventosRouteWithChildren = PortalEventosRoute._addFileChildren(
+  PortalEventosRouteChildren,
+)
+
 interface PortalRouteChildren {
-  PortalEventosRoute: typeof PortalEventosRoute
+  PortalEventosRoute: typeof PortalEventosRouteWithChildren
   PortalIndexRoute: typeof PortalIndexRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
-  PortalEventosRoute: PortalEventosRoute,
+  PortalEventosRoute: PortalEventosRouteWithChildren,
   PortalIndexRoute: PortalIndexRoute,
 }
 
