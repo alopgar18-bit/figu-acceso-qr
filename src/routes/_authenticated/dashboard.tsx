@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { AdminOnboardingBlock } from "@/components/admin-onboarding";
 import {
   CalendarDays, Inbox, CheckCircle2, ScanLine, AlertTriangle, Users,
   Plus, ExternalLink, ArrowRight, Mail, Upload, BarChart3, Building2,
@@ -228,6 +229,13 @@ function DashboardPage() {
           </Button>
         </div>
       </div>
+
+      {/* BLOQUE ONBOARDING — Solo para admin_figurarte */}
+      {roles.includes("admin_figurarte") && (
+        <section>
+          <AdminOnboardingBlock />
+        </section>
+      )}
 
       {/* BLOQUE 1 — Resumen operativo */}
       <section>
