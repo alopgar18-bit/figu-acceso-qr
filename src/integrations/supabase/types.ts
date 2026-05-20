@@ -584,49 +584,76 @@ export type Database = {
         Row: {
           allow_companions: boolean
           capacity: number
+          companions_qr_mode: Database["public"]["Enums"]["companions_qr_mode"]
           created_at: string
+          description: string | null
           doors_open_at: string | null
           ends_at: string | null
           event_id: string
           id: string
+          location_address: string | null
+          location_name: string | null
           max_companions_per_participant: number
+          max_validators: number
+          min_age: number
           name: string
           notes: string | null
+          public_form_enabled: boolean
+          specific_instructions: string | null
           starts_at: string
           status: Database["public"]["Enums"]["session_status"]
           updated_at: string
+          user_selectable: boolean
           waitlist_enabled: boolean
         }
         Insert: {
           allow_companions?: boolean
           capacity?: number
+          companions_qr_mode?: Database["public"]["Enums"]["companions_qr_mode"]
           created_at?: string
+          description?: string | null
           doors_open_at?: string | null
           ends_at?: string | null
           event_id: string
           id?: string
+          location_address?: string | null
+          location_name?: string | null
           max_companions_per_participant?: number
+          max_validators?: number
+          min_age?: number
           name: string
           notes?: string | null
+          public_form_enabled?: boolean
+          specific_instructions?: string | null
           starts_at: string
           status?: Database["public"]["Enums"]["session_status"]
           updated_at?: string
+          user_selectable?: boolean
           waitlist_enabled?: boolean
         }
         Update: {
           allow_companions?: boolean
           capacity?: number
+          companions_qr_mode?: Database["public"]["Enums"]["companions_qr_mode"]
           created_at?: string
+          description?: string | null
           doors_open_at?: string | null
           ends_at?: string | null
           event_id?: string
           id?: string
+          location_address?: string | null
+          location_name?: string | null
           max_companions_per_participant?: number
+          max_validators?: number
+          min_age?: number
           name?: string
           notes?: string | null
+          public_form_enabled?: boolean
+          specific_instructions?: string | null
           starts_at?: string
           status?: Database["public"]["Enums"]["session_status"]
           updated_at?: string
+          user_selectable?: boolean
           waitlist_enabled?: boolean
         }
         Relationships: [
@@ -641,61 +668,103 @@ export type Database = {
       }
       events: {
         Row: {
+          brand_color: string | null
+          city: string | null
           client_id: string | null
           cover_image_url: string | null
           created_at: string
           created_by: string | null
+          default_allow_companions: boolean
+          default_companions_qr_mode: Database["public"]["Enums"]["companions_qr_mode"]
+          default_max_companions: number
+          default_min_age: number
+          default_waitlist_enabled: boolean
           description: string | null
           ends_at: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          general_instructions: string | null
           id: string
           location_address: string | null
           location_name: string | null
+          logo_url: string | null
           name: string
+          province: string | null
+          public_registration_enabled: boolean
+          requires_approval: boolean
+          requires_confirmation: boolean
           requires_image_consent: boolean
           requires_recording: boolean
           slug: string | null
           starts_at: string | null
           status: Database["public"]["Enums"]["event_status"]
           updated_at: string
+          user_can_choose_session: boolean
         }
         Insert: {
+          brand_color?: string | null
+          city?: string | null
           client_id?: string | null
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
+          default_allow_companions?: boolean
+          default_companions_qr_mode?: Database["public"]["Enums"]["companions_qr_mode"]
+          default_max_companions?: number
+          default_min_age?: number
+          default_waitlist_enabled?: boolean
           description?: string | null
           ends_at?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          general_instructions?: string | null
           id?: string
           location_address?: string | null
           location_name?: string | null
+          logo_url?: string | null
           name: string
+          province?: string | null
+          public_registration_enabled?: boolean
+          requires_approval?: boolean
+          requires_confirmation?: boolean
           requires_image_consent?: boolean
           requires_recording?: boolean
           slug?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           updated_at?: string
+          user_can_choose_session?: boolean
         }
         Update: {
+          brand_color?: string | null
+          city?: string | null
           client_id?: string | null
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
+          default_allow_companions?: boolean
+          default_companions_qr_mode?: Database["public"]["Enums"]["companions_qr_mode"]
+          default_max_companions?: number
+          default_min_age?: number
+          default_waitlist_enabled?: boolean
           description?: string | null
           ends_at?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          general_instructions?: string | null
           id?: string
           location_address?: string | null
           location_name?: string | null
+          logo_url?: string | null
           name?: string
+          province?: string | null
+          public_registration_enabled?: boolean
+          requires_approval?: boolean
+          requires_confirmation?: boolean
           requires_image_consent?: boolean
           requires_recording?: boolean
           slug?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           updated_at?: string
+          user_can_choose_session?: boolean
         }
         Relationships: [
           {
@@ -1309,6 +1378,7 @@ export type Database = {
         | "fallido"
         | "programado"
         | "cancelado"
+      companions_qr_mode: "mismo_qr" | "qr_propio"
       consent_kind: "privacidad" | "imagen" | "futuros_procesos"
       event_status:
         | "borrador"
@@ -1521,6 +1591,7 @@ export const Constants = {
         "programado",
         "cancelado",
       ],
+      companions_qr_mode: ["mismo_qr", "qr_propio"],
       consent_kind: ["privacidad", "imagen", "futuros_procesos"],
       event_status: [
         "borrador",
