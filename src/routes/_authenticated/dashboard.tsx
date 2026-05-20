@@ -7,6 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const ROLE_LABELS: Record<string, string> = {
+  superadmin: "Superadministrador",
+  admin_figurarte: "Administrador FIGURARTE",
+  coordinador: "Coordinador",
+  validador: "Validador",
+  cliente_productora: "Cliente / Productora",
+};
+
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
@@ -38,7 +46,9 @@ function useDashboardMetrics() {
 
 function DashboardPage() {
   const { user, roles } = useAuth();
-  const rolesLabel = roles.length ? roles.join(", ") : "sin rol asignado";
+  const rolesLabel = roles.length
+    ? roles.map((r) => ROLE_LABELS[r] ?? r).join(" · ")
+    : "sin rol asignado";
   const { data, isLoading } = useDashboardMetrics();
 
   const stats = [
@@ -53,8 +63,8 @@ function DashboardPage() {
     <div>
       <PageHeader
         eyebrow="Panel principal"
-        title={`Hola, ${user?.email?.split("@")[0] ?? "equipo"}`}
-        description={`Tu sesión está activa con los siguientes roles: ${rolesLabel}.`}
+        title={`Hola, ${(user?.email?.split("@")[0] ?? "equipo").toUpperCase()}`}
+        description={`Rol: ${rolesLabel}`}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
