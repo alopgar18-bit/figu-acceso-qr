@@ -35,6 +35,7 @@ import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
 import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
+import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
@@ -177,6 +178,12 @@ const AuthenticatedImportacionesNuevaRoute =
     path: '/nueva',
     getParentRoute: () => AuthenticatedImportacionesRoute,
   } as any)
+const AuthenticatedImportacionesBatchIdRoute =
+  AuthenticatedImportacionesBatchIdRouteImport.update({
+    id: '/$batchId',
+    path: '/$batchId',
+    getParentRoute: () => AuthenticatedImportacionesRoute,
+  } as any)
 const AuthenticatedEventosNuevoRoute =
   AuthenticatedEventosNuevoRouteImport.update({
     id: '/nuevo',
@@ -230,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -262,6 +270,7 @@ export interface FileRoutesByTo {
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -296,6 +305,7 @@ export interface FileRoutesById {
   '/e/$slug': typeof ESlugRouteWithChildren
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/_authenticated/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -330,6 +340,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/solicitudes/$participantId'
     | '/e/$slug/cerrado'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/solicitudes/$participantId'
     | '/e/$slug/cerrado'
@@ -395,6 +407,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
+    | '/_authenticated/importaciones/$batchId'
     | '/_authenticated/importaciones/nueva'
     | '/_authenticated/solicitudes/$participantId'
     | '/e/$slug/cerrado'
@@ -598,6 +611,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedImportacionesNuevaRouteImport
       parentRoute: typeof AuthenticatedImportacionesRoute
     }
+    '/_authenticated/importaciones/$batchId': {
+      id: '/_authenticated/importaciones/$batchId'
+      path: '/$batchId'
+      fullPath: '/importaciones/$batchId'
+      preLoaderRoute: typeof AuthenticatedImportacionesBatchIdRouteImport
+      parentRoute: typeof AuthenticatedImportacionesRoute
+    }
     '/_authenticated/eventos/nuevo': {
       id: '/_authenticated/eventos/nuevo'
       path: '/nuevo'
@@ -672,11 +692,14 @@ const AuthenticatedEventosRouteWithChildren =
   AuthenticatedEventosRoute._addFileChildren(AuthenticatedEventosRouteChildren)
 
 interface AuthenticatedImportacionesRouteChildren {
+  AuthenticatedImportacionesBatchIdRoute: typeof AuthenticatedImportacionesBatchIdRoute
   AuthenticatedImportacionesNuevaRoute: typeof AuthenticatedImportacionesNuevaRoute
 }
 
 const AuthenticatedImportacionesRouteChildren: AuthenticatedImportacionesRouteChildren =
   {
+    AuthenticatedImportacionesBatchIdRoute:
+      AuthenticatedImportacionesBatchIdRoute,
     AuthenticatedImportacionesNuevaRoute: AuthenticatedImportacionesNuevaRoute,
   }
 
@@ -766,3 +789,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
