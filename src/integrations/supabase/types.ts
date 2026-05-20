@@ -1330,8 +1330,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      anonymize_person: {
+        Args: { _person_id: string; _reason?: string }
+        Returns: undefined
+      }
       client_user_has_event: {
         Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
+      has_any_assignment: { Args: { _user_id: string }; Returns: boolean }
+      has_any_role: {
+        Args: {
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _user_id: string
+        }
         Returns: boolean
       }
       has_event_assignment: {
@@ -1358,6 +1370,17 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      log_audit: {
+        Args: {
+          _action: string
+          _changes?: Json
+          _entity_id: string
+          _entity_type: string
+          _event_id?: string
+          _session_id?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role:
