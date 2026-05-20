@@ -30,6 +30,7 @@ import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
+import { Route as AuthenticatedEventosEventIdSesionesNuevaRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.nueva'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -143,6 +144,12 @@ const AuthenticatedEventosEventIdEditarRoute =
     path: '/editar',
     getParentRoute: () => AuthenticatedEventosEventIdRoute,
   } as any)
+const AuthenticatedEventosEventIdSesionesNuevaRoute =
+  AuthenticatedEventosEventIdSesionesNuevaRouteImport.update({
+    id: '/sesiones/nueva',
+    path: '/sesiones/nueva',
+    getParentRoute: () => AuthenticatedEventosEventIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
+  '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -187,6 +195,7 @@ export interface FileRoutesByTo {
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
+  '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -211,6 +220,7 @@ export interface FileRoutesById {
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/_authenticated/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
+  '/_authenticated/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/$eventId/editar'
+    | '/eventos/$eventId/sesiones/nueva'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/$eventId/editar'
+    | '/eventos/$eventId/sesiones/nueva'
   id:
     | '__root__'
     | '/'
@@ -280,6 +292,7 @@ export interface FileRouteTypes {
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
     | '/_authenticated/eventos/$eventId/editar'
+    | '/_authenticated/eventos/$eventId/sesiones/nueva'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -437,17 +450,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEventosEventIdEditarRouteImport
       parentRoute: typeof AuthenticatedEventosEventIdRoute
     }
+    '/_authenticated/eventos/$eventId/sesiones/nueva': {
+      id: '/_authenticated/eventos/$eventId/sesiones/nueva'
+      path: '/sesiones/nueva'
+      fullPath: '/eventos/$eventId/sesiones/nueva'
+      preLoaderRoute: typeof AuthenticatedEventosEventIdSesionesNuevaRouteImport
+      parentRoute: typeof AuthenticatedEventosEventIdRoute
+    }
   }
 }
 
 interface AuthenticatedEventosEventIdRouteChildren {
   AuthenticatedEventosEventIdEditarRoute: typeof AuthenticatedEventosEventIdEditarRoute
+  AuthenticatedEventosEventIdSesionesNuevaRoute: typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
 
 const AuthenticatedEventosEventIdRouteChildren: AuthenticatedEventosEventIdRouteChildren =
   {
     AuthenticatedEventosEventIdEditarRoute:
       AuthenticatedEventosEventIdEditarRoute,
+    AuthenticatedEventosEventIdSesionesNuevaRoute:
+      AuthenticatedEventosEventIdSesionesNuevaRoute,
   }
 
 const AuthenticatedEventosEventIdRouteWithChildren =
