@@ -78,10 +78,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Plataforma privada de gestión de eventos, accesos y QR de FIGURARTE Casting & Producción." },
       { name: "author", content: "FIGURARTE Casting & Producción" },
       { property: "og:title", content: "FIGURARTE Access" },
-      { property: "og:description", content: "Gestión de eventos, audiencia, invitaciones, QR y control de acceso." },
+      { property: "og:description", content: "Plataforma privada de gestión de eventos, accesos y QR de FIGURARTE Casting & Producción." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "FIGURARTE Access" },
+      { name: "twitter:description", content: "Plataforma privada de gestión de eventos, accesos y QR de FIGURARTE Casting & Producción." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/4bcdb372-0e17-41c3-bfed-2e3aa64605e7" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/4bcdb372-0e17-41c3-bfed-2e3aa64605e7" },
     ],
     links: [
       {
