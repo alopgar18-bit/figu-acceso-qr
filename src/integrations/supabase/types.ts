@@ -500,8 +500,10 @@ export type Database = {
           approved_by: string | null
           attendee_type: Database["public"]["Enums"]["attendee_type"]
           cancellation_reason: string | null
+          cancellation_reason_by_attendee: string | null
           cancelled_at: string | null
           companions_count: number
+          confirmation_token: string | null
           confirmed_at: string | null
           created_at: string
           event_id: string
@@ -518,8 +520,10 @@ export type Database = {
           approved_by?: string | null
           attendee_type?: Database["public"]["Enums"]["attendee_type"]
           cancellation_reason?: string | null
+          cancellation_reason_by_attendee?: string | null
           cancelled_at?: string | null
           companions_count?: number
+          confirmation_token?: string | null
           confirmed_at?: string | null
           created_at?: string
           event_id: string
@@ -536,8 +540,10 @@ export type Database = {
           approved_by?: string | null
           attendee_type?: Database["public"]["Enums"]["attendee_type"]
           cancellation_reason?: string | null
+          cancellation_reason_by_attendee?: string | null
           cancelled_at?: string | null
           companions_count?: number
+          confirmation_token?: string | null
           confirmed_at?: string | null
           created_at?: string
           event_id?: string
