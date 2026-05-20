@@ -115,7 +115,8 @@ export function AdminOnboardingBlock() {
             {steps.map((step, idx) => {
               const Icon = STEP_ICONS[idx] ?? Circle;
               const isDone = step.completed;
-              const isNext = !isDone && (idx === 1 || steps[idx - 1]?.completed);
+              const firstPendingIndex = steps.findIndex((s) => !s.completed);
+              const isNext = idx === firstPendingIndex;
 
               return (
                 <div
