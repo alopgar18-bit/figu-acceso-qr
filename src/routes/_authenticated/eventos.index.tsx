@@ -19,7 +19,7 @@ import {
   EVENT_STATUS_OPTIONS, EVENT_TYPE_OPTIONS, labelOf,
 } from "@/lib/event-constants";
 
-export const Route = createFileRoute("/_authenticated/eventos")({
+export const Route = createFileRoute("/_authenticated/eventos/")({
   component: Page,
 });
 
