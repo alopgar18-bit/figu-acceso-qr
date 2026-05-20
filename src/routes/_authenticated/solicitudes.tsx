@@ -454,9 +454,9 @@ function BulkActionsBar({
   selectedIds, rows, clear,
 }: {
   selectedIds: string[];
-  rows: ReturnType<typeof useParticipants>["data"] extends infer T ? (T extends Array<infer U> ? U : never) : never;
-  // hack: keep ts happy; we just need rows for export.
-} & { rows: import("@/lib/use-participants").ParticipantWithRelations[]; clear: () => void }) {
+  rows: import("@/lib/use-participants").ParticipantWithRelations[];
+  clear: () => void;
+}) {
   const selectedRows = rows.filter((r) => selectedIds.includes(r.id));
   const eventIds = new Set(selectedRows.map((r) => r.event_id));
   const singleEventId = eventIds.size === 1 ? [...eventIds][0] : null;
