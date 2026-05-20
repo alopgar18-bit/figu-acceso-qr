@@ -15,6 +15,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as PortalInformesRouteImport } from './routes/portal.informes'
+import { Route as PortalIncidenciasRouteImport } from './routes/portal.incidencias'
 import { Route as PortalEventosRouteImport } from './routes/portal.eventos'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as CTokenRouteImport } from './routes/c.$token'
@@ -77,6 +79,16 @@ const IndexRoute = IndexRouteImport.update({
 const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalInformesRoute = PortalInformesRouteImport.update({
+  id: '/informes',
+  path: '/informes',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalIncidenciasRoute = PortalIncidenciasRouteImport.update({
+  id: '/incidencias',
+  path: '/incidencias',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalEventosRoute = PortalEventosRouteImport.update({
@@ -287,6 +299,8 @@ export interface FileRoutesByFullPath {
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
   '/portal/eventos': typeof PortalEventosRouteWithChildren
+  '/portal/incidencias': typeof PortalIncidenciasRoute
+  '/portal/informes': typeof PortalInformesRoute
   '/portal/': typeof PortalIndexRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -327,6 +341,8 @@ export interface FileRoutesByTo {
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
   '/portal/eventos': typeof PortalEventosRouteWithChildren
+  '/portal/incidencias': typeof PortalIncidenciasRoute
+  '/portal/informes': typeof PortalInformesRoute
   '/portal': typeof PortalIndexRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -370,6 +386,8 @@ export interface FileRoutesById {
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
   '/portal/eventos': typeof PortalEventosRouteWithChildren
+  '/portal/incidencias': typeof PortalIncidenciasRoute
+  '/portal/informes': typeof PortalInformesRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -413,6 +431,8 @@ export interface FileRouteTypes {
     | '/c/$token'
     | '/e/$slug'
     | '/portal/eventos'
+    | '/portal/incidencias'
+    | '/portal/informes'
     | '/portal/'
     | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
@@ -453,6 +473,8 @@ export interface FileRouteTypes {
     | '/c/$token'
     | '/e/$slug'
     | '/portal/eventos'
+    | '/portal/incidencias'
+    | '/portal/informes'
     | '/portal'
     | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
@@ -495,6 +517,8 @@ export interface FileRouteTypes {
     | '/c/$token'
     | '/e/$slug'
     | '/portal/eventos'
+    | '/portal/incidencias'
+    | '/portal/informes'
     | '/portal/'
     | '/_authenticated/control-acceso/$sessionId'
     | '/_authenticated/eventos/$eventId'
@@ -566,6 +590,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/portal/'
       preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/informes': {
+      id: '/portal/informes'
+      path: '/informes'
+      fullPath: '/portal/informes'
+      preLoaderRoute: typeof PortalInformesRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/incidencias': {
+      id: '/portal/incidencias'
+      path: '/incidencias'
+      fullPath: '/portal/incidencias'
+      preLoaderRoute: typeof PortalIncidenciasRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/eventos': {
@@ -945,11 +983,15 @@ const PortalEventosRouteWithChildren = PortalEventosRoute._addFileChildren(
 
 interface PortalRouteChildren {
   PortalEventosRoute: typeof PortalEventosRouteWithChildren
+  PortalIncidenciasRoute: typeof PortalIncidenciasRoute
+  PortalInformesRoute: typeof PortalInformesRoute
   PortalIndexRoute: typeof PortalIndexRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
   PortalEventosRoute: PortalEventosRouteWithChildren,
+  PortalIncidenciasRoute: PortalIncidenciasRoute,
+  PortalInformesRoute: PortalInformesRoute,
   PortalIndexRoute: PortalIndexRoute,
 }
 
@@ -997,3 +1039,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
