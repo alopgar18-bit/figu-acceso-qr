@@ -121,7 +121,7 @@ function Page() {
       <ClientDialog
         open={open || !!editingClient}
         client={editingClient}
-        onOpenChange={(nextOpen) => {
+        onOpenChange={(nextOpen: boolean) => {
           if (!nextOpen) {
             setOpen(false);
             setEditingClient(null);
@@ -135,15 +135,25 @@ function Page() {
   );
 }
 
-function CreateClientDialog({
-  open, onOpenChange, onCreated,
-}: { open: boolean; onOpenChange: (v: boolean) => void; onCreated: () => void }) {
+function ClientDialog({
+  open, client, onOpenChange, onSaved,
+}: { open: boolean; client: ClientRow | null; onOpenChange: (v: boolean) => void; onSaved: () => void }) {
   const [name, setName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [perms, setPerms] = useState<Permissions>(DEFAULT_PERMS);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(client?.name ?? "");
+    setContactName("");
+    setContactEmail(client?.contact_email ?? "");
+    setContactPhone(client?.contact_phone ?? "");
+    setNotes(client?.notes ?? "");
+    setPerms({ ...DEFAULT_PERMS, ...((client?.visibility_permissions as Partial<Permissions> | null) ?? {}) });
+  }, [client, open]);
 
   const reset = () => {
     setName(""); setContactName(""); setContactEmail("");
@@ -162,22 +172,26 @@ function CreateClientDialog({
         ? `Contacto: ${contactName}${notes ? `\n\n${notes}` : ""}`
         : (notes || null);
 
-      const { data, error } = await supabase.from("clients").insert({
+      const values = {
         name: parsed.data.name,
         contact_email: parsed.data.contact_email || null,
         contact_phone: parsed.data.contact_phone || null,
         notes: contactNotes,
         is_active: true,
         visibility_permissions: perms,
-      }).select().single();
+      };
+      const query = client
+        ? supabase.from("clients").update(values).eq("id", client.id)
+        : supabase.from("clients").insert(values);
+      const { data, error } = await query.select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      toast.success("Cliente creado");
+      toast.success(client ? "Cliente actualizado" : "Cliente creado");
       reset();
       onOpenChange(false);
-      onCreated();
+      onSaved();
     },
     onError: (e: Error) => toast.error(e.message),
   });
