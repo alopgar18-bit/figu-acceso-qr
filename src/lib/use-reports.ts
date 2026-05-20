@@ -1,0 +1,226 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { ParticipantStatus } from "./participant-constants";
+import { APPROVED_LIKE } from "./participant-constants";
+
+export type ReportScope = { eventId: string; sessionId?: string };
+
+const CONFIRMED_LIKE: ParticipantStatus[] = ["confirmado", "qr_generado", "acceso_validado"];
+const CANCELLED_LIKE: ParticipantStatus[] = ["cancelado_asistente", "cancelado_figurarte"];
+
+export interface ReportData {
+  event: { id: string; name: string; status: string; starts_at: string | null; ends_at: string | null; location_name: string | null; city: string | null };
+  sessions: Array<{
+    id: string;
+    name: string;
+    starts_at: string;
+    capacity: number;
+    stats: SessionStats;
+  }>;
+  totals: SessionStats & {
+    capacidad: number;
+    ocupacion: number;
+    communicationsSent: number;
+    communicationsErrors: number;
+    incidents: number;
+    lastCheckins: Array<{ at: string; name: string }>;
+    activeValidators: number;
+    duplicateAttempts: number;
+  };
+  participants: ParticipantExportRow[];
+}
+
+export interface SessionStats {
+  solicitudes: number;
+  pendientes: number;
+  aprobados: number;
+  rechazados: number;
+  listaEspera: number;
+  confirmados: number;
+  cancelados: number;
+  checkins: number;
+  noPresentados: number;
+  incidencias: number;
+  personasConfirmadas: number;
+}
+
+export interface ParticipantExportRow {
+  event_name: string;
+  session_name: string;
+  first_name: string;
+  last_name: string;
+  dni: string;
+  email: string;
+  phone: string;
+  status: string;
+  attendee_type: string;
+  companions: number;
+  confirmed: string;
+  confirmed_at: string;
+  qr_generated: string;
+  checkin: string;
+  checkin_at: string;
+  validator: string;
+  incidents: number;
+  consent_privacy: string;
+  consent_image: string;
+  consent_future: string;
+}
+
+function emptyStats(): SessionStats {
+  return {
+    solicitudes: 0, pendientes: 0, aprobados: 0, rechazados: 0,
+    listaEspera: 0, confirmados: 0, cancelados: 0, checkins: 0,
+    noPresentados: 0, incidencias: 0, personasConfirmadas: 0,
+  };
+}
+
+export function useEventReport(scope: ReportScope | null) {
+  return useQuery({
+    queryKey: ["report", scope?.eventId, scope?.sessionId ?? "all"],
+    enabled: !!scope?.eventId,
+    refetchInterval: 10_000,
+    queryFn: async (): Promise<ReportData> => {
+      const { eventId, sessionId } = scope!;
+      const [evt, sessions, participants, checkins, comms, incidents, consents] = await Promise.all([
+        supabase.from("events").select("id, name, status, starts_at, ends_at, location_name, city").eq("id", eventId).single(),
+        supabase.from("event_sessions").select("id, name, starts_at, capacity").eq("event_id", eventId).order("starts_at"),
+        supabase.from("event_participants")
+          .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
+          .eq("event_id", eventId),
+        supabase.from("checkins")
+          .select("id, participant_id, validator_id, checked_in_at, session_id, profiles:validator_id(full_name, email)")
+          .eq("event_id", eventId)
+          .order("checked_in_at", { ascending: false }),
+        supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId),
+        supabase.from("incidents").select("id, participant_id, session_id, incident_type").eq("event_id", eventId),
+        supabase.from("consent_records").select("participant_id, consent_kind, accepted"),
+      ]);
+
+      if (evt.error) throw evt.error;
+
+      const allSessions = (sessions.data ?? []).filter((s) => !sessionId || s.id === sessionId);
+      const sessionIds = new Set(allSessions.map((s) => s.id));
+      const parts = (participants.data ?? []).filter((p) => !sessionId || sessionIds.has(p.session_id));
+      const allCheckins = (checkins.data ?? []).filter((c) => !sessionId || sessionIds.has(c.session_id));
+      const allComms = (comms.data ?? []).filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
+      const allIncidents = (incidents.data ?? []).filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
+
+      const checkinByParticipant = new Map<string, typeof allCheckins[number]>();
+      for (const c of allCheckins) {
+        if (!checkinByParticipant.has(c.participant_id)) checkinByParticipant.set(c.participant_id, c);
+      }
+
+      const incidentsByParticipant = new Map<string, number>();
+      let duplicateAttempts = 0;
+      for (const i of allIncidents) {
+        if (i.participant_id) incidentsByParticipant.set(i.participant_id, (incidentsByParticipant.get(i.participant_id) ?? 0) + 1);
+        if (i.incident_type === "qr_ya_usado") duplicateAttempts += 1;
+      }
+
+      const consentsByPerson = new Map<string, { privacy?: boolean; image?: boolean; future?: boolean }>();
+      for (const c of consents.data ?? []) {
+        if (!c.participant_id) continue;
+        const cur = consentsByPerson.get(c.participant_id) ?? {};
+        if (c.consent_kind === "privacidad") cur.privacy = c.accepted;
+        else if (c.consent_kind === "imagen") cur.image = c.accepted;
+        else if (c.consent_kind === "futuros_procesos") cur.future = c.accepted;
+        consentsByPerson.set(c.participant_id, cur);
+      }
+
+      const statsBySession = new Map<string, SessionStats>();
+      for (const s of allSessions) statsBySession.set(s.id, emptyStats());
+
+      for (const p of parts) {
+        const s = statsBySession.get(p.session_id);
+        if (!s) continue;
+        s.solicitudes += 1;
+        if (["solicitud_recibida", "pendiente_revision"].includes(p.status)) s.pendientes += 1;
+        if (APPROVED_LIKE.includes(p.status)) s.aprobados += 1;
+        if (p.status === "rechazado") s.rechazados += 1;
+        if (p.status === "lista_espera") s.listaEspera += 1;
+        if (CONFIRMED_LIKE.includes(p.status)) {
+          s.confirmados += 1;
+          s.personasConfirmadas += 1 + (p.companions_count ?? 0);
+        }
+        if (CANCELLED_LIKE.includes(p.status)) s.cancelados += 1;
+        if (p.status === "acceso_validado") s.checkins += 1;
+        if (p.status === "no_presentado") s.noPresentados += 1;
+        s.incidencias += incidentsByParticipant.get(p.id) ?? 0;
+      }
+
+      const totals: ReportData["totals"] = {
+        ...emptyStats(),
+        capacidad: 0,
+        ocupacion: 0,
+        communicationsSent: allComms.filter((c) => c.status === "enviado").length,
+        communicationsErrors: allComms.filter((c) => c.status === "fallido").length,
+        incidents: allIncidents.length,
+        lastCheckins: allCheckins.slice(0, 10).map((c) => {
+          const part = parts.find((p) => p.id === c.participant_id);
+          const name = part?.people ? `${part.people.first_name ?? ""} ${part.people.last_name ?? ""}`.trim() : "—";
+          return { at: c.checked_in_at, name };
+        }),
+        activeValidators: new Set(allCheckins.map((c) => c.validator_id).filter(Boolean)).size,
+        duplicateAttempts,
+      };
+      for (const s of allSessions) {
+        const st = statsBySession.get(s.id)!;
+        totals.solicitudes += st.solicitudes;
+        totals.pendientes += st.pendientes;
+        totals.aprobados += st.aprobados;
+        totals.rechazados += st.rechazados;
+        totals.listaEspera += st.listaEspera;
+        totals.confirmados += st.confirmados;
+        totals.cancelados += st.cancelados;
+        totals.checkins += st.checkins;
+        totals.noPresentados += st.noPresentados;
+        totals.incidencias += st.incidencias;
+        totals.personasConfirmadas += st.personasConfirmadas;
+        totals.capacidad += s.capacity ?? 0;
+      }
+      totals.ocupacion = totals.capacidad ? Math.round((totals.personasConfirmadas / totals.capacidad) * 100) : 0;
+
+      const validatorById = new Map<string, string>();
+      for (const c of allCheckins) {
+        const prof = c.profiles as { full_name?: string | null; email?: string | null } | null;
+        if (c.validator_id && prof) validatorById.set(c.validator_id, prof.full_name ?? prof.email ?? "—");
+      }
+
+      const exportRows: ParticipantExportRow[] = parts.map((p) => {
+        const ci = checkinByParticipant.get(p.id);
+        const cons = consentsByPerson.get(p.id) ?? {};
+        const person = p.people as { first_name?: string; last_name?: string; dni?: string; email?: string; phone?: string } | null;
+        return {
+          event_name: evt.data.name,
+          session_name: (p.event_sessions as { name?: string } | null)?.name ?? "",
+          first_name: person?.first_name ?? "",
+          last_name: person?.last_name ?? "",
+          dni: person?.dni ?? "",
+          email: person?.email ?? "",
+          phone: person?.phone ?? "",
+          status: p.status,
+          attendee_type: p.attendee_type,
+          companions: p.companions_count ?? 0,
+          confirmed: CONFIRMED_LIKE.includes(p.status) ? "Sí" : "No",
+          confirmed_at: p.confirmed_at ?? "",
+          qr_generated: ["qr_generado", "acceso_validado"].includes(p.status) ? "Sí" : "No",
+          checkin: ci ? "Sí" : "No",
+          checkin_at: ci?.checked_in_at ?? "",
+          validator: ci?.validator_id ? validatorById.get(ci.validator_id) ?? "" : "",
+          incidents: incidentsByParticipant.get(p.id) ?? 0,
+          consent_privacy: cons.privacy === true ? "Sí" : cons.privacy === false ? "No" : "—",
+          consent_image: cons.image === true ? "Sí" : cons.image === false ? "No" : "—",
+          consent_future: cons.future === true ? "Sí" : cons.future === false ? "No" : "—",
+        };
+      });
+
+      return {
+        event: evt.data,
+        sessions: allSessions.map((s) => ({ ...s, stats: statsBySession.get(s.id)! })),
+        totals,
+        participants: exportRows,
+      };
+    },
+  });
+}
