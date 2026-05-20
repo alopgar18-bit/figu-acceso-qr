@@ -34,7 +34,7 @@ function PortalDashboard() {
     { label: "Eventos asignados", value: events.length, icon: CalendarDays },
     { label: "Activos", value: active, icon: CheckCircle2 },
     { label: "Próximos", value: upcoming.length, icon: Users },
-    { label: "Cliente", value: ctx?.clientName ?? "—", icon: ScanLine, small: true },
+    { label: "Cliente", value: hasClientName ? rawClientName : "Sin cliente", icon: ScanLine, small: true },
   ];
 
   return (
