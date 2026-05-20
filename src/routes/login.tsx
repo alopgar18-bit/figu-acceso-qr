@@ -5,7 +5,6 @@ import wordmark from "@/assets/figurarte-logo-dark.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/login")({
@@ -13,16 +12,12 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { session, loading, signIn, signUp } = useAuth();
+  const { session, loading, signIn } = useAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [signupName, setSignupName] = useState("");
 
   if (!loading && session) return <Navigate to="/dashboard" />;
 
@@ -37,21 +32,6 @@ function LoginPage() {
     }
     toast.success("Bienvenido a FIGURARTE Access");
     navigate({ to: "/dashboard" });
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    const { error } = await signUp(signupEmail, signupPassword, signupName);
-    setSubmitting(false);
-    if (error) {
-      toast.error("No se pudo crear la cuenta", { description: error });
-      return;
-    }
-    toast.success("Cuenta creada", {
-      description:
-        "Revisa tu correo para verificar. Un administrador debe asignar tu rol antes de operar.",
-    });
   };
 
   return (
@@ -100,85 +80,36 @@ function LoginPage() {
             Introduce tus credenciales del equipo FIGURARTE.
           </p>
 
-          <Tabs defaultValue="login" className="mt-8">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
-              <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4 mt-6">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Correo electrónico</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Contraseña</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                  />
-                </div>
-                <Button type="submit" className="w-full uppercase tracking-wider" disabled={submitting}>
-                  {submitting ? "Entrando…" : "Entrar"}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4 mt-6">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nombre completo</Label>
-                  <Input
-                    id="signup-name"
-                    required
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Correo electrónico</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Contraseña</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={8}
-                    required
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Mínimo 8 caracteres. Un administrador asignará tu rol después del registro.
-                  </p>
-                </div>
-                <Button type="submit" className="w-full uppercase tracking-wider" disabled={submitting}>
-                  {submitting ? "Creando…" : "Crear cuenta"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={handleLogin} className="space-y-4 mt-8">
+            <div className="space-y-2">
+              <Label htmlFor="login-email">Correo electrónico</Label>
+              <Input
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                required
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="login-password">Contraseña</Label>
+              <Input
+                id="login-password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+              />
+            </div>
+            <Button type="submit" className="w-full uppercase tracking-wider" disabled={submitting}>
+              {submitting ? "Entrando…" : "Entrar"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              El registro está cerrado. Solicita acceso a un administrador de FIGURARTE.
+            </p>
+          </form>
 
           <p className="mt-8 text-xs text-muted-foreground leading-relaxed">
             Esta plataforma está reservada al equipo de FIGURARTE y a clientes
