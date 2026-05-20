@@ -12,8 +12,18 @@ export const Route = createFileRoute("/portal/")({
 });
 
 function PortalDashboard() {
+  const { user } = useAuth();
   const { data: ctx } = useClientContext();
   const { data: events = [], isLoading } = useClientEvents(ctx?.clientId);
+
+  const rawClientName = ctx?.clientName;
+  const hasClientName = rawClientName && rawClientName !== "—" && rawClientName.trim().length > 1;
+  const userName = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[1] || "";
+  const greetingName = hasClientName
+    ? rawClientName
+    : userName
+      ? userName
+      : "bienvenido";
 
   const active = events.filter((e) => e.status === "publicado").length;
   const upcoming = events
