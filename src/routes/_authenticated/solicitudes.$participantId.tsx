@@ -31,6 +31,7 @@ import {
   statusLabel, ageFromBirth,
 } from "@/lib/participant-constants";
 import type { Database } from "@/integrations/supabase/types";
+import { SendCommunicationDialog, type CommRecipient } from "@/components/send-communication-dialog";
 
 type Status = Database["public"]["Enums"]["participant_status"];
 type Attendee = Database["public"]["Enums"]["attendee_type"];
@@ -57,6 +58,7 @@ function Page() {
   const [targetSession, setTargetSession] = useState("");
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockReason, setBlockReason] = useState("");
+  const [commOpen, setCommOpen] = useState(false);
 
   if (isLoading || !p) {
     return (
@@ -192,7 +194,9 @@ function Page() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" disabled title="Próximamente"><Mail className="h-4 w-4 mr-1" />Enviar comunicación</Button>
+          <Button variant="outline" onClick={() => setCommOpen(true)}>
+            <Mail className="h-4 w-4 mr-1" />Enviar comunicación
+          </Button>
           <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="ml-auto">
