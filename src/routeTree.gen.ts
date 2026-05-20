@@ -43,6 +43,7 @@ import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
 import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
+import { Route as AuthenticatedInformesEventIdRouteImport } from './routes/_authenticated/informes.$eventId'
 import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
 import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
@@ -227,6 +228,12 @@ const AuthenticatedSolicitudesParticipantIdRoute =
     path: '/$participantId',
     getParentRoute: () => AuthenticatedSolicitudesRoute,
   } as any)
+const AuthenticatedInformesEventIdRoute =
+  AuthenticatedInformesEventIdRouteImport.update({
+    id: '/$eventId',
+    path: '/$eventId',
+    getParentRoute: () => AuthenticatedInformesRoute,
+  } as any)
 const AuthenticatedImportacionesNuevaRoute =
   AuthenticatedImportacionesNuevaRouteImport.update({
     id: '/nueva',
@@ -289,7 +296,7 @@ export interface FileRoutesByFullPath {
   '/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/incidencias': typeof AuthenticatedIncidenciasRoute
-  '/informes': typeof AuthenticatedInformesRoute
+  '/informes': typeof AuthenticatedInformesRouteWithChildren
   '/legal': typeof AuthenticatedLegalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
@@ -307,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
+  '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
@@ -331,7 +339,7 @@ export interface FileRoutesByTo {
   '/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/incidencias': typeof AuthenticatedIncidenciasRoute
-  '/informes': typeof AuthenticatedInformesRoute
+  '/informes': typeof AuthenticatedInformesRouteWithChildren
   '/legal': typeof AuthenticatedLegalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
@@ -349,6 +357,7 @@ export interface FileRoutesByTo {
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
+  '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
@@ -376,7 +385,7 @@ export interface FileRoutesById {
   '/_authenticated/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/_authenticated/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/_authenticated/incidencias': typeof AuthenticatedIncidenciasRoute
-  '/_authenticated/informes': typeof AuthenticatedInformesRoute
+  '/_authenticated/informes': typeof AuthenticatedInformesRouteWithChildren
   '/_authenticated/legal': typeof AuthenticatedLegalRoute
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
@@ -394,6 +403,7 @@ export interface FileRoutesById {
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/_authenticated/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
+  '/_authenticated/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
@@ -439,6 +449,7 @@ export interface FileRouteTypes {
     | '/eventos/nuevo'
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
+    | '/informes/$eventId'
     | '/solicitudes/$participantId'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
@@ -481,6 +492,7 @@ export interface FileRouteTypes {
     | '/eventos/nuevo'
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
+    | '/informes/$eventId'
     | '/solicitudes/$participantId'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
@@ -525,6 +537,7 @@ export interface FileRouteTypes {
     | '/_authenticated/eventos/nuevo'
     | '/_authenticated/importaciones/$batchId'
     | '/_authenticated/importaciones/nueva'
+    | '/_authenticated/informes/$eventId'
     | '/_authenticated/solicitudes/$participantId'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
@@ -788,6 +801,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSolicitudesParticipantIdRouteImport
       parentRoute: typeof AuthenticatedSolicitudesRoute
     }
+    '/_authenticated/informes/$eventId': {
+      id: '/_authenticated/informes/$eventId'
+      path: '/$eventId'
+      fullPath: '/informes/$eventId'
+      preLoaderRoute: typeof AuthenticatedInformesEventIdRouteImport
+      parentRoute: typeof AuthenticatedInformesRoute
+    }
     '/_authenticated/importaciones/nueva': {
       id: '/_authenticated/importaciones/nueva'
       path: '/nueva'
@@ -914,6 +934,19 @@ const AuthenticatedImportacionesRouteWithChildren =
     AuthenticatedImportacionesRouteChildren,
   )
 
+interface AuthenticatedInformesRouteChildren {
+  AuthenticatedInformesEventIdRoute: typeof AuthenticatedInformesEventIdRoute
+}
+
+const AuthenticatedInformesRouteChildren: AuthenticatedInformesRouteChildren = {
+  AuthenticatedInformesEventIdRoute: AuthenticatedInformesEventIdRoute,
+}
+
+const AuthenticatedInformesRouteWithChildren =
+  AuthenticatedInformesRoute._addFileChildren(
+    AuthenticatedInformesRouteChildren,
+  )
+
 interface AuthenticatedSolicitudesRouteChildren {
   AuthenticatedSolicitudesParticipantIdRoute: typeof AuthenticatedSolicitudesParticipantIdRoute
 }
@@ -938,7 +971,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedEventosRoute: typeof AuthenticatedEventosRouteWithChildren
   AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRouteWithChildren
   AuthenticatedIncidenciasRoute: typeof AuthenticatedIncidenciasRoute
-  AuthenticatedInformesRoute: typeof AuthenticatedInformesRoute
+  AuthenticatedInformesRoute: typeof AuthenticatedInformesRouteWithChildren
   AuthenticatedLegalRoute: typeof AuthenticatedLegalRoute
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
   AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
@@ -956,7 +989,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedEventosRoute: AuthenticatedEventosRouteWithChildren,
   AuthenticatedImportacionesRoute: AuthenticatedImportacionesRouteWithChildren,
   AuthenticatedIncidenciasRoute: AuthenticatedIncidenciasRoute,
-  AuthenticatedInformesRoute: AuthenticatedInformesRoute,
+  AuthenticatedInformesRoute: AuthenticatedInformesRouteWithChildren,
   AuthenticatedLegalRoute: AuthenticatedLegalRoute,
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
   AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
