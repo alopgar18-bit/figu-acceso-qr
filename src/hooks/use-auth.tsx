@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn: AuthContextValue["signIn"] = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    return { error: error ? translateAuthError(error.message) : null };
   };
 
   const signUp: AuthContextValue["signUp"] = async (email, password, fullName) => {
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: { full_name: fullName },
       },
     });
-    return { error: error?.message ?? null };
+    return { error: error ? translateAuthError(error.message) : null };
   };
 
   const signOut = async () => {
