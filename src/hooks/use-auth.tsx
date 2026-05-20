@@ -8,6 +8,13 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+type Profile = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
 function translateAuthError(message: string): string {
   const map: Record<string, string> = {
     "Invalid login credentials": "Credenciales incorrectas. Revisa tu email y contraseña.",
@@ -32,6 +39,7 @@ export type AppRole =
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
+  profile: Profile | null;
   roles: AppRole[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -50,6 +58,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -73,6 +82,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles((data ?? []).map((r: { role: AppRole }) => r.role));
   };
 
+  const loadProfile = async (userId: string | undefined) => {
+    if (!userId) {
+      setProfile(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, phone")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) {
+      console.error("[auth] profile load failed", error);
+      setProfile(null);
+      return;
+    }
+    setProfile(data);
+  };
+
   useEffect(() => {
     const {
       data: { subscription },
@@ -80,13 +107,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       // Defer Supabase calls outside the callback
       setTimeout(() => {
-        void loadRoles(newSession?.user?.id);
+        void Promise.all([loadRoles(newSession?.user?.id), loadProfile(newSession?.user?.id)]);
       }, 0);
     });
 
     supabase.auth.getSession().then(({ data: { session: existing } }) => {
       setSession(existing);
-      void loadRoles(existing?.user?.id).finally(() => setLoading(false));
+      void Promise.all([loadRoles(existing?.user?.id), loadProfile(existing?.user?.id)]).finally(() => setLoading(false));
     });
 
     return () => subscription.unsubscribe();
@@ -116,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     session,
     user: session?.user ?? null,
+    profile,
     roles,
     loading,
     signIn,
