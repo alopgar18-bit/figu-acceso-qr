@@ -38,7 +38,7 @@ export function useClientContext() {
     queryFn: async () => {
       const { data: cu, error } = await supabase
         .from("client_users")
-        .select("client_id, clients(id, name, visibility_permissions, brand_color: notes)")
+        .select("client_id")
         .eq("user_id", user!.id);
       if (error) throw error;
       const row = cu?.[0];
