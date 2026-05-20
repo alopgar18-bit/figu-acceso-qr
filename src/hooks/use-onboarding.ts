@@ -31,7 +31,6 @@ export function useOnboardingState() {
         approvedRes,
         commsRes,
         checkinsRes,
-        reportsRes,
         demoEventRes,
       ] = await Promise.all([
         supabase.from("clients").select("id", { count: "exact", head: true }),
@@ -42,8 +41,6 @@ export function useOnboardingState() {
         supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["aprobado", "invitacion_enviada", "pendiente_confirmacion", "confirmado", "qr_generado", "acceso_validado"]),
         supabase.from("communication_logs").select("id", { count: "exact", head: true }),
         supabase.from("checkins").select("id", { count: "exact", head: true }),
-        // "Consultar informes" is considered complete if there are any closed/archived events
-        supabase.from("events").select("id", { count: "exact", head: true }).in("status", ["cerrado", "archivado"]),
         supabase
           .from("events")
           .select("id, name, slug")
