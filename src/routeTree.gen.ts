@@ -35,6 +35,7 @@ import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
 import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
+import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
 import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
 import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
@@ -178,6 +179,11 @@ const CTokenEntradaRoute = CTokenEntradaRouteImport.update({
   path: '/entrada',
   getParentRoute: () => CTokenRoute,
 } as any)
+const CTokenCancelarRoute = CTokenCancelarRouteImport.update({
+  id: '/cancelar',
+  path: '/cancelar',
+  getParentRoute: () => CTokenRoute,
+} as any)
 const AuthenticatedSolicitudesParticipantIdRoute =
   AuthenticatedSolicitudesParticipantIdRouteImport.update({
     id: '/$participantId',
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
@@ -288,6 +295,7 @@ export interface FileRoutesByTo {
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
@@ -325,6 +333,7 @@ export interface FileRoutesById {
   '/_authenticated/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
@@ -362,6 +371,7 @@ export interface FileRouteTypes {
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/solicitudes/$participantId'
+    | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
@@ -397,6 +407,7 @@ export interface FileRouteTypes {
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/solicitudes/$participantId'
+    | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
@@ -433,6 +444,7 @@ export interface FileRouteTypes {
     | '/_authenticated/importaciones/$batchId'
     | '/_authenticated/importaciones/nueva'
     | '/_authenticated/solicitudes/$participantId'
+    | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
@@ -636,6 +648,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CTokenEntradaRouteImport
       parentRoute: typeof CTokenRoute
     }
+    '/c/$token/cancelar': {
+      id: '/c/$token/cancelar'
+      path: '/cancelar'
+      fullPath: '/c/$token/cancelar'
+      preLoaderRoute: typeof CTokenCancelarRouteImport
+      parentRoute: typeof CTokenRoute
+    }
     '/_authenticated/solicitudes/$participantId': {
       id: '/_authenticated/solicitudes/$participantId'
       path: '/$participantId'
@@ -803,10 +822,12 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 )
 
 interface CTokenRouteChildren {
+  CTokenCancelarRoute: typeof CTokenCancelarRoute
   CTokenEntradaRoute: typeof CTokenEntradaRoute
 }
 
 const CTokenRouteChildren: CTokenRouteChildren = {
+  CTokenCancelarRoute: CTokenCancelarRoute,
   CTokenEntradaRoute: CTokenEntradaRoute,
 }
 
