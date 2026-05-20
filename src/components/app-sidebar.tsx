@@ -34,6 +34,14 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 
+const ROLE_LABELS: Record<AppRole, string> = {
+  superadmin: "Superadmin",
+  admin_figurarte: "Admin FIGURARTE",
+  coordinador: "Coordinador",
+  validador: "Validador",
+  cliente_productora: "Cliente / Productora",
+};
+
 type NavItem = {
   title: string;
   url: string;
@@ -131,7 +139,7 @@ export function AppSidebar() {
               {user.email}
             </div>
             <div className="truncate uppercase tracking-wider text-[10px] mt-0.5">
-              {roles.length ? roles.join(" · ") : "sin rol asignado"}
+              {roles.length ? roles.map((r) => ROLE_LABELS[r]).join(" · ") : "sin rol asignado"}
             </div>
           </div>
         )}
