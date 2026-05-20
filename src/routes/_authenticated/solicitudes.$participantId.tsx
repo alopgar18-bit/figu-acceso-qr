@@ -362,6 +362,26 @@ function Page() {
           </CardContent>
         </Card>
       </div>
+
+      <SendCommunicationDialog
+        open={commOpen}
+        onOpenChange={setCommOpen}
+        recipients={person ? [{
+          personId: person.id,
+          participantId: p.id,
+          eventId: p.event_id,
+          sessionId: p.session_id,
+          name: `${person.first_name} ${person.last_name ?? ""}`.trim(),
+          email: person.email,
+          phone: person.phone,
+          context: {
+            apellidos: person.last_name,
+            evento: p.events?.name ?? null,
+            sesion: p.event_sessions?.name ?? null,
+            fecha: p.event_sessions ? new Date(p.event_sessions.starts_at).toLocaleString("es-ES") : null,
+          },
+        } satisfies CommRecipient] : []}
+      />
     </div>
   );
 }
