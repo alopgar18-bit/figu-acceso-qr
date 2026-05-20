@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import {
   ArrowLeft, Pencil, Plus, MapPin, CalendarDays, Users, Tag,
   CheckCircle2, UserCheck, ScanLine, Inbox, AlertCircle,
@@ -27,6 +27,13 @@ export const Route = createFileRoute("/_authenticated/eventos/$eventId")({
 
 function Page() {
   const { eventId } = Route.useParams();
+  const location = useLocation();
+  const isChildRoute = location.pathname !== `/eventos/${eventId}`;
+
+  if (isChildRoute) {
+    return <Outlet />;
+  }
+
   const { data: event, isLoading } = useEvent(eventId);
   const { data: sessions = [], isLoading: loadingSessions } = useEventSessions(eventId);
   const { data: stats } = useSessionStats(eventId);
