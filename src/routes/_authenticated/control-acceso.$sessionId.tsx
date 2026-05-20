@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -221,12 +221,22 @@ function ResultPanel({ result, onContinue, onIncident, isCoord }: { result: Vali
 }
 
 // ─────── Search ───────
+type SearchRow = {
+  id: string;
+  status: string;
+  companions_count: number;
+  attendee_type: string;
+  event_id: string;
+  session_id: string;
+  people: { first_name: string; last_name: string | null; dni: string | null; email: string | null; phone: string | null; is_blocked: boolean } | null;
+};
+
 function SearchTab({ sessionId, eventId, isCoord }: { sessionId: string; eventId: string; isCoord: boolean }) {
   const search = useServerFn(searchSessionParticipants);
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<Awaited<ReturnType<typeof searchSessionParticipants>>>([]);
+  const [results, setResults] = useState<SearchRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<(typeof results)[number] | null>(null);
+  const [selected, setSelected] = useState<SearchRow | null>(null);
 
   const onSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,7 +244,7 @@ function SearchTab({ sessionId, eventId, isCoord }: { sessionId: string; eventId
     setLoading(true);
     try {
       const rows = await search({ data: { sessionId, query: q.trim() } });
-      setResults(rows);
+      setResults(rows as unknown as SearchRow[]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error en búsqueda");
     } finally {
@@ -515,7 +525,7 @@ function IncidentDialog({
   const [severity, setSeverity] = useState<"baja" | "media" | "alta" | "critica">("media");
   const [submitting, setSubmitting] = useState(false);
 
-  useMemo(() => { if (open) { setTitle(defaultTitle ?? ""); setDesc(""); setSeverity("media"); } }, [open, defaultTitle]);
+  useEffect(() => { if (open) { setTitle(defaultTitle ?? ""); setDesc(""); setSeverity("media"); } }, [open, defaultTitle]);
 
   const submit = async () => {
     if (title.trim().length < 2) { toast.error("Indica un título"); return; }
