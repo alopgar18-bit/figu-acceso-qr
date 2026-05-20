@@ -1,0 +1,269 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+type PublicEventSummary = {
+  id: string;
+  name: string;
+  slug: string | null;
+  status: string;
+  location_name: string | null;
+  location_address: string | null;
+  general_instructions: string | null;
+  brand_color: string | null;
+  requires_image_consent: boolean;
+  requires_recording: boolean;
+};
+type PublicSessionSummary = Database["public"]["Tables"]["event_sessions"]["Row"];
+
+const tokenSchema = z.object({ token: z.string().trim().min(20).max(128).regex(/^[a-f0-9]+$/i) });
+
+function randomToken(bytes = 24) {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function loadByToken(token: string) {
+  const { data: participant, error } = await supabaseAdmin
+    .from("event_participants")
+    .select(
+      "*, people(*), event_sessions(*), events(id,name,slug,location_name,location_address,general_instructions,brand_color,status,requires_image_consent,requires_recording)",
+    )
+    .eq("confirmation_token", token)
+    .maybeSingle();
+  if (error) throw error;
+  return participant;
+}
+
+export const getConfirmation = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => tokenSchema.parse(d))
+  .handler(async ({ data }) => {
+    const p = await loadByToken(data.token);
+    if (!p) return { ok: false as const, code: "invalido" as const };
+
+    const event = p.events as PublicEventSummary | null;
+    const session = p.event_sessions as PublicSessionSummary | null;
+    if (!event || !session) return { ok: false as const, code: "invalido" as const };
+
+    if (event.status !== "publicado" || session.status === "cancelada") {
+      return { ok: false as const, code: "evento_cerrado" as const };
+    }
+    if (session.ends_at && new Date(session.ends_at) < new Date()) {
+      return { ok: false as const, code: "evento_cerrado" as const };
+    }
+    if (p.status === "cancelado_asistente" || p.status === "cancelado_figurarte" || p.status === "rechazado" || p.status === "bloqueado") {
+      return { ok: false as const, code: "no_disponible" as const, status: p.status };
+    }
+
+    // Tickets, if any
+    const { data: tickets } = await supabaseAdmin
+      .from("tickets")
+      .select("*")
+      .eq("participant_id", p.id)
+      .eq("revoked", false);
+
+    const { data: companions } = await supabaseAdmin
+      .from("companions")
+      .select("*")
+      .eq("participant_id", p.id);
+
+    return {
+      ok: true as const,
+      participant: {
+        id: p.id,
+        status: p.status,
+        companions_count: p.companions_count,
+        confirmed_at: p.confirmed_at,
+        attendee_type: p.attendee_type,
+      },
+      person: p.people,
+      event,
+      session,
+      tickets: tickets ?? [],
+      companions: companions ?? [],
+    };
+  });
+
+const confirmSchema = z.object({
+  token: z.string().min(20).max(128).regex(/^[a-f0-9]+$/i),
+  companions: z
+    .array(
+      z.object({
+        first_name: z.string().trim().max(100).optional().nullable(),
+        last_name: z.string().trim().max(150).optional().nullable(),
+        dni: z.string().trim().max(20).optional().nullable(),
+        age: z.number().int().min(0).max(120).optional().nullable(),
+      }),
+    )
+    .max(20)
+    .optional()
+    .default([]),
+  acceptImage: z.boolean().optional(),
+  userAgent: z.string().max(500).optional(),
+});
+
+export const confirmAttendance = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => confirmSchema.parse(d))
+  .handler(async ({ data }) => {
+    const p = await loadByToken(data.token);
+    if (!p) return { ok: false as const, code: "invalido" as const };
+
+    const event = p.events as PublicEventSummary | null;
+    const session = p.event_sessions as PublicSessionSummary | null;
+    if (!event || !session) return { ok: false as const, code: "invalido" as const };
+    if (event.status !== "publicado" || session.status === "cancelada") return { ok: false as const, code: "evento_cerrado" as const };
+    if (session.ends_at && new Date(session.ends_at) < new Date()) return { ok: false as const, code: "evento_cerrado" as const };
+    if (!["aprobado", "invitacion_enviada", "pendiente_confirmacion", "confirmado", "qr_generado"].includes(p.status)) {
+      return { ok: false as const, code: "no_disponible" as const, status: p.status };
+    }
+
+    // Image consent if required and missing
+    if ((event.requires_image_consent || event.requires_recording) && data.acceptImage) {
+      const { data: legal } = await supabaseAdmin
+        .from("legal_texts")
+        .select("id")
+        .eq("kind", "imagen")
+        .eq("is_active", true)
+        .order("effective_from", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (legal) {
+        await supabaseAdmin.from("consent_records").insert({
+          consent_kind: "imagen",
+          person_id: p.person_id,
+          participant_id: p.id,
+          legal_text_id: legal.id,
+          accepted: true,
+          user_agent: data.userAgent ?? null,
+        });
+      }
+    }
+
+    // Companions: clamp + persist (only when allowed and provided)
+    let companionsCount = p.companions_count;
+    const validCompanions = (data.companions ?? []).filter(
+      (c) => c.first_name || c.last_name || c.dni,
+    );
+    if (session.allow_companions && validCompanions.length > 0) {
+      companionsCount = Math.min(validCompanions.length, session.max_companions_per_participant || 0);
+      await supabaseAdmin.from("companions").delete().eq("participant_id", p.id);
+      if (companionsCount > 0) {
+        await supabaseAdmin.from("companions").insert(
+          validCompanions.slice(0, companionsCount).map((c) => ({
+            participant_id: p.id,
+            first_name: c.first_name ?? null,
+            last_name: c.last_name ?? null,
+            dni: c.dni ?? null,
+            age: c.age ?? null,
+          })),
+        );
+      }
+    }
+
+    // Update participant
+    await supabaseAdmin
+      .from("event_participants")
+      .update({
+        status: "qr_generado",
+        confirmed_at: new Date().toISOString(),
+        companions_count: companionsCount,
+      })
+      .eq("id", p.id);
+
+    // Generate tickets (replace any existing active tickets for this participant)
+    await supabaseAdmin
+      .from("tickets")
+      .update({ revoked: true, revoked_at: new Date().toISOString(), revoked_reason: "reissue" })
+      .eq("participant_id", p.id)
+      .eq("revoked", false);
+
+    const ticketRows: Database["public"]["Tables"]["tickets"]["Insert"][] = [];
+    const expires = session.ends_at ?? null;
+
+    if (session.companions_qr_mode === "qr_propio" && companionsCount > 0) {
+      ticketRows.push({
+        participant_id: p.id,
+        event_id: event.id,
+        session_id: session.id,
+        qr_token: randomToken(),
+        expires_at: expires,
+        qr_payload: { kind: "titular", person_id: p.person_id } as Json,
+      });
+      for (let i = 0; i < companionsCount; i++) {
+        ticketRows.push({
+          participant_id: p.id,
+          event_id: event.id,
+          session_id: session.id,
+          qr_token: randomToken(),
+          expires_at: expires,
+          qr_payload: { kind: "acompanante", index: i + 1 } as Json,
+        });
+      }
+    } else {
+      ticketRows.push({
+        participant_id: p.id,
+        event_id: event.id,
+        session_id: session.id,
+        qr_token: randomToken(),
+        expires_at: expires,
+        qr_payload: { kind: "grupo", includes: 1 + companionsCount } as Json,
+      });
+    }
+
+    const { error: tErr } = await supabaseAdmin.from("tickets").insert(ticketRows);
+    if (tErr) throw tErr;
+
+    await supabaseAdmin.from("audit_logs").insert({
+      action: "participant.confirm_attendance",
+      entity_type: "event_participant",
+      entity_id: p.id,
+      event_id: event.id,
+      session_id: session.id,
+      changes: { companions_count: companionsCount, tickets_issued: ticketRows.length } as Json,
+      user_agent: data.userAgent ?? null,
+    });
+
+    return { ok: true as const };
+  });
+
+const cancelSchema = z.object({
+  token: z.string().min(20).max(128).regex(/^[a-f0-9]+$/i),
+  reason: z.string().trim().max(500).optional().nullable(),
+  userAgent: z.string().max(500).optional(),
+});
+
+export const cancelAttendance = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => cancelSchema.parse(d))
+  .handler(async ({ data }) => {
+    const p = await loadByToken(data.token);
+    if (!p) return { ok: false as const, code: "invalido" as const };
+
+    await supabaseAdmin
+      .from("event_participants")
+      .update({
+        status: "cancelado_asistente",
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason_by_attendee: data.reason ?? null,
+      })
+      .eq("id", p.id);
+
+    await supabaseAdmin
+      .from("tickets")
+      .update({ revoked: true, revoked_at: new Date().toISOString(), revoked_reason: "cancelado_asistente" })
+      .eq("participant_id", p.id)
+      .eq("revoked", false);
+
+    await supabaseAdmin.from("audit_logs").insert({
+      action: "participant.cancel_by_attendee",
+      entity_type: "event_participant",
+      entity_id: p.id,
+      event_id: p.event_id,
+      session_id: p.session_id,
+      changes: { reason: data.reason ?? null } as Json,
+      user_agent: data.userAgent ?? null,
+    });
+
+    return { ok: true as const };
+  });
