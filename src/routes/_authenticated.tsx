@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
-  const { session, loading } = useAuth();
+  const { session, loading, roles, isAdmin, hasRole } = useAuth();
 
   if (loading) {
     return (
@@ -19,6 +19,11 @@ function AuthenticatedLayout() {
   }
 
   if (!session) return <Navigate to="/login" />;
+
+  // Cliente/productora users go to their own portal, never to the admin shell.
+  const onlyClient = !isAdmin && hasRole("cliente_productora") &&
+    !roles.some((r) => r === "coordinador" || r === "validador");
+  if (onlyClient) return <Navigate to="/portal" />;
 
   return (
     <SidebarProvider>
