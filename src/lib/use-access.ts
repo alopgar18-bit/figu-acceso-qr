@@ -87,9 +87,9 @@ export function useAllIncidents() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("incidents")
-        .select("*, events(name), event_sessions(name)")
+        .select("*, events(id, name), event_sessions(id, name, starts_at), event_participants(id, people(id, first_name, last_name, dni))")
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },

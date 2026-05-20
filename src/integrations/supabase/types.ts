@@ -958,10 +958,12 @@ export type Database = {
           description: string | null
           event_id: string | null
           id: string
+          incident_type: Database["public"]["Enums"]["incident_type"]
           participant_id: string | null
           reported_by: string | null
           resolution: string | null
           resolved_at: string | null
+          resolved_by: string | null
           session_id: string | null
           severity: Database["public"]["Enums"]["incident_severity"]
           status: Database["public"]["Enums"]["incident_status"]
@@ -974,10 +976,12 @@ export type Database = {
           description?: string | null
           event_id?: string | null
           id?: string
+          incident_type?: Database["public"]["Enums"]["incident_type"]
           participant_id?: string | null
           reported_by?: string | null
           resolution?: string | null
           resolved_at?: string | null
+          resolved_by?: string | null
           session_id?: string | null
           severity?: Database["public"]["Enums"]["incident_severity"]
           status?: Database["public"]["Enums"]["incident_status"]
@@ -990,10 +994,12 @@ export type Database = {
           description?: string | null
           event_id?: string | null
           id?: string
+          incident_type?: Database["public"]["Enums"]["incident_type"]
           participant_id?: string | null
           reported_by?: string | null
           resolution?: string | null
           resolved_at?: string | null
+          resolved_by?: string | null
           session_id?: string | null
           severity?: Database["public"]["Enums"]["incident_severity"]
           status?: Database["public"]["Enums"]["incident_status"]
@@ -1409,6 +1415,21 @@ export type Database = {
         | "fallida"
       incident_severity: "baja" | "media" | "alta" | "critica"
       incident_status: "abierta" | "en_proceso" | "resuelta" | "descartada"
+      incident_type:
+        | "qr_ya_usado"
+        | "qr_no_valido"
+        | "sin_dni"
+        | "dni_no_coincide"
+        | "no_aparece_lista"
+        | "no_confirmado"
+        | "acompanante_no_registrado"
+        | "menor_sin_autorizacion"
+        | "fuera_horario"
+        | "cambio_sesion"
+        | "vip_especial"
+        | "persona_bloqueada"
+        | "problema_tecnico"
+        | "manual"
       legal_text_kind:
         | "privacidad"
         | "imagen"
@@ -1626,6 +1647,22 @@ export const Constants = {
       ],
       incident_severity: ["baja", "media", "alta", "critica"],
       incident_status: ["abierta", "en_proceso", "resuelta", "descartada"],
+      incident_type: [
+        "qr_ya_usado",
+        "qr_no_valido",
+        "sin_dni",
+        "dni_no_coincide",
+        "no_aparece_lista",
+        "no_confirmado",
+        "acompanante_no_registrado",
+        "menor_sin_autorizacion",
+        "fuera_horario",
+        "cambio_sesion",
+        "vip_especial",
+        "persona_bloqueada",
+        "problema_tecnico",
+        "manual",
+      ],
       legal_text_kind: [
         "privacidad",
         "imagen",
