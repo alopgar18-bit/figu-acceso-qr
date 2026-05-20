@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CalendarDays, CheckCircle2, ScanLine, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -10,9 +11,27 @@ export const Route = createFileRoute("/portal/")({
   component: PortalDashboard,
 });
 
+function toTitleCase(str: string) {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function PortalDashboard() {
+  const { user } = useAuth();
   const { data: ctx } = useClientContext();
   const { data: events = [], isLoading } = useClientEvents(ctx?.clientId);
+
+  const rawClientName = ctx?.clientName;
+  const hasClientName = rawClientName && rawClientName !== "—" && rawClientName.trim().length > 1;
+  const userFallback = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[0] || "";
+  const greetingName = hasClientName
+    ? toTitleCase(rawClientName)
+    : userFallback
+      ? toTitleCase(userFallback)
+      : "bienvenido";
 
   const active = events.filter((e) => e.status === "publicado").length;
   const upcoming = events
@@ -23,14 +42,14 @@ function PortalDashboard() {
     { label: "Eventos asignados", value: events.length, icon: CalendarDays },
     { label: "Activos", value: active, icon: CheckCircle2 },
     { label: "Próximos", value: upcoming.length, icon: Users },
-    { label: "Cliente", value: ctx?.clientName ?? "—", icon: ScanLine, small: true },
+    { label: "Cliente", value: hasClientName ? rawClientName : "Sin cliente", icon: ScanLine, small: true },
   ];
 
   return (
     <div>
       <PageHeader
         eyebrow="Portal cliente"
-        title={`Hola, ${ctx?.clientName ?? ""}`}
+        title={`Hola, ${greetingName}`}
         description="Consulta tus eventos, sesiones, estadísticas e informes."
       />
 
