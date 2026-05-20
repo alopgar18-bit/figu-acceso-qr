@@ -231,6 +231,24 @@ const incidentSchema = z.object({
   title: z.string().trim().min(2).max(150),
   description: z.string().trim().max(2000).optional().nullable(),
   severity: z.enum(["baja", "media", "alta", "critica"]).default("media"),
+  incidentType: z
+    .enum([
+      "qr_ya_usado",
+      "qr_no_valido",
+      "sin_dni",
+      "dni_no_coincide",
+      "no_aparece_lista",
+      "no_confirmado",
+      "acompanante_no_registrado",
+      "menor_sin_autorizacion",
+      "fuera_horario",
+      "cambio_sesion",
+      "vip_especial",
+      "persona_bloqueada",
+      "problema_tecnico",
+      "manual",
+    ])
+    .default("manual"),
 });
 
 export const createIncident = createServerFn({ method: "POST" })
@@ -247,6 +265,7 @@ export const createIncident = createServerFn({ method: "POST" })
         title: data.title,
         description: data.description ?? null,
         severity: data.severity,
+        incident_type: data.incidentType,
         status: "abierta",
         reported_by: userId,
       })
@@ -264,6 +283,49 @@ export const createIncident = createServerFn({ method: "POST" })
       changes: { title: data.title, severity: data.severity } as Json,
     });
     return { ok: true as const, id: row.id };
+  });
+
+const resolveSchema = z.object({
+  incidentId: z.string().uuid(),
+  status: z.enum(["resuelta", "descartada", "abierta", "en_proceso"]),
+  resolution: z.string().trim().max(2000).optional().nullable(),
+});
+
+export const resolveIncident = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => resolveSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const patch: Record<string, unknown> = {
+      status: data.status,
+      resolution: data.resolution ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.status === "resuelta" || data.status === "descartada") {
+      patch.resolved_at = new Date().toISOString();
+      patch.resolved_by = userId;
+    } else {
+      patch.resolved_at = null;
+      patch.resolved_by = null;
+    }
+    const { data: row, error } = await supabase
+      .from("incidents")
+      .update(patch)
+      .eq("id", data.incidentId)
+      .select("id, event_id, session_id")
+      .single();
+    if (error) throw error;
+
+    await supabase.from("audit_logs").insert({
+      action: `incident.${data.status}`,
+      entity_type: "incident",
+      entity_id: row.id,
+      event_id: row.event_id,
+      session_id: row.session_id,
+      actor_id: userId,
+      changes: { status: data.status, resolution: data.resolution ?? null } as Json,
+    });
+    return { ok: true as const };
   });
 
 const searchSchema = z.object({
