@@ -33,6 +33,7 @@ import { Route as ESlugInscripcionRouteImport } from './routes/e.$slug.inscripci
 import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
 import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
+import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
@@ -163,6 +164,12 @@ const ESlugCerradoRoute = ESlugCerradoRouteImport.update({
   path: '/cerrado',
   getParentRoute: () => ESlugRoute,
 } as any)
+const AuthenticatedSolicitudesParticipantIdRoute =
+  AuthenticatedSolicitudesParticipantIdRouteImport.update({
+    id: '/$participantId',
+    path: '/$participantId',
+    getParentRoute: () => AuthenticatedSolicitudesRoute,
+  } as any)
 const AuthenticatedEventosNuevoRoute =
   AuthenticatedEventosNuevoRouteImport.update({
     id: '/nuevo',
@@ -211,11 +218,12 @@ export interface FileRoutesByFullPath {
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
   '/sesiones': typeof AuthenticatedSesionesRoute
-  '/solicitudes': typeof AuthenticatedSolicitudesRoute
+  '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
@@ -241,11 +249,12 @@ export interface FileRoutesByTo {
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
   '/sesiones': typeof AuthenticatedSesionesRoute
-  '/solicitudes': typeof AuthenticatedSolicitudesRoute
+  '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
@@ -273,11 +282,12 @@ export interface FileRoutesById {
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
   '/_authenticated/sesiones': typeof AuthenticatedSesionesRoute
-  '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRoute
+  '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/e/$slug': typeof ESlugRouteWithChildren
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
+  '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/solicitudes/$participantId'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/solicitudes/$participantId'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
@@ -371,6 +383,7 @@ export interface FileRouteTypes {
     | '/e/$slug'
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
+    | '/_authenticated/solicitudes/$participantId'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
@@ -558,6 +571,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ESlugCerradoRouteImport
       parentRoute: typeof ESlugRoute
     }
+    '/_authenticated/solicitudes/$participantId': {
+      id: '/_authenticated/solicitudes/$participantId'
+      path: '/$participantId'
+      fullPath: '/solicitudes/$participantId'
+      preLoaderRoute: typeof AuthenticatedSolicitudesParticipantIdRouteImport
+      parentRoute: typeof AuthenticatedSolicitudesRoute
+    }
     '/_authenticated/eventos/nuevo': {
       id: '/_authenticated/eventos/nuevo'
       path: '/nuevo'
@@ -631,6 +651,21 @@ const AuthenticatedEventosRouteChildren: AuthenticatedEventosRouteChildren = {
 const AuthenticatedEventosRouteWithChildren =
   AuthenticatedEventosRoute._addFileChildren(AuthenticatedEventosRouteChildren)
 
+interface AuthenticatedSolicitudesRouteChildren {
+  AuthenticatedSolicitudesParticipantIdRoute: typeof AuthenticatedSolicitudesParticipantIdRoute
+}
+
+const AuthenticatedSolicitudesRouteChildren: AuthenticatedSolicitudesRouteChildren =
+  {
+    AuthenticatedSolicitudesParticipantIdRoute:
+      AuthenticatedSolicitudesParticipantIdRoute,
+  }
+
+const AuthenticatedSolicitudesRouteWithChildren =
+  AuthenticatedSolicitudesRoute._addFileChildren(
+    AuthenticatedSolicitudesRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedBrandingRoute: typeof AuthenticatedBrandingRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
@@ -645,7 +680,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
   AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
   AuthenticatedSesionesRoute: typeof AuthenticatedSesionesRoute
-  AuthenticatedSolicitudesRoute: typeof AuthenticatedSolicitudesRoute
+  AuthenticatedSolicitudesRoute: typeof AuthenticatedSolicitudesRouteWithChildren
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
 }
 
@@ -663,7 +698,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
   AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
   AuthenticatedSesionesRoute: AuthenticatedSesionesRoute,
-  AuthenticatedSolicitudesRoute: AuthenticatedSolicitudesRoute,
+  AuthenticatedSolicitudesRoute: AuthenticatedSolicitudesRouteWithChildren,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
 }
 

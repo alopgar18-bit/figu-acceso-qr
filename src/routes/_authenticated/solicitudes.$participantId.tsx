@@ -371,7 +371,13 @@ function Field({ label, value }: { label: string; value: string | null | undefin
   );
 }
 
-function ConsentRow({ label, record }: { label: string; record: { accepted: boolean; accepted_at: string; legal_texts: { version: string } | null } | undefined }) {
+type ConsentRecord = {
+  accepted: boolean;
+  accepted_at: string;
+  legal_texts: { version: string; title?: string | null; kind?: string | null } | null;
+};
+
+function ConsentRow({ label, record }: { label: string; record: ConsentRecord | undefined }) {
   if (!record) return (
     <div className="flex items-center justify-between border-b last:border-0 py-1.5">
       <span className="text-muted-foreground">{label}</span>
