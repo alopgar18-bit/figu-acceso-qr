@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -71,26 +71,30 @@ function initial(event: EventRow, session?: SessionRow | null): FormState {
 
 export function SessionForm({ event, session }: { event: EventRow; session?: SessionRow | null }) {
   const navigate = useNavigate();
+  const formRef = useRef<HTMLFormElement>(null);
   const [s, setS] = useState<FormState>(() => initial(event, session));
   const upsert = useUpsertSession();
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setS((p) => ({ ...p, [k]: v }));
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!s.name.trim()) return toast.error("El nombre de la sesión es obligatorio");
-    if (!s.starts_at) return toast.error("La fecha y hora de inicio es obligatoria");
-    if (!s.capacity || s.capacity <= 0) return toast.error("El aforo debe ser mayor que cero");
+  const saveSession = async () => {
+    const form = formRef.current;
+    const currentName = (form?.elements.namedItem("name") as HTMLInputElement | null)?.value ?? s.name;
+    const currentStartsAt = (form?.elements.namedItem("starts_at") as HTMLInputElement | null)?.value ?? s.starts_at;
+    const currentCapacity = Number((form?.elements.namedItem("capacity") as HTMLInputElement | null)?.value ?? s.capacity);
+    if (!currentName.trim()) return toast.error("El nombre de la sesión es obligatorio");
+    if (!currentStartsAt) return toast.error("La fecha y hora de inicio es obligatoria");
+    if (!currentCapacity || currentCapacity <= 0) return toast.error("El aforo debe ser mayor que cero");
     try {
       const payload = {
         event_id: event.id,
-        name: s.name,
+        name: currentName.trim(),
         description: s.description || null,
         doors_open_at: fromDateTimeLocal(s.doors_open_at),
-        starts_at: fromDateTimeLocal(s.starts_at)!,
+        starts_at: fromDateTimeLocal(currentStartsAt)!,
         ends_at: fromDateTimeLocal(s.ends_at),
         location_name: s.location_name || null,
         location_address: s.location_address || null,
-        capacity: s.capacity,
+        capacity: currentCapacity,
         max_validators: s.max_validators,
         public_form_enabled: s.public_form_enabled,
         user_selectable: s.user_selectable,
@@ -110,14 +114,19 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
     }
   };
 
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    await saveSession();
+  };
+
   return (
-    <form onSubmit={onSubmit} className="grid gap-6 max-w-5xl">
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="grid gap-6 max-w-5xl">
       <Card>
         <CardHeader><CardTitle className="text-base uppercase tracking-wider">Datos generales</CardTitle></CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <Label>Nombre *</Label>
-            <Input value={s.name} onChange={(e) => update("name", e.target.value)} required maxLength={200} placeholder="Sesión 1 — Mañana" />
+            <Input name="name" value={s.name} onChange={(e) => update("name", e.target.value)} required maxLength={200} placeholder="Sesión 1 — Mañana" />
           </div>
           <div className="md:col-span-2">
             <Label>Descripción</Label>
@@ -129,7 +138,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
           </div>
           <div>
             <Label>Hora de inicio *</Label>
-            <Input type="datetime-local" value={s.starts_at} onChange={(e) => update("starts_at", e.target.value)} required />
+            <Input name="starts_at" type="datetime-local" value={s.starts_at} onChange={(e) => update("starts_at", e.target.value)} required />
           </div>
           <div>
             <Label>Hora aproximada de fin</Label>
@@ -166,7 +175,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div>
             <Label>Aforo *</Label>
-            <Input type="number" min={1} value={s.capacity} onChange={(e) => update("capacity", Number(e.target.value))} required />
+            <Input name="capacity" type="number" min={1} value={s.capacity} onChange={(e) => update("capacity", Number(e.target.value))} required />
           </div>
           <div>
             <Label>Máximo de validadores</Label>
@@ -212,7 +221,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
 
       <div className="flex justify-end gap-2 sticky bottom-0 bg-background/80 backdrop-blur py-3 -mx-4 px-4 border-t">
         <Button type="button" variant="outline" onClick={() => navigate({ to: "/eventos/$eventId", params: { eventId: event.id } })}>Cancelar</Button>
-        <Button type="submit" disabled={upsert.isPending} className="uppercase tracking-wider">
+        <Button type="button" onClick={saveSession} disabled={upsert.isPending} className="uppercase tracking-wider">
           {upsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {session ? "Guardar cambios" : "Crear sesión"}
         </Button>

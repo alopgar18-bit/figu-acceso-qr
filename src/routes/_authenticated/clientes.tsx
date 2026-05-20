@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Mail, Phone, User } from "lucide-react";
+import { Building2, Plus, Mail, Phone, User, Pencil, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 
@@ -18,6 +18,7 @@ import {
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Page,
@@ -41,6 +42,8 @@ type Permissions = {
   export_data: boolean;
 };
 
+type ClientRow = Database["public"]["Tables"]["clients"]["Row"];
+
 const DEFAULT_PERMS: Permissions = {
   see_email: false,
   see_phone: false,
@@ -53,6 +56,7 @@ const DEFAULT_PERMS: Permissions = {
 
 function Page() {
   const [open, setOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<ClientRow | null>(null);
   const qc = useQueryClient();
 
   const { data: clients, isLoading } = useQuery({
@@ -96,9 +100,14 @@ function Page() {
                   <div className="font-medium">{c.name}</div>
                   {c.legal_name && <div className="text-xs text-muted-foreground">{c.legal_name}</div>}
                 </div>
-                <Badge variant={c.is_active ? "default" : "outline"}>
-                  {c.is_active ? "Activo" : "Inactivo"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={c.is_active ? "default" : "outline"}>
+                    {c.is_active ? "Activo" : "Inactivo"}
+                  </Badge>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setEditingClient(c)} aria-label={`Editar ${c.name}`}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                 {c.contact_email && <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5" />{c.contact_email}</div>}
@@ -109,20 +118,42 @@ function Page() {
         </div>
       )}
 
-      <CreateClientDialog open={open} onOpenChange={setOpen} onCreated={() => qc.invalidateQueries({ queryKey: ["clients"] })} />
+      <ClientDialog
+        open={open || !!editingClient}
+        client={editingClient}
+        onOpenChange={(nextOpen: boolean) => {
+          if (!nextOpen) {
+            setOpen(false);
+            setEditingClient(null);
+          } else {
+            setOpen(true);
+          }
+        }}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["clients"] })}
+      />
     </div>
   );
 }
 
-function CreateClientDialog({
-  open, onOpenChange, onCreated,
-}: { open: boolean; onOpenChange: (v: boolean) => void; onCreated: () => void }) {
+function ClientDialog({
+  open, client, onOpenChange, onSaved,
+}: { open: boolean; client: ClientRow | null; onOpenChange: (v: boolean) => void; onSaved: () => void }) {
   const [name, setName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [perms, setPerms] = useState<Permissions>(DEFAULT_PERMS);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(client?.name ?? "");
+    setContactName("");
+    setContactEmail(client?.contact_email ?? "");
+    setContactPhone(client?.contact_phone ?? "");
+    setNotes(client?.notes ?? "");
+    setPerms({ ...DEFAULT_PERMS, ...((client?.visibility_permissions as Partial<Permissions> | null) ?? {}) });
+  }, [client, open]);
 
   const reset = () => {
     setName(""); setContactName(""); setContactEmail("");
@@ -141,22 +172,26 @@ function CreateClientDialog({
         ? `Contacto: ${contactName}${notes ? `\n\n${notes}` : ""}`
         : (notes || null);
 
-      const { data, error } = await supabase.from("clients").insert({
+      const values = {
         name: parsed.data.name,
         contact_email: parsed.data.contact_email || null,
         contact_phone: parsed.data.contact_phone || null,
         notes: contactNotes,
         is_active: true,
         visibility_permissions: perms,
-      }).select().single();
+      };
+      const query = client
+        ? supabase.from("clients").update(values).eq("id", client.id)
+        : supabase.from("clients").insert(values);
+      const { data, error } = await query.select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      toast.success("Cliente creado");
+      toast.success(client ? "Cliente actualizado" : "Cliente creado");
       reset();
       onOpenChange(false);
-      onCreated();
+      onSaved();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -165,8 +200,8 @@ function CreateClientDialog({
     <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuevo cliente / productora</DialogTitle>
-          <DialogDescription>Da de alta una entidad para asignarle eventos y permisos.</DialogDescription>
+          <DialogTitle>{client ? "Editar cliente / productora" : "Nuevo cliente / productora"}</DialogTitle>
+          <DialogDescription>{client ? "Actualiza los datos y permisos de esta entidad." : "Da de alta una entidad para asignarle eventos y permisos."}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -221,8 +256,9 @@ function CreateClientDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name.trim()}>
-            {mutation.isPending ? "Creando..." : "Crear cliente"}
+          <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !name.trim()}>
+            {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {client ? "Guardar cambios" : "Crear cliente"}
           </Button>
         </DialogFooter>
       </DialogContent>

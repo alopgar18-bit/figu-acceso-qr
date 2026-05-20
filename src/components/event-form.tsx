@@ -95,8 +95,7 @@ export function EventForm({ event }: { event?: EventRow | null }) {
 
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setS((p) => ({ ...p, [k]: v }));
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const saveEvent = async () => {
     if (!s.name.trim()) {
       toast.error("El nombre del evento es obligatorio");
       return;
@@ -124,8 +123,13 @@ export function EventForm({ event }: { event?: EventRow | null }) {
     }
   };
 
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    await saveEvent();
+  };
+
   return (
-    <form onSubmit={onSubmit} className="grid gap-6 max-w-5xl">
+    <form onSubmit={onSubmit} noValidate className="grid gap-6 max-w-5xl">
       <Card>
         <CardHeader><CardTitle className="text-base uppercase tracking-wider">Identidad</CardTitle></CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
@@ -261,7 +265,7 @@ export function EventForm({ event }: { event?: EventRow | null }) {
 
       <div className="flex justify-end gap-2 sticky bottom-0 bg-background/80 backdrop-blur py-3 -mx-4 px-4 border-t">
         <Button type="button" variant="outline" onClick={() => navigate({ to: "/eventos" })}>Cancelar</Button>
-        <Button type="submit" disabled={upsert.isPending} className="uppercase tracking-wider">
+        <Button type="button" onClick={saveEvent} disabled={upsert.isPending} className="uppercase tracking-wider">
           {upsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {event ? "Guardar cambios" : "Crear evento"}
         </Button>
