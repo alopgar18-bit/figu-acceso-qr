@@ -132,7 +132,7 @@ function Page() {
   const clearFilters = () => {
     setSearchText("");
     setExtraFilters({ city: "", province: "", gender: "", minAge: "", maxAge: "", fromDate: "", toDate: "", hasPhoto: "", duplicates: false, blocked: false });
-    navigate({ search: () => ({}) });
+    navigate({ search: {} });
   };
 
   const activeCount = [
@@ -206,7 +206,7 @@ function Page() {
               <Select
                 value={search.eventId ?? "all"}
                 onValueChange={(v) =>
-                  navigate({ search: (p) => ({ ...p, eventId: v === "all" ? undefined : v, sessionId: undefined }) })
+                  navigate({ search: { ...search, eventId: v === "all" ? undefined : v, sessionId: undefined } })
                 }
               >
                 <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
@@ -222,7 +222,7 @@ function Page() {
                 value={search.sessionId ?? "all"}
                 disabled={!search.eventId}
                 onValueChange={(v) =>
-                  navigate({ search: (p) => ({ ...p, sessionId: v === "all" ? undefined : v }) })
+                  navigate({ search: { ...search, sessionId: v === "all" ? undefined : v } })
                 }
               >
                 <SelectTrigger><SelectValue placeholder={search.eventId ? "Todas" : "Elige evento"} /></SelectTrigger>
@@ -240,7 +240,7 @@ function Page() {
               <Select
                 value={search.waitlist ? "lista_espera" : (search.status ?? "all")}
                 onValueChange={(v) =>
-                  navigate({ search: (p) => ({ ...p, status: v === "all" ? undefined : v, waitlist: undefined }) })
+                  navigate({ search: { ...search, status: v === "all" ? undefined : v, waitlist: undefined } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -255,7 +255,7 @@ function Page() {
               <Select
                 value={search.type ?? "all"}
                 onValueChange={(v) =>
-                  navigate({ search: (p) => ({ ...p, type: v === "all" ? undefined : v }) })
+                  navigate({ search: { ...search, type: v === "all" ? undefined : v } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
