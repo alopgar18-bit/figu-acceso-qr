@@ -28,15 +28,14 @@ export const Route = createFileRoute("/_authenticated/eventos/$eventId")({
 function Page() {
   const { eventId } = Route.useParams();
   const location = useLocation();
+  const { data: event, isLoading } = useEvent(eventId);
+  const { data: sessions = [], isLoading: loadingSessions } = useEventSessions(eventId);
+  const { data: stats } = useSessionStats(eventId);
   const isChildRoute = location.pathname !== `/eventos/${eventId}`;
 
   if (isChildRoute) {
     return <Outlet />;
   }
-
-  const { data: event, isLoading } = useEvent(eventId);
-  const { data: sessions = [], isLoading: loadingSessions } = useEventSessions(eventId);
-  const { data: stats } = useSessionStats(eventId);
 
   if (isLoading || !event) {
     return (
