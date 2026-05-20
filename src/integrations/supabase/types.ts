@@ -1393,6 +1393,7 @@ export type Database = {
         | "premiere"
         | "produccion"
         | "otro"
+        | "evento_privado"
       form_status: "borrador" | "publicado" | "cerrado" | "archivado"
       import_status:
         | "pendiente"
@@ -1607,6 +1608,7 @@ export const Constants = {
         "premiere",
         "produccion",
         "otro",
+        "evento_privado",
       ],
       form_status: ["borrador", "publicado", "cerrado", "archivado"],
       import_status: [
