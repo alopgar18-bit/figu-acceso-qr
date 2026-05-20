@@ -1,6 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+type PublicEventSummary = {
+  id: string;
+  name: string;
+  slug: string | null;
+  status: string;
+  location_name: string | null;
+  location_address: string | null;
+  general_instructions: string | null;
+  brand_color: string | null;
+  requires_image_consent: boolean;
+  requires_recording: boolean;
+};
+type PublicSessionSummary = Database["public"]["Tables"]["event_sessions"]["Row"];
 
 const tokenSchema = z.object({ token: z.string().trim().min(20).max(128).regex(/^[a-f0-9]+$/i) });
 
@@ -28,14 +43,14 @@ export const getConfirmation = createServerFn({ method: "GET" })
     const p = await loadByToken(data.token);
     if (!p) return { ok: false as const, code: "invalido" as const };
 
-    const event = p.events as { status: string; [k: string]: unknown } | null;
-    const session = p.event_sessions as { ends_at: string | null; status: string; allow_companions: boolean; max_companions_per_participant: number; companions_qr_mode: string; [k: string]: unknown } | null;
+    const event = p.events as PublicEventSummary | null;
+    const session = p.event_sessions as PublicSessionSummary | null;
     if (!event || !session) return { ok: false as const, code: "invalido" as const };
 
     if (event.status !== "publicado" || session.status === "cancelada") {
       return { ok: false as const, code: "evento_cerrado" as const };
     }
-    if (session.ends_at && new Date(session.ends_at as string) < new Date()) {
+    if (session.ends_at && new Date(session.ends_at) < new Date()) {
       return { ok: false as const, code: "evento_cerrado" as const };
     }
     if (p.status === "cancelado_asistente" || p.status === "cancelado_figurarte" || p.status === "rechazado" || p.status === "bloqueado") {
@@ -95,8 +110,8 @@ export const confirmAttendance = createServerFn({ method: "POST" })
     const p = await loadByToken(data.token);
     if (!p) return { ok: false as const, code: "invalido" as const };
 
-    const event = p.events as { id: string; status: string; requires_image_consent: boolean; requires_recording: boolean } | null;
-    const session = p.event_sessions as { id: string; ends_at: string | null; status: string; capacity: number; allow_companions: boolean; max_companions_per_participant: number; companions_qr_mode: "mismo_qr" | "qr_propio" } | null;
+    const event = p.events as PublicEventSummary | null;
+    const session = p.event_sessions as PublicSessionSummary | null;
     if (!event || !session) return { ok: false as const, code: "invalido" as const };
     if (event.status !== "publicado" || session.status === "cancelada") return { ok: false as const, code: "evento_cerrado" as const };
     if (session.ends_at && new Date(session.ends_at) < new Date()) return { ok: false as const, code: "evento_cerrado" as const };
@@ -164,7 +179,7 @@ export const confirmAttendance = createServerFn({ method: "POST" })
       .eq("participant_id", p.id)
       .eq("revoked", false);
 
-    const ticketRows: { participant_id: string; event_id: string; session_id: string; qr_token: string; expires_at: string | null; qr_payload: Record<string, unknown> }[] = [];
+    const ticketRows: Database["public"]["Tables"]["tickets"]["Insert"][] = [];
     const expires = session.ends_at ?? null;
 
     if (session.companions_qr_mode === "qr_propio" && companionsCount > 0) {
@@ -174,7 +189,7 @@ export const confirmAttendance = createServerFn({ method: "POST" })
         session_id: session.id,
         qr_token: randomToken(),
         expires_at: expires,
-        qr_payload: { kind: "titular", person_id: p.person_id },
+        qr_payload: { kind: "titular", person_id: p.person_id } as Json,
       });
       for (let i = 0; i < companionsCount; i++) {
         ticketRows.push({
@@ -183,7 +198,7 @@ export const confirmAttendance = createServerFn({ method: "POST" })
           session_id: session.id,
           qr_token: randomToken(),
           expires_at: expires,
-          qr_payload: { kind: "acompanante", index: i + 1 },
+          qr_payload: { kind: "acompanante", index: i + 1 } as Json,
         });
       }
     } else {
@@ -193,7 +208,7 @@ export const confirmAttendance = createServerFn({ method: "POST" })
         session_id: session.id,
         qr_token: randomToken(),
         expires_at: expires,
-        qr_payload: { kind: "grupo", includes: 1 + companionsCount },
+        qr_payload: { kind: "grupo", includes: 1 + companionsCount } as Json,
       });
     }
 
@@ -206,7 +221,7 @@ export const confirmAttendance = createServerFn({ method: "POST" })
       entity_id: p.id,
       event_id: event.id,
       session_id: session.id,
-      changes: { companions_count: companionsCount, tickets_issued: ticketRows.length },
+      changes: { companions_count: companionsCount, tickets_issued: ticketRows.length } as Json,
       user_agent: data.userAgent ?? null,
     });
 
@@ -246,7 +261,7 @@ export const cancelAttendance = createServerFn({ method: "POST" })
       entity_id: p.id,
       event_id: p.event_id,
       session_id: p.session_id,
-      changes: { reason: data.reason ?? null },
+      changes: { reason: data.reason ?? null } as Json,
       user_agent: data.userAgent ?? null,
     });
 
