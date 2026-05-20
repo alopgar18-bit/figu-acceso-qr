@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { requireRole, isCoordinatorOrAdmin } from "./role-guards";
 
 export type ValidationCode =
   | "ok"
@@ -65,6 +66,12 @@ export const validateQr = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => validateSchema.parse(d))
   .handler(async ({ data, context }): Promise<ValidationResult> => {
     const { supabase, userId } = context;
+    await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+      "validador",
+    ]);
 
     const { data: ticket } = await supabase
       .from("tickets")
@@ -190,6 +197,12 @@ export const manualCheckin = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => manualSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+      "validador",
+    ]);
 
     const { data: checkin, error } = await supabase
       .from("checkins")
@@ -256,6 +269,12 @@ export const createIncident = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => incidentSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+      "validador",
+    ]);
     const { data: row, error } = await supabase
       .from("incidents")
       .insert({
@@ -296,6 +315,11 @@ export const resolveIncident = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => resolveSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+    ]);
     const isClosed = data.status === "resuelta" || data.status === "descartada";
     const patch = {
       status: data.status,
@@ -333,10 +357,20 @@ export const searchSessionParticipants = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => searchSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    const roles = await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+      "validador",
+    ]);
+    const canSeePII = isCoordinatorOrAdmin(roles);
+    const personFields = canSeePII
+      ? "id, first_name, last_name, dni, email, phone, is_blocked"
+      : "id, first_name, last_name, is_blocked";
     const { data: rows, error } = await supabase
       .from("event_participants")
-      .select("id, status, companions_count, attendee_type, event_id, session_id, people(id, first_name, last_name, dni, email, phone, is_blocked)")
+      .select(`id, status, companions_count, attendee_type, event_id, session_id, people(${personFields})`)
       .eq("session_id", data.sessionId)
       .limit(200);
     if (error) throw error;
