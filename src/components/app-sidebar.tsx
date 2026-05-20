@@ -51,7 +51,7 @@ const operationalItems: NavItem[] = [
   { title: "Comunicaciones", url: "/comunicaciones", icon: Mail, roles: ["superadmin", "admin_figurarte", "coordinador"] },
   { title: "Control de acceso", url: "/control-acceso", icon: ScanLine, roles: ["superadmin", "admin_figurarte", "coordinador", "validador"] },
   { title: "Incidencias", url: "/incidencias", icon: AlertTriangle, roles: ["superadmin", "admin_figurarte", "coordinador", "validador"] },
-  { title: "Informes", url: "/informes", icon: BarChart3 },
+  { title: "Informes", url: "/informes", icon: BarChart3, roles: ["superadmin", "admin_figurarte", "coordinador"] },
 ];
 
 const adminItems: NavItem[] = [
