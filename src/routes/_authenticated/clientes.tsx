@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Mail, Phone, User } from "lucide-react";
+import { Building2, Plus, Mail, Phone, User, Pencil, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 
@@ -18,6 +18,7 @@ import {
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Page,
@@ -40,6 +41,8 @@ type Permissions = {
   see_personal_notes: boolean;
   export_data: boolean;
 };
+
+type ClientRow = Database["public"]["Tables"]["clients"]["Row"];
 
 const DEFAULT_PERMS: Permissions = {
   see_email: false,
