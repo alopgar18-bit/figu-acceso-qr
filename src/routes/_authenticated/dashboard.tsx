@@ -211,7 +211,7 @@ function toTitleCase(str: string) {
 }
 
 function DashboardPage() {
-  const { user, roles } = useAuth();
+  const { user, profile, roles } = useAuth();
   const rolesLabel = roles.length ? roles.map((r) => ROLE_LABELS[r] ?? r).join(" · ") : "Sin rol asignado";
   const { data, isLoading } = useDashboardData();
   const m = data?.metrics;
@@ -219,7 +219,7 @@ function DashboardPage() {
   const fs = data?.featuredStats;
   const demoSummary = data?.demoSummary;
 
-  const rawName = (user?.user_metadata as Record<string, string>)?.full_name ?? "";
+  const rawName = profile?.full_name ?? (user?.user_metadata as Record<string, string>)?.full_name ?? "";
   const emailPrefix = user?.email?.split("@")[0] ?? "";
   const greetingName = rawName
     ? toTitleCase(rawName)
