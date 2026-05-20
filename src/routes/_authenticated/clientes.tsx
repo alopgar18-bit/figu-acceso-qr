@@ -200,8 +200,8 @@ function ClientDialog({
     <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuevo cliente / productora</DialogTitle>
-          <DialogDescription>Da de alta una entidad para asignarle eventos y permisos.</DialogDescription>
+          <DialogTitle>{client ? "Editar cliente / productora" : "Nuevo cliente / productora"}</DialogTitle>
+          <DialogDescription>{client ? "Actualiza los datos y permisos de esta entidad." : "Da de alta una entidad para asignarle eventos y permisos."}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -256,8 +256,9 @@ function ClientDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name.trim()}>
-            {mutation.isPending ? "Creando..." : "Crear cliente"}
+          <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !name.trim()}>
+            {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {client ? "Guardar cambios" : "Crear cliente"}
           </Button>
         </DialogFooter>
       </DialogContent>
