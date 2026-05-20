@@ -70,7 +70,7 @@ export const commitImport = createServerFn({ method: "POST" })
         event_id: data.eventId,
         session_id: data.sessionId,
         total_rows: data.rows.length,
-        status: "en_proceso",
+        status: "procesando",
         created_by: userId,
       })
       .select()
@@ -232,7 +232,7 @@ export const commitImport = createServerFn({ method: "POST" })
         imported_rows: imported,
         error_rows: errored,
         errors: errors.slice(0, 200),
-        status: errored > 0 && imported === 0 ? "fallido" : errored > 0 ? "parcial" : "completado",
+        status: errored > 0 && imported === 0 ? "fallida" : errored > 0 ? "completada_con_errores" : "completada",
         completed_at: new Date().toISOString(),
       })
       .eq("id", batch.id)
@@ -267,6 +267,6 @@ export const commitImport = createServerFn({ method: "POST" })
       updated,
       errored,
       errors,
-      finalStatus: finalBatch?.status ?? "completado",
+      finalStatus: finalBatch?.status ?? "completada",
     };
   });
