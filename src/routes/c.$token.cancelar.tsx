@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Loader2, XCircle, CheckCircle2 } from "lucide-react";
@@ -23,7 +23,6 @@ export const Route = createFileRoute("/c/$token/cancelar")({
 
 function Page() {
   const { token } = Route.useParams();
-  const navigate = useNavigate();
   const cancel = useServerFn(cancelAttendance);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -107,7 +106,6 @@ function Page() {
             </form>
           </CardContent>
         </Card>
-        <button onClick={() => navigate({ to: "/c/$token", params: { token } })} className="hidden" />
       </div>
     </PublicShell>
   );
