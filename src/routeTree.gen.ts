@@ -27,6 +27,7 @@ import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authen
 import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticated/branding'
+import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -122,6 +123,12 @@ const AuthenticatedBrandingRoute = AuthenticatedBrandingRouteImport.update({
   path: '/branding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedEventosNuevoRoute =
+  AuthenticatedEventosNuevoRouteImport.update({
+    id: '/nuevo',
+    path: '/nuevo',
+    getParentRoute: () => AuthenticatedEventosRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -131,7 +138,7 @@ export interface FileRoutesByFullPath {
   '/comunicaciones': typeof AuthenticatedComunicacionesRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/eventos': typeof AuthenticatedEventosRoute
+  '/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/importaciones': typeof AuthenticatedImportacionesRoute
   '/incidencias': typeof AuthenticatedIncidenciasRoute
   '/informes': typeof AuthenticatedInformesRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/sesiones': typeof AuthenticatedSesionesRoute
   '/solicitudes': typeof AuthenticatedSolicitudesRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -150,7 +158,7 @@ export interface FileRoutesByTo {
   '/comunicaciones': typeof AuthenticatedComunicacionesRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/eventos': typeof AuthenticatedEventosRoute
+  '/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/importaciones': typeof AuthenticatedImportacionesRoute
   '/incidencias': typeof AuthenticatedIncidenciasRoute
   '/informes': typeof AuthenticatedInformesRoute
@@ -160,6 +168,7 @@ export interface FileRoutesByTo {
   '/sesiones': typeof AuthenticatedSesionesRoute
   '/solicitudes': typeof AuthenticatedSolicitudesRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -171,7 +180,7 @@ export interface FileRoutesById {
   '/_authenticated/comunicaciones': typeof AuthenticatedComunicacionesRoute
   '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/eventos': typeof AuthenticatedEventosRoute
+  '/_authenticated/eventos': typeof AuthenticatedEventosRouteWithChildren
   '/_authenticated/importaciones': typeof AuthenticatedImportacionesRoute
   '/_authenticated/incidencias': typeof AuthenticatedIncidenciasRoute
   '/_authenticated/informes': typeof AuthenticatedInformesRoute
@@ -181,6 +190,7 @@ export interface FileRoutesById {
   '/_authenticated/sesiones': typeof AuthenticatedSesionesRoute
   '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
+  '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -202,6 +212,7 @@ export interface FileRouteTypes {
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
+    | '/eventos/nuevo'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -221,6 +232,7 @@ export interface FileRouteTypes {
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
+    | '/eventos/nuevo'
   id:
     | '__root__'
     | '/'
@@ -241,6 +253,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sesiones'
     | '/_authenticated/solicitudes'
     | '/_authenticated/usuarios'
+    | '/_authenticated/eventos/nuevo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -377,8 +390,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBrandingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/eventos/nuevo': {
+      id: '/_authenticated/eventos/nuevo'
+      path: '/nuevo'
+      fullPath: '/eventos/nuevo'
+      preLoaderRoute: typeof AuthenticatedEventosNuevoRouteImport
+      parentRoute: typeof AuthenticatedEventosRoute
+    }
   }
 }
+
+interface AuthenticatedEventosRouteChildren {
+  AuthenticatedEventosNuevoRoute: typeof AuthenticatedEventosNuevoRoute
+}
+
+const AuthenticatedEventosRouteChildren: AuthenticatedEventosRouteChildren = {
+  AuthenticatedEventosNuevoRoute: AuthenticatedEventosNuevoRoute,
+}
+
+const AuthenticatedEventosRouteWithChildren =
+  AuthenticatedEventosRoute._addFileChildren(AuthenticatedEventosRouteChildren)
 
 interface AuthenticatedRouteChildren {
   AuthenticatedBrandingRoute: typeof AuthenticatedBrandingRoute
@@ -386,7 +417,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedComunicacionesRoute: typeof AuthenticatedComunicacionesRoute
   AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedEventosRoute: typeof AuthenticatedEventosRoute
+  AuthenticatedEventosRoute: typeof AuthenticatedEventosRouteWithChildren
   AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRoute
   AuthenticatedIncidenciasRoute: typeof AuthenticatedIncidenciasRoute
   AuthenticatedInformesRoute: typeof AuthenticatedInformesRoute
@@ -404,7 +435,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedComunicacionesRoute: AuthenticatedComunicacionesRoute,
   AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedEventosRoute: AuthenticatedEventosRoute,
+  AuthenticatedEventosRoute: AuthenticatedEventosRouteWithChildren,
   AuthenticatedImportacionesRoute: AuthenticatedImportacionesRoute,
   AuthenticatedIncidenciasRoute: AuthenticatedIncidenciasRoute,
   AuthenticatedInformesRoute: AuthenticatedInformesRoute,
@@ -428,3 +459,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
