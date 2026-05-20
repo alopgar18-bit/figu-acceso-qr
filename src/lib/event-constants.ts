@@ -12,7 +12,7 @@ export const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
   { value: "casting", label: "Casting" },
   { value: "premiere", label: "Premiere" },
   { value: "evento_privado", label: "Evento privado" },
-  { value: "produccion_audiovisual", label: "Producción audiovisual" },
+  { value: "produccion", label: "Producción audiovisual" },
   { value: "otro", label: "Otro" },
 ];
 
@@ -28,7 +28,7 @@ export const SESSION_STATUS_OPTIONS: { value: SessionStatus; label: string }[] =
   { value: "abierta", label: "Abierta" },
   { value: "cerrada", label: "Cerrada" },
   { value: "cancelada", label: "Cancelada" },
-  { value: "finalizada", label: "Finalizada" },
+  { value: "completada", label: "Finalizada" },
 ];
 
 export const COMPANIONS_QR_MODE_OPTIONS: { value: CompanionsQrMode; label: string }[] = [
