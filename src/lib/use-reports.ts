@@ -154,7 +154,7 @@ export function useEventReport(scope: ReportScope | null) {
         capacidad: 0,
         ocupacion: 0,
         communicationsSent: allComms.filter((c) => c.status === "enviado").length,
-        communicationsErrors: allComms.filter((c) => c.status === "error").length,
+        communicationsErrors: allComms.filter((c) => c.status === "fallido").length,
         incidents: allIncidents.length,
         lastCheckins: allCheckins.slice(0, 10).map((c) => {
           const part = parts.find((p) => p.id === c.participant_id);
