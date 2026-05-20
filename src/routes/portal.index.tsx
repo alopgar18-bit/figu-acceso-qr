@@ -26,7 +26,7 @@ function PortalDashboard() {
 
   const rawClientName = ctx?.clientName;
   const hasClientName = rawClientName && rawClientName !== "—" && rawClientName.trim().length > 1;
-  const userFallback = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[1] || "";
+  const userFallback = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[0] || "";
   const greetingName = hasClientName
     ? toTitleCase(rawClientName)
     : userFallback
