@@ -52,15 +52,15 @@ export function useOnboardingState() {
           .maybeSingle(),
       ]);
 
-      const hasClients = (clientsRes.count ?? 0) > 1; // >1 because demo seed creates a client
-      const hasEvents = (eventsRes.count ?? 1) > 1;
-      const hasSessions = (sessionsRes.count ?? 1) > 1;
-      const hasPublished = (publishedEventRes.count ?? 1) > 1;
-      const hasRequests = (requestsRes.count ?? 0) > 1;
-      const hasApproved = (approvedRes.count ?? 1) > 1;
-      const hasComms = (commsRes.count ?? 1) > 1;
-      const hasCheckins = (checkinsRes.count ?? 1) > 1;
-      const hasReports = (reportsRes.count ?? 0) > 1;
+      const hasClients = (clientsRes.count ?? 0) > 0;
+      const hasEvents = (eventsRes.count ?? 0) > 0;
+      const hasSessions = (sessionsRes.count ?? 0) > 0;
+      const hasPublished = (publishedEventRes.count ?? 0) > 0;
+      const hasRequests = (requestsRes.count ?? 0) > 0;
+      const hasApproved = (approvedRes.count ?? 0) > 0;
+      const hasComms = (commsRes.count ?? 0) > 0;
+      const hasCheckins = (checkinsRes.count ?? 0) > 0;
+      const hasReports = hasEvents;
 
       const steps: OnboardingStep[] = [
         {
