@@ -10,11 +10,31 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
+import { Route as AuthenticatedSolicitudesRouteImport } from './routes/_authenticated/solicitudes'
+import { Route as AuthenticatedSesionesRouteImport } from './routes/_authenticated/sesiones'
+import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticated/personas'
+import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/logs'
+import { Route as AuthenticatedLegalRouteImport } from './routes/_authenticated/legal'
+import { Route as AuthenticatedInformesRouteImport } from './routes/_authenticated/informes'
+import { Route as AuthenticatedIncidenciasRouteImport } from './routes/_authenticated/incidencias'
+import { Route as AuthenticatedImportacionesRouteImport } from './routes/_authenticated/importaciones'
+import { Route as AuthenticatedEventosRouteImport } from './routes/_authenticated/eventos'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authenticated/control-acceso'
+import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
+import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
+import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticated/branding'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -22,30 +42,210 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
+  id: '/usuarios',
+  path: '/usuarios',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSolicitudesRoute =
+  AuthenticatedSolicitudesRouteImport.update({
+    id: '/solicitudes',
+    path: '/solicitudes',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSesionesRoute = AuthenticatedSesionesRouteImport.update({
+  id: '/sesiones',
+  path: '/sesiones',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPersonasRoute = AuthenticatedPersonasRouteImport.update({
+  id: '/personas',
+  path: '/personas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedLogsRoute = AuthenticatedLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedLegalRoute = AuthenticatedLegalRouteImport.update({
+  id: '/legal',
+  path: '/legal',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedInformesRoute = AuthenticatedInformesRouteImport.update({
+  id: '/informes',
+  path: '/informes',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedIncidenciasRoute =
+  AuthenticatedIncidenciasRouteImport.update({
+    id: '/incidencias',
+    path: '/incidencias',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedImportacionesRoute =
+  AuthenticatedImportacionesRouteImport.update({
+    id: '/importaciones',
+    path: '/importaciones',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedEventosRoute = AuthenticatedEventosRouteImport.update({
+  id: '/eventos',
+  path: '/eventos',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedControlAccesoRoute =
+  AuthenticatedControlAccesoRouteImport.update({
+    id: '/control-acceso',
+    path: '/control-acceso',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedComunicacionesRoute =
+  AuthenticatedComunicacionesRouteImport.update({
+    id: '/comunicaciones',
+    path: '/comunicaciones',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
+  id: '/clientes',
+  path: '/clientes',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBrandingRoute = AuthenticatedBrandingRouteImport.update({
+  id: '/branding',
+  path: '/branding',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/branding': typeof AuthenticatedBrandingRoute
+  '/clientes': typeof AuthenticatedClientesRoute
+  '/comunicaciones': typeof AuthenticatedComunicacionesRoute
+  '/control-acceso': typeof AuthenticatedControlAccesoRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/eventos': typeof AuthenticatedEventosRoute
+  '/importaciones': typeof AuthenticatedImportacionesRoute
+  '/incidencias': typeof AuthenticatedIncidenciasRoute
+  '/informes': typeof AuthenticatedInformesRoute
+  '/legal': typeof AuthenticatedLegalRoute
+  '/logs': typeof AuthenticatedLogsRoute
+  '/personas': typeof AuthenticatedPersonasRoute
+  '/sesiones': typeof AuthenticatedSesionesRoute
+  '/solicitudes': typeof AuthenticatedSolicitudesRoute
+  '/usuarios': typeof AuthenticatedUsuariosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/branding': typeof AuthenticatedBrandingRoute
+  '/clientes': typeof AuthenticatedClientesRoute
+  '/comunicaciones': typeof AuthenticatedComunicacionesRoute
+  '/control-acceso': typeof AuthenticatedControlAccesoRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/eventos': typeof AuthenticatedEventosRoute
+  '/importaciones': typeof AuthenticatedImportacionesRoute
+  '/incidencias': typeof AuthenticatedIncidenciasRoute
+  '/informes': typeof AuthenticatedInformesRoute
+  '/legal': typeof AuthenticatedLegalRoute
+  '/logs': typeof AuthenticatedLogsRoute
+  '/personas': typeof AuthenticatedPersonasRoute
+  '/sesiones': typeof AuthenticatedSesionesRoute
+  '/solicitudes': typeof AuthenticatedSolicitudesRoute
+  '/usuarios': typeof AuthenticatedUsuariosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/branding': typeof AuthenticatedBrandingRoute
+  '/_authenticated/clientes': typeof AuthenticatedClientesRoute
+  '/_authenticated/comunicaciones': typeof AuthenticatedComunicacionesRoute
+  '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/eventos': typeof AuthenticatedEventosRoute
+  '/_authenticated/importaciones': typeof AuthenticatedImportacionesRoute
+  '/_authenticated/incidencias': typeof AuthenticatedIncidenciasRoute
+  '/_authenticated/informes': typeof AuthenticatedInformesRoute
+  '/_authenticated/legal': typeof AuthenticatedLegalRoute
+  '/_authenticated/logs': typeof AuthenticatedLogsRoute
+  '/_authenticated/personas': typeof AuthenticatedPersonasRoute
+  '/_authenticated/sesiones': typeof AuthenticatedSesionesRoute
+  '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRoute
+  '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/branding'
+    | '/clientes'
+    | '/comunicaciones'
+    | '/control-acceso'
+    | '/dashboard'
+    | '/eventos'
+    | '/importaciones'
+    | '/incidencias'
+    | '/informes'
+    | '/legal'
+    | '/logs'
+    | '/personas'
+    | '/sesiones'
+    | '/solicitudes'
+    | '/usuarios'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login'
-  id: '__root__' | '/' | '/login'
+  to:
+    | '/'
+    | '/login'
+    | '/branding'
+    | '/clientes'
+    | '/comunicaciones'
+    | '/control-acceso'
+    | '/dashboard'
+    | '/eventos'
+    | '/importaciones'
+    | '/incidencias'
+    | '/informes'
+    | '/legal'
+    | '/logs'
+    | '/personas'
+    | '/sesiones'
+    | '/solicitudes'
+    | '/usuarios'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/login'
+    | '/_authenticated/branding'
+    | '/_authenticated/clientes'
+    | '/_authenticated/comunicaciones'
+    | '/_authenticated/control-acceso'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/eventos'
+    | '/_authenticated/importaciones'
+    | '/_authenticated/incidencias'
+    | '/_authenticated/informes'
+    | '/_authenticated/legal'
+    | '/_authenticated/logs'
+    | '/_authenticated/personas'
+    | '/_authenticated/sesiones'
+    | '/_authenticated/solicitudes'
+    | '/_authenticated/usuarios'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
 }
 
@@ -58,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -65,11 +272,157 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/usuarios': {
+      id: '/_authenticated/usuarios'
+      path: '/usuarios'
+      fullPath: '/usuarios'
+      preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/solicitudes': {
+      id: '/_authenticated/solicitudes'
+      path: '/solicitudes'
+      fullPath: '/solicitudes'
+      preLoaderRoute: typeof AuthenticatedSolicitudesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/sesiones': {
+      id: '/_authenticated/sesiones'
+      path: '/sesiones'
+      fullPath: '/sesiones'
+      preLoaderRoute: typeof AuthenticatedSesionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/personas': {
+      id: '/_authenticated/personas'
+      path: '/personas'
+      fullPath: '/personas'
+      preLoaderRoute: typeof AuthenticatedPersonasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/logs': {
+      id: '/_authenticated/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AuthenticatedLogsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/legal': {
+      id: '/_authenticated/legal'
+      path: '/legal'
+      fullPath: '/legal'
+      preLoaderRoute: typeof AuthenticatedLegalRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/informes': {
+      id: '/_authenticated/informes'
+      path: '/informes'
+      fullPath: '/informes'
+      preLoaderRoute: typeof AuthenticatedInformesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/incidencias': {
+      id: '/_authenticated/incidencias'
+      path: '/incidencias'
+      fullPath: '/incidencias'
+      preLoaderRoute: typeof AuthenticatedIncidenciasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/importaciones': {
+      id: '/_authenticated/importaciones'
+      path: '/importaciones'
+      fullPath: '/importaciones'
+      preLoaderRoute: typeof AuthenticatedImportacionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/eventos': {
+      id: '/_authenticated/eventos'
+      path: '/eventos'
+      fullPath: '/eventos'
+      preLoaderRoute: typeof AuthenticatedEventosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/control-acceso': {
+      id: '/_authenticated/control-acceso'
+      path: '/control-acceso'
+      fullPath: '/control-acceso'
+      preLoaderRoute: typeof AuthenticatedControlAccesoRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/comunicaciones': {
+      id: '/_authenticated/comunicaciones'
+      path: '/comunicaciones'
+      fullPath: '/comunicaciones'
+      preLoaderRoute: typeof AuthenticatedComunicacionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/clientes': {
+      id: '/_authenticated/clientes'
+      path: '/clientes'
+      fullPath: '/clientes'
+      preLoaderRoute: typeof AuthenticatedClientesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/branding': {
+      id: '/_authenticated/branding'
+      path: '/branding'
+      fullPath: '/branding'
+      preLoaderRoute: typeof AuthenticatedBrandingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
+interface AuthenticatedRouteChildren {
+  AuthenticatedBrandingRoute: typeof AuthenticatedBrandingRoute
+  AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
+  AuthenticatedComunicacionesRoute: typeof AuthenticatedComunicacionesRoute
+  AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEventosRoute: typeof AuthenticatedEventosRoute
+  AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRoute
+  AuthenticatedIncidenciasRoute: typeof AuthenticatedIncidenciasRoute
+  AuthenticatedInformesRoute: typeof AuthenticatedInformesRoute
+  AuthenticatedLegalRoute: typeof AuthenticatedLegalRoute
+  AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
+  AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
+  AuthenticatedSesionesRoute: typeof AuthenticatedSesionesRoute
+  AuthenticatedSolicitudesRoute: typeof AuthenticatedSolicitudesRoute
+  AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedBrandingRoute: AuthenticatedBrandingRoute,
+  AuthenticatedClientesRoute: AuthenticatedClientesRoute,
+  AuthenticatedComunicacionesRoute: AuthenticatedComunicacionesRoute,
+  AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEventosRoute: AuthenticatedEventosRoute,
+  AuthenticatedImportacionesRoute: AuthenticatedImportacionesRoute,
+  AuthenticatedIncidenciasRoute: AuthenticatedIncidenciasRoute,
+  AuthenticatedInformesRoute: AuthenticatedInformesRoute,
+  AuthenticatedLegalRoute: AuthenticatedLegalRoute,
+  AuthenticatedLogsRoute: AuthenticatedLogsRoute,
+  AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
+  AuthenticatedSesionesRoute: AuthenticatedSesionesRoute,
+  AuthenticatedSolicitudesRoute: AuthenticatedSolicitudesRoute,
+  AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
