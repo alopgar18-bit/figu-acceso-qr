@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as PortalEventosRouteImport } from './routes/portal.eventos'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as CTokenRouteImport } from './routes/c.$token'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
@@ -75,6 +76,11 @@ const IndexRoute = IndexRouteImport.update({
 const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalEventosRoute = PortalEventosRouteImport.update({
+  id: '/eventos',
+  path: '/eventos',
   getParentRoute: () => PortalRoute,
 } as any)
 const ESlugRoute = ESlugRouteImport.update({
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/portal/eventos': typeof PortalEventosRoute
   '/portal/': typeof PortalIndexRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/portal/eventos': typeof PortalEventosRoute
   '/portal': typeof PortalIndexRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -353,6 +361,7 @@ export interface FileRoutesById {
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/portal/eventos': typeof PortalEventosRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -394,6 +403,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/portal/eventos'
     | '/portal/'
     | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
@@ -432,6 +442,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/portal/eventos'
     | '/portal'
     | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
@@ -472,6 +483,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/portal/eventos'
     | '/portal/'
     | '/_authenticated/control-acceso/$sessionId'
     | '/_authenticated/eventos/$eventId'
@@ -542,6 +554,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/portal/'
       preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/eventos': {
+      id: '/portal/eventos'
+      path: '/eventos'
+      fullPath: '/portal/eventos'
+      preLoaderRoute: typeof PortalEventosRouteImport
       parentRoute: typeof PortalRoute
     }
     '/e/$slug': {
@@ -894,10 +913,12 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 )
 
 interface PortalRouteChildren {
+  PortalEventosRoute: typeof PortalEventosRoute
   PortalIndexRoute: typeof PortalIndexRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
+  PortalEventosRoute: PortalEventosRoute,
   PortalIndexRoute: PortalIndexRoute,
 }
 
