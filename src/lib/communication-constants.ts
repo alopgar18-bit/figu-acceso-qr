@@ -12,8 +12,9 @@ export const COMM_CHANNEL_OPTIONS: { value: CommChannel; label: string }[] = [
 
 export const COMM_STATUS_OPTIONS: { value: CommStatus; label: string; tone: "default" | "secondary" | "destructive" | "outline" }[] = [
   { value: "pendiente", label: "Pendiente", tone: "outline" },
+  { value: "programado", label: "Programado", tone: "outline" },
   { value: "enviado", label: "Enviado", tone: "secondary" },
-  { value: "error", label: "Error", tone: "destructive" },
+  { value: "fallido", label: "Error", tone: "destructive" },
   { value: "cancelado", label: "Cancelado", tone: "outline" },
 ];
 
