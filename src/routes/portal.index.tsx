@@ -11,6 +11,14 @@ export const Route = createFileRoute("/portal/")({
   component: PortalDashboard,
 });
 
+function toTitleCase(str: string) {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function PortalDashboard() {
   const { user } = useAuth();
   const { data: ctx } = useClientContext();
@@ -18,11 +26,11 @@ function PortalDashboard() {
 
   const rawClientName = ctx?.clientName;
   const hasClientName = rawClientName && rawClientName !== "—" && rawClientName.trim().length > 1;
-  const userName = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[1] || "";
+  const userFallback = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[1] || "";
   const greetingName = hasClientName
-    ? rawClientName
-    : userName
-      ? userName
+    ? toTitleCase(rawClientName)
+    : userFallback
+      ? toTitleCase(userFallback)
       : "bienvenido";
 
   const active = events.filter((e) => e.status === "publicado").length;
