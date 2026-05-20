@@ -44,11 +44,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles([]);
       return;
     }
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    setRoles((data ?? []).map((r) => r.role as AppRole));
+    // Use security-definer RPC to avoid any RLS edge cases.
+    const { data, error } = await supabase.rpc("get_my_roles");
+    if (error) {
+      console.error("[auth] get_my_roles failed", error);
+      // Fallback to direct table read
+      const { data: fb } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      setRoles((fb ?? []).map((r) => r.role as AppRole));
+      return;
+    }
+    setRoles((data ?? []).map((r: { role: AppRole }) => r.role));
   };
 
   useEffect(() => {
