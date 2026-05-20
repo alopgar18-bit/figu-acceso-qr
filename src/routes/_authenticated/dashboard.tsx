@@ -303,7 +303,7 @@ function DashboardPage() {
 
                 <div className="flex flex-wrap gap-2">
                   <Button asChild size="sm"><Link to="/eventos/$eventId" params={{ eventId: f.id }}>Gestionar evento</Link></Button>
-                  <Button asChild size="sm" variant="outline"><Link to="/solicitudes" search={{ eventId: f.id } as any}>Ver solicitudes</Link></Button>
+                  <Button asChild size="sm" variant="outline"><Link to="/solicitudes">Ver solicitudes</Link></Button>
                   {f.slug && (
                     <Button asChild size="sm" variant="outline">
                       <a href={`/e/${f.slug}`} target="_blank" rel="noreferrer">Formulario público</a>
