@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Mail, Plus, Pencil, Trash2, RotateCw, CheckCircle2, ExternalLink, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, RotateCw, CheckCircle2, ExternalLink, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TemplateEditorDialog } from "@/components/template-editor-dialog";
-import { SendCommunicationDialog } from "@/components/send-communication-dialog";
 import {
   useTemplates,
   useDeleteTemplate,
