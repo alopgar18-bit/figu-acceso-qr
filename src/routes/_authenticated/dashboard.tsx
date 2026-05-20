@@ -217,6 +217,7 @@ function DashboardPage() {
   const m = data?.metrics;
   const f = data?.featured;
   const fs = data?.featuredStats;
+  const demoSummary = data?.demoSummary;
 
   const rawName = (user?.user_metadata as Record<string, string>)?.full_name ?? "";
   const emailPrefix = user?.email?.split("@")[0] ?? "";
@@ -388,6 +389,26 @@ function DashboardPage() {
           />
         )}
       </section>
+
+      {demoSummary && (
+        <section>
+          <h2 className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-semibold mb-3">
+            Resumen demo creado
+          </h2>
+          <Card className="rounded-none border-2">
+            <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              <Stat small label="Productoras" value={demoSummary.productoras} />
+              <Stat small label="Eventos" value={demoSummary.eventos} />
+              <Stat small label="Sesiones" value={demoSummary.sesiones} />
+              <Stat small label="Personas" value={demoSummary.personas} />
+              <Stat small label="Participantes" value={demoSummary.participantes} />
+              <Stat small label="Tickets" value={demoSummary.tickets} />
+              <Stat small label="Check-ins" value={demoSummary.checkins} />
+              <Stat small label="Incidencias" value={demoSummary.incidencias} />
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* BLOQUE 3 — Sesiones próximas */}
       {f && data?.sessions && data.sessions.length > 0 && (
