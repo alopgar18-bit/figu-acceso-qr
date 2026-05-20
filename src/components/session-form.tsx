@@ -111,7 +111,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
   };
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-6 max-w-5xl">
+    <form onSubmit={onSubmit} noValidate className="grid gap-6 max-w-5xl">
       <Card>
         <CardHeader><CardTitle className="text-base uppercase tracking-wider">Datos generales</CardTitle></CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
