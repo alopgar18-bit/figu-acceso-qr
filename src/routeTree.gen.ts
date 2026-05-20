@@ -28,6 +28,7 @@ import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authen
 import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticated/branding'
+import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
@@ -134,6 +135,11 @@ const AuthenticatedBrandingRoute = AuthenticatedBrandingRouteImport.update({
   path: '/branding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ESlugCompletoRoute = ESlugCompletoRouteImport.update({
+  id: '/completo',
+  path: '/completo',
+  getParentRoute: () => ESlugRoute,
+} as any)
 const ESlugCerradoRoute = ESlugCerradoRouteImport.update({
   id: '/cerrado',
   path: '/cerrado',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
+  '/e/$slug/completo': typeof ESlugCompletoRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
+  '/e/$slug/completo': typeof ESlugCompletoRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
+  '/e/$slug/completo': typeof ESlugCompletoRoute
   '/_authenticated/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/_authenticated/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/_authenticated/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -274,6 +283,7 @@ export interface FileRouteTypes {
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/e/$slug/cerrado'
+    | '/e/$slug/completo'
     | '/eventos/$eventId/editar'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
@@ -300,6 +310,7 @@ export interface FileRouteTypes {
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/e/$slug/cerrado'
+    | '/e/$slug/completo'
     | '/eventos/$eventId/editar'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
@@ -327,6 +338,7 @@ export interface FileRouteTypes {
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
     | '/e/$slug/cerrado'
+    | '/e/$slug/completo'
     | '/_authenticated/eventos/$eventId/editar'
     | '/_authenticated/eventos/$eventId/sesiones/$sessionId'
     | '/_authenticated/eventos/$eventId/sesiones/nueva'
@@ -474,6 +486,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBrandingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/e/$slug/completo': {
+      id: '/e/$slug/completo'
+      path: '/completo'
+      fullPath: '/e/$slug/completo'
+      preLoaderRoute: typeof ESlugCompletoRouteImport
+      parentRoute: typeof ESlugRoute
+    }
     '/e/$slug/cerrado': {
       id: '/e/$slug/cerrado'
       path: '/cerrado'
@@ -596,10 +615,12 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 interface ESlugRouteChildren {
   ESlugCerradoRoute: typeof ESlugCerradoRoute
+  ESlugCompletoRoute: typeof ESlugCompletoRoute
 }
 
 const ESlugRouteChildren: ESlugRouteChildren = {
   ESlugCerradoRoute: ESlugCerradoRoute,
+  ESlugCompletoRoute: ESlugCompletoRoute,
 }
 
 const ESlugRouteWithChildren = ESlugRoute._addFileChildren(ESlugRouteChildren)
