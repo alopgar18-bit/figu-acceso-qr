@@ -25,6 +25,23 @@ function AuthenticatedLayout() {
     !roles.some((r) => r === "coordinador" || r === "validador");
   if (onlyClient) return <Navigate to="/portal" />;
 
+  // Defensive: signed in but no role assigned at all.
+  if (roles.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md text-center space-y-4">
+          <h1 className="text-2xl font-black uppercase tracking-tight">
+            Sin rol asignado
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Tu usuario no tiene rol asignado. Contacta con un administrador de
+            FIGURARTE para activar tu acceso.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-muted/30">
