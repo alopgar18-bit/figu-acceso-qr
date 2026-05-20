@@ -49,7 +49,7 @@ function PortalDashboard() {
     <div>
       <PageHeader
         eyebrow="Portal cliente"
-        title={`Hola, ${ctx?.clientName ?? ""}`}
+        title={`Hola, ${greetingName}`}
         description="Consulta tus eventos, sesiones, estadísticas e informes."
       />
 
