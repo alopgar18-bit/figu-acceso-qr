@@ -198,8 +198,9 @@ export const manualCheckin = createServerFn({ method: "POST" })
         event_id: data.eventId,
         session_id: data.sessionId,
         validator_id: userId,
-        result: "manual_override",
+        result: "ok",
         companions_validated: data.companionsValidated ?? 0,
+        device_info: "manual_override",
         notes: data.reason,
       })
       .select("id, checked_in_at")
