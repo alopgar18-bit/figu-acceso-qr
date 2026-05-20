@@ -75,8 +75,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
   const upsert = useUpsertSession();
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setS((p) => ({ ...p, [k]: v }));
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const saveSession = async () => {
     if (!s.name.trim()) return toast.error("El nombre de la sesión es obligatorio");
     if (!s.starts_at) return toast.error("La fecha y hora de inicio es obligatoria");
     if (!s.capacity || s.capacity <= 0) return toast.error("El aforo debe ser mayor que cero");
@@ -108,6 +107,11 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error guardando la sesión");
     }
+  };
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    await saveSession();
   };
 
   return (
@@ -212,7 +216,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
 
       <div className="flex justify-end gap-2 sticky bottom-0 bg-background/80 backdrop-blur py-3 -mx-4 px-4 border-t">
         <Button type="button" variant="outline" onClick={() => navigate({ to: "/eventos/$eventId", params: { eventId: event.id } })}>Cancelar</Button>
-        <Button type="submit" disabled={upsert.isPending} className="uppercase tracking-wider">
+        <Button type="button" onClick={saveSession} disabled={upsert.isPending} className="uppercase tracking-wider">
           {upsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {session ? "Guardar cambios" : "Crear sesión"}
         </Button>
