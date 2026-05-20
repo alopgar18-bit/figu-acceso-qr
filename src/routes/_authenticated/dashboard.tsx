@@ -69,6 +69,16 @@ function useDashboardData() {
 
       let featuredStats = { solicitudes: 0, confirmados: 0, checkins: 0, incidencias: 0, ocupacion: 0, capacidad: 0 };
       let sessions: any[] = [];
+      let demoSummary: null | {
+        productoras: number;
+        eventos: number;
+        sesiones: number;
+        personas: number;
+        participantes: number;
+        tickets: number;
+        checkins: number;
+        incidencias: number;
+      } = null;
 
       if (featured?.id) {
         const [s, c, ci, inc, ses] = await Promise.all([
@@ -114,6 +124,36 @@ function useDashboardData() {
         .order("created_at", { ascending: false })
         .limit(8);
 
+      const { data: demoEvent } = await supabase
+        .from("events")
+        .select("id")
+        .eq("slug", "el-perro-andaluz-manu-sanchez")
+        .maybeSingle();
+
+      if (demoEvent?.id) {
+        const [prod, ev, ses, people, participants, tickets, checkins, incidents] = await Promise.all([
+          supabase.from("clients").select("id", { count: "exact", head: true }).eq("name", "16 Escalones Producciones"),
+          supabase.from("events").select("id", { count: "exact", head: true }).eq("id", demoEvent.id),
+          supabase.from("event_sessions").select("id", { count: "exact", head: true }).eq("event_id", demoEvent.id),
+          supabase.from("event_participants").select("person_id").eq("event_id", demoEvent.id),
+          supabase.from("event_participants").select("id", { count: "exact", head: true }).eq("event_id", demoEvent.id),
+          supabase.from("tickets").select("id", { count: "exact", head: true }).eq("event_id", demoEvent.id),
+          supabase.from("checkins").select("id", { count: "exact", head: true }).eq("event_id", demoEvent.id),
+          supabase.from("incidents").select("id", { count: "exact", head: true }).eq("event_id", demoEvent.id),
+        ]);
+
+        demoSummary = {
+          productoras: prod.count ?? 0,
+          eventos: ev.count ?? 0,
+          sesiones: ses.count ?? 0,
+          personas: new Set((people.data ?? []).map((p) => p.person_id)).size,
+          participantes: participants.count ?? 0,
+          tickets: tickets.count ?? 0,
+          checkins: checkins.count ?? 0,
+          incidencias: incidents.count ?? 0,
+        };
+      }
+
       return {
         metrics: {
           eventos: evCount.count ?? 0,
@@ -126,6 +166,7 @@ function useDashboardData() {
         featured,
         featuredStats,
         sessions,
+        demoSummary,
         recent: recent ?? [],
       };
     },
