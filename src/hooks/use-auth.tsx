@@ -8,6 +8,20 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+function translateAuthError(message: string): string {
+  const map: Record<string, string> = {
+    "Invalid login credentials": "Credenciales incorrectas. Revisa tu email y contraseña.",
+    "Email not confirmed": "El email no ha sido confirmado. Revisa tu bandeja de entrada.",
+    "User not found": "Usuario no encontrado.",
+    "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres.",
+    "Signup requires a valid password": "La contraseña no es válida.",
+    "An account already exists with this email": "Ya existe una cuenta con este email.",
+    "Email rate limit exceeded": "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+    "Request failed": "Error de conexión. Inténtalo de nuevo.",
+  };
+  return map[message] ?? message;
+}
+
 export type AppRole =
   | "superadmin"
   | "admin_figurarte"
