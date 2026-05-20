@@ -67,14 +67,9 @@ function Page() {
         title="Comunicaciones"
         description={`Plantillas, envíos por email desde ${SENDER_EMAIL} y WhatsApp asistido, con cola e historial.`}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setSendOpen(true)} className="uppercase tracking-wider">
-              <Mail className="h-4 w-4 mr-2" />Envío rápido
-            </Button>
-            <Button onClick={openNew} className="uppercase tracking-wider">
-              <Plus className="h-4 w-4 mr-2" />Nueva plantilla
-            </Button>
-          </div>
+          <Button onClick={openNew} className="uppercase tracking-wider">
+            <Plus className="h-4 w-4 mr-2" />Nueva plantilla
+          </Button>
         }
       />
 
@@ -137,12 +132,6 @@ function Page() {
       </Tabs>
 
       <TemplateEditorDialog open={editorOpen} onOpenChange={setEditorOpen} template={editing} />
-
-      <SendCommunicationDialog
-        open={sendOpen}
-        onOpenChange={setSendOpen}
-        recipients={[]}
-      />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
