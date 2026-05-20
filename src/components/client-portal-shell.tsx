@@ -6,10 +6,11 @@ import { useClientContext } from "@/lib/use-client-portal";
 import type { ReactNode } from "react";
 
 export function ClientPortalShell({ children }: { children: ReactNode }) {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { data: ctx } = useClientContext();
   const perms = ctx?.perms;
+  const displayName = ctx?.clientName || profile?.full_name || user?.email || "Cliente";
 
   const nav = [
     { to: "/portal", label: "Resumen", icon: LayoutDashboard, show: true },
@@ -42,7 +43,7 @@ export function ClientPortalShell({ children }: { children: ReactNode }) {
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden md:inline text-xs text-muted-foreground truncate max-w-[200px]">{user?.email}</span>
+            <span className="hidden md:inline text-xs text-muted-foreground truncate max-w-[200px]">{displayName}</span>
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Salir</span>
