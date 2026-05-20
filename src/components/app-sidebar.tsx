@@ -15,6 +15,7 @@ import {
   Palette,
   Shield,
   ScrollText,
+  Eye,
   LogOut,
 } from "lucide-react";
 
@@ -59,6 +60,7 @@ const adminItems: NavItem[] = [
   { title: "Branding", url: "/branding", icon: Palette, roles: ["superadmin", "admin_figurarte"] },
   { title: "Legal / RGPD", url: "/legal", icon: Shield, roles: ["superadmin", "admin_figurarte"] },
   { title: "Logs", url: "/logs", icon: ScrollText, roles: ["superadmin"] },
+  { title: "Portal cliente", url: "/portal", icon: Eye, roles: ["superadmin", "admin_figurarte"] },
 ];
 
 export function AppSidebar() {
