@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
+import { Route as CTokenRouteImport } from './routes/c.$token'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedSolicitudesRouteImport } from './routes/_authenticated/solicitudes'
 import { Route as AuthenticatedSesionesRouteImport } from './routes/_authenticated/sesiones'
@@ -33,6 +34,7 @@ import { Route as ESlugInscripcionRouteImport } from './routes/e.$slug.inscripci
 import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
 import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
+import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
 import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
 import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
@@ -64,6 +66,11 @@ const IndexRoute = IndexRouteImport.update({
 const ESlugRoute = ESlugRouteImport.update({
   id: '/e/$slug',
   path: '/e/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CTokenRoute = CTokenRouteImport.update({
+  id: '/c/$token',
+  path: '/c/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
@@ -166,6 +173,11 @@ const ESlugCerradoRoute = ESlugCerradoRouteImport.update({
   path: '/cerrado',
   getParentRoute: () => ESlugRoute,
 } as any)
+const CTokenEntradaRoute = CTokenEntradaRouteImport.update({
+  id: '/entrada',
+  path: '/entrada',
+  getParentRoute: () => CTokenRoute,
+} as any)
 const AuthenticatedSolicitudesParticipantIdRoute =
   AuthenticatedSolicitudesParticipantIdRouteImport.update({
     id: '/$participantId',
@@ -234,12 +246,14 @@ export interface FileRoutesByFullPath {
   '/sesiones': typeof AuthenticatedSesionesRoute
   '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
@@ -267,12 +281,14 @@ export interface FileRoutesByTo {
   '/sesiones': typeof AuthenticatedSesionesRoute
   '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
@@ -302,12 +318,14 @@ export interface FileRoutesById {
   '/_authenticated/sesiones': typeof AuthenticatedSesionesRoute
   '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
+  '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
   '/_authenticated/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
@@ -337,12 +355,14 @@ export interface FileRouteTypes {
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
+    | '/c/$token'
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/solicitudes/$participantId'
+    | '/c/$token/entrada'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
@@ -370,12 +390,14 @@ export interface FileRouteTypes {
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
+    | '/c/$token'
     | '/e/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/solicitudes/$participantId'
+    | '/c/$token/entrada'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
@@ -404,12 +426,14 @@ export interface FileRouteTypes {
     | '/_authenticated/sesiones'
     | '/_authenticated/solicitudes'
     | '/_authenticated/usuarios'
+    | '/c/$token'
     | '/e/$slug'
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
     | '/_authenticated/importaciones/$batchId'
     | '/_authenticated/importaciones/nueva'
     | '/_authenticated/solicitudes/$participantId'
+    | '/c/$token/entrada'
     | '/e/$slug/cerrado'
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
@@ -424,6 +448,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   PrivacidadRoute: typeof PrivacidadRoute
+  CTokenRoute: typeof CTokenRouteWithChildren
   ESlugRoute: typeof ESlugRouteWithChildren
 }
 
@@ -462,6 +487,13 @@ declare module '@tanstack/react-router' {
       path: '/e/$slug'
       fullPath: '/e/$slug'
       preLoaderRoute: typeof ESlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/c/$token': {
+      id: '/c/$token'
+      path: '/c/$token'
+      fullPath: '/c/$token'
+      preLoaderRoute: typeof CTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/usuarios': {
@@ -596,6 +628,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/e/$slug/cerrado'
       preLoaderRoute: typeof ESlugCerradoRouteImport
       parentRoute: typeof ESlugRoute
+    }
+    '/c/$token/entrada': {
+      id: '/c/$token/entrada'
+      path: '/entrada'
+      fullPath: '/c/$token/entrada'
+      preLoaderRoute: typeof CTokenEntradaRouteImport
+      parentRoute: typeof CTokenRoute
     }
     '/_authenticated/solicitudes/$participantId': {
       id: '/_authenticated/solicitudes/$participantId'
@@ -763,6 +802,17 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface CTokenRouteChildren {
+  CTokenEntradaRoute: typeof CTokenEntradaRoute
+}
+
+const CTokenRouteChildren: CTokenRouteChildren = {
+  CTokenEntradaRoute: CTokenEntradaRoute,
+}
+
+const CTokenRouteWithChildren =
+  CTokenRoute._addFileChildren(CTokenRouteChildren)
+
 interface ESlugRouteChildren {
   ESlugCerradoRoute: typeof ESlugCerradoRoute
   ESlugCompletoRoute: typeof ESlugCompletoRoute
@@ -784,8 +834,19 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   PrivacidadRoute: PrivacidadRoute,
+  CTokenRoute: CTokenRouteWithChildren,
   ESlugRoute: ESlugRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
