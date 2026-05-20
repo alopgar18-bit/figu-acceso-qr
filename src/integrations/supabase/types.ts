@@ -1338,6 +1338,12 @@ export type Database = {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
       }
+      get_my_roles: {
+        Args: never
+        Returns: {
+          role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
       has_any_assignment: { Args: { _user_id: string }; Returns: boolean }
       has_any_role: {
         Args: {
