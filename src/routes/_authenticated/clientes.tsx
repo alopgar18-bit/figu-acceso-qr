@@ -56,6 +56,7 @@ const DEFAULT_PERMS: Permissions = {
 
 function Page() {
   const [open, setOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<ClientRow | null>(null);
   const qc = useQueryClient();
 
   const { data: clients, isLoading } = useQuery({
@@ -99,9 +100,14 @@ function Page() {
                   <div className="font-medium">{c.name}</div>
                   {c.legal_name && <div className="text-xs text-muted-foreground">{c.legal_name}</div>}
                 </div>
-                <Badge variant={c.is_active ? "default" : "outline"}>
-                  {c.is_active ? "Activo" : "Inactivo"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={c.is_active ? "default" : "outline"}>
+                    {c.is_active ? "Activo" : "Inactivo"}
+                  </Badge>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setEditingClient(c)} aria-label={`Editar ${c.name}`}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                 {c.contact_email && <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5" />{c.contact_email}</div>}
@@ -112,7 +118,19 @@ function Page() {
         </div>
       )}
 
-      <CreateClientDialog open={open} onOpenChange={setOpen} onCreated={() => qc.invalidateQueries({ queryKey: ["clients"] })} />
+      <ClientDialog
+        open={open || !!editingClient}
+        client={editingClient}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setOpen(false);
+            setEditingClient(null);
+          } else {
+            setOpen(true);
+          }
+        }}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["clients"] })}
+      />
     </div>
   );
 }
