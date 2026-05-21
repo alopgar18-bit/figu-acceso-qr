@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Inbox, Search, Filter, X, AlertCircle, Image as ImageIcon,
   CheckCircle2, XCircle, Clock, ArrowRightLeft, Mail, Download, Ban,
-  Users as UsersIcon,
+  Users as UsersIcon, QrCode,
 } from "lucide-react";
 
 import { PageHeader, EmptyState } from "@/components/page-header";
@@ -35,6 +35,8 @@ import {
   PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, APPROVED_LIKE,
   statusLabel, statusTone, ageFromBirth,
 } from "@/lib/participant-constants";
+import { useServerFn } from "@tanstack/react-start";
+import { generateMissingTickets } from "@/lib/tickets.functions";
 
 const searchSchema = z.object({
   eventId: z.string().optional(),
@@ -341,7 +343,7 @@ function Page() {
       </Card>
 
       {/* Bulk action bar */}
-      {selected.size > 0 && (
+      {(selected.size > 0 || filteredRows.length > 0) && (
         <BulkActionsBar
           selectedIds={[...selected]}
           rows={filteredRows}
