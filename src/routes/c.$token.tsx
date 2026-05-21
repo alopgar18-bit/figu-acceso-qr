@@ -47,7 +47,8 @@ function Page() {
 
   useEffect(() => {
     if (isChildRoute || !data?.ok) return;
-    if (["qr_generado", "confirmado", "acceso_validado"].includes(data.participant.status)) {
+    const hasTicket = (data.tickets?.length ?? 0) > 0;
+    if (hasTicket || ["qr_generado", "confirmado", "acceso_validado"].includes(data.participant.status)) {
       navigate({ to: "/c/$token/entrada", params: { token }, replace: true });
     }
   }, [data, isChildRoute, navigate, token]);
@@ -67,8 +68,9 @@ function Page() {
   const { participant, event, session, person } = data;
   const brandColor = event.brand_color ?? null;
 
-  // Already confirmed → show ticket directly
-  if (participant.status === "qr_generado" || participant.status === "confirmado" || participant.status === "acceso_validado") {
+  // Already confirmed or ticket already issued → show ticket directly
+  const hasTicket = (data.tickets?.length ?? 0) > 0;
+  if (hasTicket || participant.status === "qr_generado" || participant.status === "confirmado" || participant.status === "acceso_validado") {
     return (
       <PublicShell brandColor={brandColor}>
         <div className="text-center py-6">

@@ -37,6 +37,7 @@ function Page() {
     if (!data) return;
     if (!data.ok) navigate({ to: "/c/$token", params: { token } });
     else if (
+      (data.tickets?.length ?? 0) === 0 &&
       data.participant.status !== "qr_generado" &&
       data.participant.status !== "confirmado" &&
       data.participant.status !== "acceso_validado"
