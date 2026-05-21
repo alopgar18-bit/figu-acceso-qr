@@ -27,6 +27,12 @@ import {
 } from "@/lib/import-constants";
 import { ATTENDEE_TYPE_OPTIONS, type ParticipantStatus, type AttendeeType } from "@/lib/participant-constants";
 import { commitImport } from "@/lib/imports.functions";
+import {
+  FIELD_DEFS,
+  resolveFieldRequirements,
+  type FieldKey,
+  type FieldRule,
+} from "@/lib/field-requirements";
 
 export const Route = createFileRoute("/_authenticated/importaciones/nueva")({
   component: ImportWizardPage,
@@ -61,6 +67,34 @@ function ImportWizardPage() {
 
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId || undefined);
+
+  // Resolve field requirements for selected event/session pair.
+  const resolved = useMemo<Record<FieldKey, FieldRule> | null>(() => {
+    const ev = events.find((e) => e.id === eventId) as
+      | { field_requirements?: unknown; requires_image_consent?: boolean | null }
+      | undefined;
+    if (!ev) return null;
+    const sess = sessions.find((s) => s.id === sessionId) as
+      | { inherit_event_fields?: boolean | null; field_requirements?: unknown }
+      | undefined;
+    return resolveFieldRequirements(ev, sess);
+  }, [events, sessions, eventId, sessionId]);
+
+  /** Required field keys for this import (only those marked required AND in_import). */
+  const requiredImportKeys = useMemo<FieldKey[]>(() => {
+    if (!resolved) return [];
+    return FIELD_DEFS.filter(
+      (d) => resolved[d.key].required && resolved[d.key].in_import && d.importTarget,
+    ).map((d) => d.key);
+  }, [resolved]);
+
+  const requiredImportTargets = useMemo<Set<string>>(() => {
+    return new Set(
+      requiredImportKeys
+        .map((k) => FIELD_DEFS.find((d) => d.key === k)?.importTarget)
+        .filter((v): v is string => !!v),
+    );
+  }, [requiredImportKeys]);
 
   // Auto-guess mapping when file changes
   function autoGuessMapping(headers: string[]) {
@@ -130,9 +164,9 @@ function ImportWizardPage() {
         rowIndex: i + 1,
         first_name: get("first_name"),
         last_name: get("last_name") || null,
-        dni,
-        email,
-        phone,
+        dni: dni || null,
+        email: email || null,
+        phone: phone || null,
         birth_date: birth,
         city: get("city") || null,
         province: get("province") || null,
@@ -146,15 +180,22 @@ function ImportWizardPage() {
         initial_status: normalizeStatus(get("initial_status")),
         companions_count: Number(get("companions_count")) || 0,
       };
-      // Required validation
-      if (!row.first_name) errors.push({ row: i + 1, msg: "Falta nombre" });
-      if (!dni) errors.push({ row: i + 1, msg: "Falta DNI" });
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push({ row: i + 1, msg: "Email no válido" });
-      if (!phone || phone.length < 5) errors.push({ row: i + 1, msg: "Teléfono no válido" });
+      // Per-event/session required validation
+      for (const key of requiredImportTargets) {
+        const def = FIELD_DEFS.find((d) => d.importTarget === key);
+        const val = String(row[key as keyof typeof row] ?? "").trim();
+        if (!val) {
+          errors.push({ row: i + 1, msg: `Falta ${def?.label ?? key}` });
+        } else if (key === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          errors.push({ row: i + 1, msg: "Email no válido" });
+        } else if (key === "phone" && val.length < 5) {
+          errors.push({ row: i + 1, msg: "Teléfono no válido" });
+        }
+      }
       rows.push(row);
     });
     return { rows, errors };
-  }, [parsed, mapping]);
+  }, [parsed, mapping, requiredImportTargets]);
 
   const validRows = useMemo(() => {
     const bad = new Set(normalized.errors.map((e) => e.row));
@@ -163,20 +204,26 @@ function ImportWizardPage() {
 
   const requiredMissing = useMemo(() => {
     const used = new Set(Object.values(mapping));
-    return TARGET_FIELDS.filter((t) => t.required && !used.has(t.value)).map((t) => t.label);
-  }, [mapping]);
+    return FIELD_DEFS.filter(
+      (d) => requiredImportTargets.has(d.importTarget ?? "") && !used.has(d.importTarget as TargetField),
+    ).map((d) => d.label);
+  }, [mapping, requiredImportTargets]);
 
   async function preflightDuplicates() {
     if (validRows.length === 0) {
       setDuplicateHits(0);
       return;
     }
-    const dnis = Array.from(new Set(validRows.map((r) => r.dni as string).filter(Boolean))).slice(0, 200);
-    const emails = Array.from(new Set(validRows.map((r) => r.email as string).filter(Boolean))).slice(0, 200);
+    const dnis = Array.from(new Set(validRows.map((r) => r.dni as string | null).filter((v): v is string => !!v))).slice(0, 200);
+    const emails = Array.from(new Set(validRows.map((r) => r.email as string | null).filter((v): v is string => !!v))).slice(0, 200);
+    const orParts: string[] = [];
+    if (dnis.length > 0) orParts.push(`dni.in.(${dnis.map((d) => `"${d}"`).join(",")})`);
+    if (emails.length > 0) orParts.push(`email.in.(${emails.map((e) => `"${e}"`).join(",")})`);
+    if (orParts.length === 0) { setDuplicateHits(0); return; }
     const { data, error } = await supabase
       .from("people")
       .select("id")
-      .or(`dni.in.(${dnis.map((d) => `"${d}"`).join(",")}),email.in.(${emails.map((e) => `"${e}"`).join(",")})`);
+      .or(orParts.join(","));
     if (error) {
       setDuplicateHits(null);
       return;
@@ -256,7 +303,7 @@ function ImportWizardPage() {
       )}
 
       {step === 2 && parsed && (
-        <MappingStep parsed={parsed} mapping={mapping} setMapping={setMapping} requiredMissing={requiredMissing} />
+        <MappingStep parsed={parsed} mapping={mapping} setMapping={setMapping} requiredMissing={requiredMissing} requiredImportTargets={requiredImportTargets} resolved={resolved} />
       )}
 
       {step === 3 && parsed && (
@@ -267,6 +314,7 @@ function ImportWizardPage() {
           onPreflight={preflightDuplicates}
           defaultStatus={defaultStatus}
           duplicateStrategy={duplicateStrategy}
+          resolved={resolved}
         />
       )}
 
