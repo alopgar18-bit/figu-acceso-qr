@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { BarChart3, ArrowRight } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/page-header";
 import { useEvents } from "@/lib/use-events";
@@ -12,6 +12,9 @@ export const Route = createFileRoute("/_authenticated/informes")({
 
 function Page() {
   const { data: events = [], isLoading } = useEvents();
+  const matches = useMatches();
+  const hasChild = matches.some((m) => m.routeId === "/_authenticated/informes/$eventId");
+  if (hasChild) return <Outlet />;
 
   return (
     <div>
