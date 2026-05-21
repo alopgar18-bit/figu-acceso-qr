@@ -69,13 +69,12 @@ function BulkSendPage() {
     queryKey: ["bulk_participants", eventId, sessionId, batchId, batchInfo.data?.filename],
     enabled: !!eventId && !!sessionId,
     queryFn: async () => {
-      let q = supabase
+      const { data, error } = await supabase
         .from("event_participants")
         .select("id, status, person_id, people(first_name,last_name,email,phone,source)")
         .eq("event_id", eventId!)
         .eq("session_id", sessionId!)
         .limit(5000);
-      const { data, error } = await q;
       if (error) throw error;
       let rows = (data ?? []) as unknown as (PartRow & { people: PartRow["people"] & { source?: string | null } | null })[];
       if (batchId && batchInfo.data?.filename) {
