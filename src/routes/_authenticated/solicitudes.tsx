@@ -459,15 +459,26 @@ function BulkActionsBar({
   rows: import("@/lib/use-participants").ParticipantWithRelations[];
   clear: () => void;
 }) {
-  const selectedRows = rows.filter((r) => selectedIds.includes(r.id));
-  const eventIds = new Set(selectedRows.map((r) => r.event_id));
+  const navigate = useNavigate();
+  const hasSelection = selectedIds.length > 0;
+  const effectiveRows = hasSelection ? rows.filter((r) => selectedIds.includes(r.id)) : rows;
+  const effectiveIds = effectiveRows.map((r) => r.id);
+  const eventIds = new Set(effectiveRows.map((r) => r.event_id));
+  const sessionIds = new Set(effectiveRows.map((r) => r.session_id));
   const singleEventId = eventIds.size === 1 ? [...eventIds][0] : null;
+  const singleSessionId = sessionIds.size === 1 ? [...sessionIds][0] : null;
   const { data: sessions = [] } = useEventSessions(singleEventId ?? undefined);
   const bulk = useBulkUpdateParticipants();
+  const genTickets = useServerFn(generateMissingTickets);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [targetSession, setTargetSession] = useState<string>("");
+  const [genLoading, setGenLoading] = useState(false);
 
   const run = (patch: Parameters<typeof bulk.mutate>[0]["patch"], action: string) => {
+    if (!hasSelection) {
+      toast.error("Selecciona al menos una solicitud.");
+      return;
+    }
     if (!singleEventId) {
       toast.error("Selecciona personas de un único evento para acciones masivas.");
       return;
@@ -484,7 +495,62 @@ function BulkActionsBar({
     );
   };
 
+  const openBulkSend = (useAllFiltered: boolean) => {
+    const ids = useAllFiltered ? rows.map((r) => r.id) : selectedIds;
+    if (ids.length === 0) {
+      toast.error("No hay destinatarios.");
+      return;
+    }
+    const rowsForIds = rows.filter((r) => ids.includes(r.id));
+    const evs = new Set(rowsForIds.map((r) => r.event_id));
+    const ses = new Set(rowsForIds.map((r) => r.session_id));
+    if (evs.size !== 1 || ses.size !== 1) {
+      toast.error("Todos los destinatarios deben pertenecer al mismo evento y sesión. Filtra primero.");
+      return;
+    }
+    const event_id = [...evs][0];
+    const session_id = [...ses][0];
+    const key = `bulk-send-${Date.now()}`;
+    try {
+      sessionStorage.setItem(key, JSON.stringify(ids));
+    } catch {
+      toast.error("Demasiados destinatarios para esta sesión del navegador.");
+      return;
+    }
+    navigate({
+      to: "/comunicaciones/envio",
+      search: { selection_key: key, event_id, session_id },
+    });
+  };
+
+  const generateQrBulk = async (useAllFiltered: boolean) => {
+    const ids = useAllFiltered ? rows.map((r) => r.id) : selectedIds;
+    if (ids.length === 0) {
+      toast.error("Selecciona destinatarios.");
+      return;
+    }
+    const rowsForIds = rows.filter((r) => ids.includes(r.id));
+    const evs = new Set(rowsForIds.map((r) => r.event_id));
+    const ses = new Set(rowsForIds.map((r) => r.session_id));
+    if (evs.size !== 1 || ses.size !== 1) {
+      toast.error("Todos deben ser del mismo evento y sesión.");
+      return;
+    }
+    setGenLoading(true);
+    try {
+      const res = await genTickets({
+        data: { event_id: [...evs][0], session_id: [...ses][0], participant_ids: ids },
+      });
+      toast.success(`Generados ${res.generated} QR (${res.skipped} ya existían).`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error generando QR");
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
   const exportCsv = () => {
+    const selectedRows = effectiveRows;
     const header = ["Nombre", "Apellidos", "Email", "Teléfono", "DNI", "Evento", "Sesión", "Estado", "Tipo", "Acomp."];
     const lines = [header.join(";")];
     for (const r of selectedRows) {
@@ -508,21 +574,33 @@ function BulkActionsBar({
     <Card className="sticky top-14 z-10 border-primary/40 bg-primary/5">
       <CardContent className="py-3 flex flex-wrap items-center gap-2">
         <Badge className="uppercase tracking-wider">
-          <UsersIcon className="h-3 w-3 mr-1" />{selectedIds.length} seleccionad{selectedIds.length === 1 ? "a" : "as"}
+          <UsersIcon className="h-3 w-3 mr-1" />
+          {hasSelection
+            ? `${selectedIds.length} seleccionad${selectedIds.length === 1 ? "a" : "as"}`
+            : `${rows.length} filtrad${rows.length === 1 ? "a" : "as"}`}
         </Badge>
+        {!hasSelection && (
+          <span className="text-xs text-muted-foreground">
+            Sin selección. Las acciones aplican a todos los resultados filtrados (mismo evento+sesión).
+          </span>
+        )}
         <div className="flex-1" />
-        <Button size="sm" variant="default" onClick={() => run({ status: "aprobado", approved_at: new Date().toISOString() }, "participant.bulk_approve")}>
-          <CheckCircle2 className="h-4 w-4 mr-1" />Aprobar
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => run({ status: "rechazado" }, "participant.bulk_reject")}>
-          <XCircle className="h-4 w-4 mr-1" />Rechazar
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => run({ status: "lista_espera" }, "participant.bulk_waitlist")}>
-          <Clock className="h-4 w-4 mr-1" />Lista de espera
-        </Button>
+        {hasSelection && (
+          <>
+            <Button size="sm" variant="default" onClick={() => run({ status: "aprobado", approved_at: new Date().toISOString() }, "participant.bulk_approve")}>
+              <CheckCircle2 className="h-4 w-4 mr-1" />Aprobar
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => run({ status: "rechazado" }, "participant.bulk_reject")}>
+              <XCircle className="h-4 w-4 mr-1" />Rechazar
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => run({ status: "lista_espera" }, "participant.bulk_waitlist")}>
+              <Clock className="h-4 w-4 mr-1" />Lista de espera
+            </Button>
+          </>
+        )}
         <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="outline" disabled={!singleEventId}>
+            <Button size="sm" variant="outline" disabled={!hasSelection || !singleEventId}>
               <ArrowRightLeft className="h-4 w-4 mr-1" />Cambiar sesión
             </Button>
           </DialogTrigger>
@@ -549,15 +627,38 @@ function BulkActionsBar({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        <Button size="sm" variant="outline" disabled title="Próximamente">
-          <Mail className="h-4 w-4 mr-1" />Comunicar
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={effectiveIds.length === 0 || !singleEventId || !singleSessionId}
+          onClick={() => openBulkSend(!hasSelection)}
+          title={
+            !singleEventId || !singleSessionId
+              ? "Filtra por un único evento y sesión"
+              : hasSelection
+                ? "Comunicar a los seleccionados"
+                : "Comunicar a todos los filtrados"
+          }
+        >
+          <Mail className="h-4 w-4 mr-1" />
+          Comunicar {hasSelection ? `(${selectedIds.length})` : `a todos (${rows.length})`}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={genLoading || effectiveIds.length === 0 || !singleEventId || !singleSessionId}
+          onClick={() => generateQrBulk(!hasSelection)}
+        >
+          <QrCode className="h-4 w-4 mr-1" />Generar QR
         </Button>
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="h-4 w-4 mr-1" />Exportar
         </Button>
-        <Button size="sm" variant="ghost" onClick={clear}>
-          <X className="h-4 w-4" />
-        </Button>
+        {hasSelection && (
+          <Button size="sm" variant="ghost" onClick={clear}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
