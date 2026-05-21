@@ -22,6 +22,7 @@ const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
   event_id: z.string().uuid().optional(),
   session_id: z.string().uuid().optional(),
+  selection_key: z.string().optional(),
 });
 
 export const Route = createFileRoute("/_authenticated/comunicaciones/envio")({
@@ -33,6 +34,8 @@ interface PartRow {
   id: string;
   status: string;
   person_id: string;
+  event_id?: string;
+  session_id?: string;
   people:
     | {
         first_name: string;
@@ -50,6 +53,24 @@ function BulkSendPage() {
   const [sessionId, setSessionId] = useState<string | undefined>(search.session_id);
   const [templateId, setTemplateId] = useState<string | undefined>();
   const batchId = search.batch_id;
+
+  // Participant IDs from a selection passed via sessionStorage (avoids huge URLs).
+  const [selectedIds, setSelectedIds] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!search.selection_key) {
+      setSelectedIds(null);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(search.selection_key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[];
+        if (Array.isArray(parsed) && parsed.length > 0) setSelectedIds(parsed);
+      }
+    } catch {
+      // ignore
+    }
+  }, [search.selection_key]);
 
   // If a batch_id is provided, derive event/session from the batch.
   const batchInfo = useQuery({
@@ -74,20 +95,30 @@ function BulkSendPage() {
 
   // Participants for the selected session (and optionally batch via people.source)
   const participantsQ = useQuery({
-    queryKey: ["bulk_participants", eventId, sessionId, batchId, batchInfo.data?.filename],
-    enabled: !!eventId && !!sessionId,
+    queryKey: ["bulk_participants", eventId, sessionId, batchId, batchInfo.data?.filename, selectedIds?.join(",") ?? null],
+    enabled: (!!eventId && !!sessionId) || (!!selectedIds && selectedIds.length > 0),
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("event_participants")
-        .select("id, status, person_id, people(first_name,last_name,email,phone,source)")
-        .eq("event_id", eventId!)
-        .eq("session_id", sessionId!)
+        .select("id, status, person_id, event_id, session_id, people(first_name,last_name,email,phone,source)")
         .limit(5000);
+      if (selectedIds && selectedIds.length > 0) {
+        q = q.in("id", selectedIds);
+      } else {
+        q = q.eq("event_id", eventId!).eq("session_id", sessionId!);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       let rows = (data ?? []) as unknown as PartRow[];
       if (batchId && batchInfo.data?.filename) {
         const tag = `import:${batchInfo.data.filename}`;
         rows = rows.filter((r) => r.people?.source === tag);
+      }
+      // If event/session weren't set, derive from the first row.
+      if (rows.length > 0) {
+        const first = rows[0] as PartRow & { event_id?: string; session_id?: string };
+        if (!eventId && first.event_id) setEventId(first.event_id);
+        if (!sessionId && first.session_id) setSessionId(first.session_id);
       }
       return rows;
     },
@@ -265,7 +296,9 @@ FIGURARTE Casting & Producción`,
         description={
           batchInfo.data?.filename
             ? `Importación: ${batchInfo.data.filename}`
-            : "Selecciona evento, sesión y plantilla."
+            : selectedIds && selectedIds.length > 0
+              ? `${selectedIds.length} destinatarios seleccionados desde Solicitudes`
+              : "Selecciona evento, sesión y plantilla."
         }
         actions={
           <Button variant="outline" asChild>
