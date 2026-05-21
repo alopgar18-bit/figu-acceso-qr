@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { UserCog, Plus, Mail, Phone, ShieldCheck, CircleSlash } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { PageHeader, EmptyState } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -8,7 +11,19 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { createUser } from "@/lib/users.functions";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: Page,
@@ -22,7 +37,17 @@ const ROLE_LABELS: Record<string, string> = {
   cliente_productora: "Cliente/Productora",
 };
 
+const ROLE_OPTIONS = [
+  "admin_figurarte",
+  "coordinador",
+  "validador",
+  "cliente_productora",
+  "superadmin",
+] as const;
+
 function Page() {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin-users-with-roles"],
     queryFn: async () => {
@@ -51,7 +76,15 @@ function Page() {
         eyebrow="Administración"
         title="Usuarios y roles"
         description="Gestiona el equipo FIGURARTE: administradores, coordinadores, validadores y clientes."
-        actions={<Button className="uppercase tracking-wider"><Plus className="h-4 w-4 mr-2" />Nuevo</Button>}
+        actions={
+          <Button
+            className="uppercase tracking-wider"
+            onClick={() => setOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo
+          </Button>
+        }
       />
 
       {isLoading ? (
@@ -118,6 +151,133 @@ function Page() {
           </CardContent>
         </Card>
       )}
+
+      <NewUserDialog
+        open={open}
+        onOpenChange={setOpen}
+        onCreated={() => {
+          void qc.invalidateQueries({ queryKey: ["admin-users-with-roles"] });
+        }}
+      />
     </div>
+  );
+}
+
+function NewUserDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreated: () => void;
+}) {
+  const createFn = useServerFn(createUser);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [roles, setRoles] = useState<string[]>(["coordinador"]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const reset = () => {
+    setFullName("");
+    setEmail("");
+    setPhone("");
+    setPassword("");
+    setRoles(["coordinador"]);
+  };
+
+  const toggleRole = (role: string) => {
+    setRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
+    );
+  };
+
+  const submit = async () => {
+    if (!fullName.trim() || !email.trim() || password.length < 8 || roles.length === 0) {
+      toast.error("Completa nombre, email, contraseña (≥8) y al menos un rol");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createFn({
+        data: {
+          email: email.trim(),
+          password,
+          full_name: fullName.trim(),
+          phone: phone.trim() || null,
+          roles: roles as (typeof ROLE_OPTIONS)[number][],
+        },
+      });
+      toast.success("Usuario creado");
+      reset();
+      onOpenChange(false);
+      onCreated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al crear usuario");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!submitting) onOpenChange(v); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nuevo usuario</DialogTitle>
+          <DialogDescription>
+            Crea una cuenta y asígnale uno o varios roles operativos.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Nombre completo</Label>
+            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Contraseña inicial</Label>
+            <Input
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Roles</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {ROLE_OPTIONS.map((role) => (
+                <label key={role} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={roles.includes(role)}
+                    onCheckedChange={() => toggleRole(role)}
+                  />
+                  {ROLE_LABELS[role]}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? "Creando…" : "Crear usuario"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
