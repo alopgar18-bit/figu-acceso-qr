@@ -114,6 +114,48 @@ export const DEFAULT_TEMPLATES: { name: string; channel: CommChannel; subject: s
     body: `Hola {{nombre}},\n\nAdjuntamos tu entrada para {{evento}}.\nSesión: {{sesion}} – {{fecha}} ({{hora_acceso}})\nUbicación: {{ubicacion}}\n\nAccede a tu entrada: {{enlace_entrada}}\n\n{{instrucciones}}\n\nNos vemos pronto,\nFIGURARTE`,
   },
   {
+    type: "entrada_qr",
+    name: "Entrada / QR – Email (con imagen)",
+    channel: "email",
+    subject: "Tu entrada para {{evento}}",
+    body: `<!doctype html>
+<html lang="es"><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#111111;padding:28px 32px;color:#ffffff;">
+          <div style="font-size:11px;letter-spacing:3px;text-transform:uppercase;opacity:0.7;">FIGURARTE Casting</div>
+          <div style="font-size:22px;font-weight:700;margin-top:6px;">Tu entrada · {{evento}}</div>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:16px;">Hola <strong>{{nombre}}</strong>,</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.55;">Tu asistencia a <strong>{{evento}}</strong> ha quedado confirmada. Te enviamos a continuación tu entrada digital con código QR.</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border:1px solid #ececec;border-radius:10px;margin:0 0 24px;">
+            <tr><td style="padding:16px 20px;font-size:14px;line-height:1.7;">
+              <div><strong>Sesión:</strong> {{sesion}}</div>
+              <div><strong>Fecha:</strong> {{fecha}} · {{hora_acceso}}</div>
+              <div><strong>Lugar:</strong> {{ubicacion}}</div>
+            </td></tr>
+          </table>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding:8px 0 16px;">
+              <img src="{{qr_image}}" alt="Código QR de tu entrada" width="240" height="240" style="display:block;border-radius:8px;border:1px solid #ececec;background:#ffffff;" />
+              <div style="font-size:12px;color:#666666;margin-top:10px;">Presenta este QR en el acceso. Es personal e intransferible.</div>
+            </td></tr>
+            <tr><td align="center" style="padding:8px 0 24px;">
+              <a href="{{enlace_entrada}}" style="background:#111111;color:#ffffff;text-decoration:none;padding:13px 26px;border-radius:8px;font-weight:600;font-size:14px;display:inline-block;">Abrir entrada digital</a>
+              <div style="font-size:12px;color:#999;margin-top:10px;word-break:break-all;">{{enlace_entrada}}</div>
+            </td></tr>
+          </table>
+          <p style="margin:8px 0 0;font-size:13px;color:#555;line-height:1.55;">Recuerda llevar el DNI en vigor. {{instrucciones}}</p>
+        </td></tr>
+        <tr><td style="background:#111;padding:18px 32px;color:#bbb;font-size:12px;text-align:center;">FIGURARTE Casting & Producción</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`,
+  },
+  {
     type: "recordatorio",
     name: "Recordatorio – WhatsApp",
     channel: "whatsapp_asistido",
