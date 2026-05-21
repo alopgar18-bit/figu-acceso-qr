@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { ScanLine, MapPin, Calendar, Users } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,9 @@ export const Route = createFileRoute("/_authenticated/control-acceso")({
 
 function Page() {
   const { data: sessions, isLoading } = useAssignedSessions();
+  const matches = useMatches();
+  const hasChild = matches.some((m) => m.routeId === "/_authenticated/control-acceso/$sessionId");
+  if (hasChild) return <Outlet />;
 
   const now = Date.now();
   const sorted = [...(sessions ?? [])].sort((a, b) => {
