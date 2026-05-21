@@ -45,7 +45,16 @@ function Page() {
         title={session?.name ?? "Cargando…"}
         description="Edita los datos operativos de la sesión."
         actions={
-          <AlertDialog>
+          <div className="flex gap-2">
+            <Button asChild>
+              <Link
+                to="/comunicaciones/envio"
+                search={{ event_id: eventId, session_id: sessionId }}
+              >
+                Enviar invitaciones
+              </Link>
+            </Button>
+            <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="text-destructive hover:text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />Eliminar
@@ -63,7 +72,8 @@ function Page() {
                 <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground">Eliminar</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
-          </AlertDialog>
+            </AlertDialog>
+          </div>
         }
       />
       {isLoading || !event || !session ? <Skeleton className="h-96" /> : <SessionForm event={event} session={session} />}

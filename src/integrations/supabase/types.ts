@@ -203,6 +203,7 @@ export type Database = {
       }
       communication_logs: {
         Row: {
+          batch_id: string | null
           body: string | null
           channel: Database["public"]["Enums"]["communication_channel"]
           created_at: string
@@ -221,6 +222,7 @@ export type Database = {
           to_address: string | null
         }
         Insert: {
+          batch_id?: string | null
           body?: string | null
           channel: Database["public"]["Enums"]["communication_channel"]
           created_at?: string
@@ -239,6 +241,7 @@ export type Database = {
           to_address?: string | null
         }
         Update: {
+          batch_id?: string | null
           body?: string | null
           channel?: Database["public"]["Enums"]["communication_channel"]
           created_at?: string
@@ -257,6 +260,13 @@ export type Database = {
           to_address?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "communication_logs_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "communication_logs_event_id_fkey"
             columns: ["event_id"]

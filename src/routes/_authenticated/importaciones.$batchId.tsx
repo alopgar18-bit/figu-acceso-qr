@@ -1,12 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, FileSpreadsheet } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { ArrowLeft, FileSpreadsheet, Send, Eraser } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useImportBatch } from "@/lib/use-imports";
+import { cleanDniTimestamps } from "@/lib/bulk-send.functions";
 
 export const Route = createFileRoute("/_authenticated/importaciones/$batchId")({
   component: BatchDetailPage,
@@ -15,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/importaciones/$batchId")({
 function BatchDetailPage() {
   const { batchId } = Route.useParams();
   const { data: batch, isLoading } = useImportBatch(batchId);
+  const cleanFn = useServerFn(cleanDniTimestamps);
 
   if (isLoading) return <div className="p-8 text-sm text-muted-foreground">Cargando lote...</div>;
   if (!batch) return <div className="p-8 text-sm text-muted-foreground">Lote no encontrado.</div>;
@@ -23,6 +28,11 @@ function BatchDetailPage() {
   const session = (batch as unknown as { event_sessions: { name: string } | null }).event_sessions;
   const mappings = (batch as unknown as { import_mappings: Array<{ id: string; source_column: string; target_field: string }> }).import_mappings ?? [];
   const errors = Array.isArray(batch.errors) ? (batch.errors as Array<{ row: number; reason: string }>) : [];
+  const suspiciousDniMapping = mappings.some(
+    (m) =>
+      m.target_field === "dni" &&
+      /marca|timestamp|hora|fecha/i.test(m.source_column),
+  );
 
   return (
     <div>
@@ -31,11 +41,47 @@ function BatchDetailPage() {
         title={batch.filename}
         description={batch.source ?? "Sin origen indicado"}
         actions={
-          <Button variant="outline" asChild>
-            <Link to="/importaciones"><ArrowLeft className="h-4 w-4 mr-2" />Volver</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild>
+              <Link
+                to="/comunicaciones/envio"
+                search={{ batch_id: batchId, event_id: batch.event_id ?? undefined, session_id: batch.session_id ?? undefined }}
+              >
+                <Send className="h-4 w-4 mr-2" />Enviar invitaciones a esta importación
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/importaciones"><ArrowLeft className="h-4 w-4 mr-2" />Volver</Link>
+            </Button>
+          </div>
         }
       />
+
+      {suspiciousDniMapping && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Mapeo sospechoso</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>
+              Se detectó una columna tipo "Marca temporal" mapeada a DNI. Esto suele estropear los DNI con fechas.
+              Puedes limpiar los DNI que parezcan fechas (no se borra ningún registro).
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const res = await cleanFn({ data: { batch_id: batchId } });
+                  toast.success(`DNI limpiados: ${res.cleaned}`);
+                } catch (e) {
+                  toast.error((e as Error).message);
+                }
+              }}
+            >
+              <Eraser className="h-4 w-4 mr-2" />Limpiar DNI con marcas temporales
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-6 md:grid-cols-3 mb-6">
         <Card>

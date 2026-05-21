@@ -78,6 +78,21 @@ export const DUPLICATE_STRATEGIES: { value: DuplicateStrategy; label: string; de
 /** Auto-detect a target field from a header name. */
 export function guessTarget(header: string): TargetField | null {
   const h = header.toLowerCase().trim().replace(/[._-]/g, " ");
+  // Explicitly ignore timestamp-like headers so they don't get mapped to DNI/etc.
+  const ignored = new Set([
+    "marca temporal",
+    "marca de tiempo",
+    "timestamp",
+    "fecha de envio",
+    "fecha de envío",
+    "fecha envio",
+    "fecha envío",
+    "submitted at",
+    "submission time",
+    "hora de envio",
+    "hora de envío",
+  ]);
+  if (ignored.has(h)) return null;
   const map: Record<string, TargetField> = {
     nombre: "first_name",
     "nombre completo": "first_name",

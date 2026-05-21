@@ -65,7 +65,14 @@ export interface RenderContext {
 }
 
 export function renderTemplate(text: string, ctx: RenderContext): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+  // Graceful fallback for empty name: "Hola {{nombre}}," -> "Hola,"
+  const nombre = (ctx.nombre ?? "").trim();
+  let working = text;
+  if (!nombre) {
+    working = working.replace(/Hola\s+\{\{nombre\}\}\s*,/gi, "Hola,");
+    working = working.replace(/Hola\s+\{\{nombre\}\}/gi, "Hola");
+  }
+  return working.replace(/\{\{(\w+)\}\}/g, (_, key) => {
     const v = (ctx as Record<string, unknown>)[key];
     return v == null ? "" : String(v);
   });
