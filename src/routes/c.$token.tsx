@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -45,6 +45,13 @@ function Page() {
   const [acceptImage, setAcceptImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (isChildRoute || !data?.ok) return;
+    if (["qr_generado", "confirmado", "acceso_validado"].includes(data.participant.status)) {
+      navigate({ to: "/c/$token/entrada", params: { token }, replace: true });
+    }
+  }, [data, isChildRoute, navigate, token]);
+
   if (isChildRoute) {
     return <Outlet />;
   }
@@ -67,9 +74,9 @@ function Page() {
         <div className="text-center py-6">
           <CheckCircle2 className="h-12 w-12 mx-auto text-primary" />
           <h1 className="mt-4 text-3xl font-black uppercase tracking-tight">Ya has confirmado</h1>
-          <p className="mt-2 text-muted-foreground">Tu entrada digital está disponible.</p>
+          <p className="mt-2 text-muted-foreground">Abriendo tu entrada digital…</p>
           <Button asChild size="lg" className="mt-6 uppercase tracking-wider">
-            <Link to="/c/$token/entrada" params={{ token }}>Ver mi entrada</Link>
+            <a href={`/c/${token}/entrada`}>Abrir entrada</a>
           </Button>
         </div>
       </PublicShell>
