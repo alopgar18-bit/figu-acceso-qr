@@ -33,7 +33,15 @@ interface PartRow {
   id: string;
   status: string;
   person_id: string;
-  people: { first_name: string; last_name: string | null; email: string | null; phone: string | null } | null;
+  people:
+    | {
+        first_name: string;
+        last_name: string | null;
+        email: string | null;
+        phone: string | null;
+        source?: string | null;
+      }
+    | null;
 }
 
 function BulkSendPage() {
@@ -76,7 +84,7 @@ function BulkSendPage() {
         .eq("session_id", sessionId!)
         .limit(5000);
       if (error) throw error;
-      let rows = (data ?? []) as unknown as (PartRow & { people: PartRow["people"] & { source?: string | null } | null })[];
+      let rows = (data ?? []) as unknown as PartRow[];
       if (batchId && batchInfo.data?.filename) {
         const tag = `import:${batchInfo.data.filename}`;
         rows = rows.filter((r) => r.people?.source === tag);
