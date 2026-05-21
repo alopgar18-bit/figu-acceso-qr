@@ -676,6 +676,32 @@ function BulkActionsBar({
           </Button>
         )}
       </CardContent>
+      <DangerousActionDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Eliminar participantes"
+        affectedCount={selectedIds.length}
+        loading={deleteParticipants.isPending}
+        destructiveLabel="Eliminar definitivamente"
+        description={
+          <>
+            <p>
+              Se eliminarán <strong>{selectedIds.length}</strong> participantes y todos sus
+              registros asociados (QR, check-ins, acompañantes, consentimientos y comunicaciones).
+            </p>
+            <p className="text-destructive">Esta acción no se puede deshacer.</p>
+          </>
+        }
+        onConfirm={async () => {
+          try {
+            await deleteParticipants.mutateAsync(selectedIds);
+            toast.success("Participantes eliminados");
+            clear();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Error al eliminar");
+          }
+        }}
+      />
     </Card>
   );
 }
