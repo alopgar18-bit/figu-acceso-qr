@@ -27,6 +27,8 @@ import {
   type EventType,
 } from "@/lib/event-constants";
 import { useClientsList, useUpsertEvent, type EventRow } from "@/lib/use-events";
+import { FieldRequirementsEditor } from "@/components/field-requirements-editor";
+import type { FieldRequirements } from "@/lib/field-requirements";
 
 type FormState = {
   name: string;
@@ -54,6 +56,7 @@ type FormState = {
   default_max_companions: number;
   default_companions_qr_mode: CompanionsQrMode;
   general_instructions: string;
+  field_requirements: FieldRequirements;
 };
 
 function initial(event?: EventRow | null): FormState {
@@ -83,6 +86,10 @@ function initial(event?: EventRow | null): FormState {
     default_max_companions: event?.default_max_companions ?? 0,
     default_companions_qr_mode: (event?.default_companions_qr_mode as CompanionsQrMode) ?? "mismo_qr",
     general_instructions: event?.general_instructions ?? "",
+    field_requirements:
+      (event && typeof (event as { field_requirements?: unknown }).field_requirements === "object"
+        ? ((event as { field_requirements?: unknown }).field_requirements as FieldRequirements)
+        : {}) ?? {},
   };
 }
 
@@ -114,6 +121,7 @@ export function EventForm({ event }: { event?: EventRow | null }) {
         city: s.city || null,
         province: s.province || null,
         general_instructions: s.general_instructions || null,
+        field_requirements: s.field_requirements ?? {},
       };
       const saved = await upsert.mutateAsync({ id: event?.id, values: payload });
       toast.success(event ? "Evento actualizado" : "Evento creado");
@@ -262,6 +270,11 @@ export function EventForm({ event }: { event?: EventRow | null }) {
           </div>
         </CardContent>
       </Card>
+
+      <FieldRequirementsEditor
+        value={s.field_requirements}
+        onChange={(v) => update("field_requirements", v)}
+      />
 
       <div className="flex justify-end gap-2 sticky bottom-0 bg-background/80 backdrop-blur py-3 -mx-4 px-4 border-t">
         <Button type="button" variant="outline" onClick={() => navigate({ to: "/eventos" })}>Cancelar</Button>
