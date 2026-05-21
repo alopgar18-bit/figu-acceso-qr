@@ -9,6 +9,7 @@ export const PARTICIPANT_STATUS_OPTIONS: { value: ParticipantStatus; label: stri
   { value: "aprobado", label: "Aprobado", tone: "success" },
   { value: "rechazado", label: "Rechazado", tone: "danger" },
   { value: "lista_espera", label: "Lista de espera", tone: "warning" },
+  { value: "aceptado_pendiente_envio", label: "Aceptado · pendiente de envío", tone: "success" },
   { value: "invitacion_enviada", label: "Invitación enviada", tone: "info" },
   { value: "pendiente_confirmacion", label: "Pendiente confirmación", tone: "warning" },
   { value: "confirmado", label: "Confirmado", tone: "success" },
@@ -34,6 +35,7 @@ export const ATTENDEE_TYPE_OPTIONS: { value: AttendeeType; label: string }[] = [
 
 export const APPROVED_LIKE: ParticipantStatus[] = [
   "aprobado",
+  "aceptado_pendiente_envio",
   "invitacion_enviada",
   "pendiente_confirmacion",
   "confirmado",

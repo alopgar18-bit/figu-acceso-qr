@@ -21,6 +21,7 @@ import {
   TARGET_FIELDS,
   IMPORT_STATUS_OPTIONS,
   DUPLICATE_STRATEGIES,
+  IMPORT_QR_STATES,
   guessTarget,
   type TargetField,
   type DuplicateStrategy,
@@ -654,11 +655,14 @@ function ValidationStep({
         />
       </div>
 
-      {defaultStatus === "confirmado" && (
+      {IMPORT_QR_STATES.includes(defaultStatus) && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Se generarán códigos QR</AlertTitle>
-          <AlertDescription>El estado por defecto es "Confirmado": cada participación creará un ticket con QR.</AlertDescription>
+          <AlertTitle>Se generarán códigos QR ({validRows.length})</AlertTitle>
+          <AlertDescription>
+            {IMPORT_STATUS_OPTIONS.find((o) => o.value === defaultStatus)?.description}
+            {" "}Las filas sin email ni teléfono se marcarán como "sin canal de contacto" y quedarán excluidas del envío masivo individual.
+          </AlertDescription>
         </Alert>
       )}
 
@@ -727,7 +731,7 @@ function ResultStep({
   onNew,
   onViewBatch,
 }: {
-  result: { batchId: string; total: number; imported: number; skipped: number; updated: number; errored: number; finalStatus: string };
+  result: { batchId: string; total: number; imported: number; skipped: number; updated: number; errored: number; qrGenerated?: number; noContactChannel?: number; finalStatus: string };
   onNew: () => void;
   onViewBatch: () => void;
 }) {
@@ -738,11 +742,13 @@ function ResultStep({
         <CardDescription>Estado del lote: <strong>{result.finalStatus}</strong></CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
           <StatCard label="Total" value={result.total} />
           <StatCard label="Importadas" value={result.imported} tone="success" />
           <StatCard label="Actualizadas" value={result.updated} tone="info" />
           <StatCard label="Saltadas" value={result.skipped} tone="warning" />
+          <StatCard label="QR generados" value={result.qrGenerated ?? 0} tone="info" />
+          <StatCard label="Sin canal contacto" value={result.noContactChannel ?? 0} tone={(result.noContactChannel ?? 0) > 0 ? "warning" : "neutral"} />
           <StatCard label="Errores" value={result.errored} tone={result.errored > 0 ? "danger" : "neutral"} />
         </div>
         <div className="flex gap-2 justify-end">

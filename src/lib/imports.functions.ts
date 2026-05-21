@@ -21,7 +21,15 @@ const rowSchema = z.object({
   notes: z.string().trim().max(1000).optional().nullable(),
   attendee_type: z.enum(["publico","figurante","casting","vip","prensa","equipo","acompanante","otro"]).optional(),
   initial_status: z
-    .enum(["pendiente_revision","aprobado","pendiente_confirmacion","confirmado","lista_espera"])
+    .enum([
+      "pendiente_revision",
+      "lista_espera",
+      "rechazado",
+      "aceptado_pendiente_envio",
+      "invitacion_enviada",
+      "confirmado",
+      "acceso_validado",
+    ])
     .optional(),
   companions_count: z.number().int().min(0).max(20).optional(),
 });
@@ -33,10 +41,12 @@ const commitSchema = z.object({
   sessionId: z.string().uuid(),
   defaultStatus: z.enum([
     "pendiente_revision",
-    "aprobado",
-    "pendiente_confirmacion",
-    "confirmado",
     "lista_espera",
+    "rechazado",
+    "aceptado_pendiente_envio",
+    "invitacion_enviada",
+    "confirmado",
+    "acceso_validado",
   ]),
   defaultAttendeeType: z
     .enum(["publico","figurante","casting","vip","prensa","equipo","acompanante","otro"])
@@ -95,8 +105,15 @@ export const commitImport = createServerFn({ method: "POST" })
       );
     }
 
-    const issuesQrFor = data.defaultStatus === "confirmado";
+    const QR_STATES = new Set([
+      "aceptado_pendiente_envio",
+      "invitacion_enviada",
+      "confirmado",
+      "acceso_validado",
+    ]);
     let imported = 0;
+    let qrGenerated = 0;
+    let noContactChannel = 0;
     let skipped = 0;
     let updated = 0;
     let errored = 0;
@@ -191,6 +208,7 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         const status = row.initial_status ?? data.defaultStatus;
+        const approvedLike = status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
         const attendeeType = row.attendee_type ?? data.defaultAttendeeType;
 
         const { data: participant, error: partErr } = await supabase
@@ -202,18 +220,18 @@ export const commitImport = createServerFn({ method: "POST" })
             status,
             attendee_type: attendeeType,
             companions_count: row.companions_count ?? 0,
-            approved_by: status !== "pendiente_revision" && status !== "lista_espera" ? userId : null,
-            approved_at: status !== "pendiente_revision" && status !== "lista_espera" ? new Date().toISOString() : null,
-            confirmed_at: status === "confirmado" ? new Date().toISOString() : null,
+            approved_by: approvedLike ? userId : null,
+            approved_at: approvedLike ? new Date().toISOString() : null,
+            confirmed_at: status === "confirmado" || status === "acceso_validado" ? new Date().toISOString() : null,
           })
           .select("id")
           .single();
         if (partErr) throw new Error(`No se pudo crear la participación (${partErr.message})`);
 
-        // Only generate ticket/QR if the FINAL status is "confirmado".
-        if (status === "confirmado") {
+        // Generate ticket/QR only for statuses that need one ready to send.
+        if (QR_STATES.has(status)) {
           const token = genToken();
-          const { error: tErr } = await supabase.from("tickets").insert({
+          const { data: ticket, error: tErr } = await supabase.from("tickets").insert({
             event_id: data.eventId,
             session_id: data.sessionId,
             participant_id: participant.id,
@@ -224,8 +242,26 @@ export const commitImport = createServerFn({ method: "POST" })
               session_id: data.sessionId,
               participant_id: participant.id,
             },
-          });
+          }).select("id").single();
           if (tErr) throw new Error(`No se pudo crear el ticket (${tErr.message})`);
+          qrGenerated++;
+
+          // For acceso_validado, register the check-in with the ticket marked as used.
+          if (status === "acceso_validado") {
+            await supabase.from("checkins").insert({
+              event_id: data.eventId,
+              session_id: data.sessionId,
+              participant_id: participant.id,
+              ticket_id: ticket?.id ?? null,
+              validator_id: userId,
+              result: "ok",
+              companions_validated: row.companions_count ?? 0,
+              notes: "Check-in registrado durante importación",
+            });
+          }
+
+          // Track contact channel availability for mass sending follow-ups.
+          if (!row.email && !row.phone) noContactChannel++;
         }
 
         imported++;
@@ -267,6 +303,8 @@ export const commitImport = createServerFn({ method: "POST" })
         skipped,
         updated,
         errored,
+        qr_generated: qrGenerated,
+        no_contact_channel: noContactChannel,
         default_status: data.defaultStatus,
         duplicate_strategy: data.duplicateStrategy,
       },
@@ -279,6 +317,8 @@ export const commitImport = createServerFn({ method: "POST" })
       skipped,
       updated,
       errored,
+      qrGenerated,
+      noContactChannel,
       errors,
       finalStatus: finalBatch?.status ?? "completada",
     };

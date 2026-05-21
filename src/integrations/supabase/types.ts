@@ -1490,6 +1490,7 @@ export type Database = {
         | "no_presentado"
         | "incidencia"
         | "bloqueado"
+        | "aceptado_pendiente_envio"
       session_status:
         | "programada"
         | "abierta"
@@ -1724,6 +1725,7 @@ export const Constants = {
         "no_presentado",
         "incidencia",
         "bloqueado",
+        "aceptado_pendiente_envio",
       ],
       session_status: [
         "programada",

@@ -48,11 +48,21 @@ export const TARGET_FIELDS: TargetFieldDef[] = [
 ];
 
 export const IMPORT_STATUS_OPTIONS: { value: ParticipantStatus; label: string; description: string }[] = [
-  { value: "pendiente_revision", label: "Pendiente revisión", description: "Quedan a la espera de aprobación manual." },
-  { value: "aprobado", label: "Aprobado", description: "Aprobados pero sin confirmar asistencia ni QR." },
-  { value: "pendiente_confirmacion", label: "Pendiente confirmación", description: "Aprobados, esperando que confirmen para emitir QR." },
-  { value: "confirmado", label: "Confirmado (genera QR)", description: "Confirmados directamente. Se genera ticket y QR." },
-  { value: "lista_espera", label: "Lista de espera", description: "Aparecen en la lista de espera del evento." },
+  { value: "pendiente_revision", label: "Solicitud pendiente de revisión", description: "Se crearán solicitudes pendientes. No se generarán QR." },
+  { value: "lista_espera", label: "Lista de espera", description: "Aparecen en la lista de espera. No se generarán QR." },
+  { value: "rechazado", label: "Rechazado", description: "Se registrarán como rechazados. No se generarán QR." },
+  { value: "aceptado_pendiente_envio", label: "Aprobado · aceptado pendiente de envío", description: "Se crearán asistentes aceptados y se generará un QR individual para cada persona, listo para envío masivo." },
+  { value: "invitacion_enviada", label: "Invitación enviada", description: "Se crearán asistentes con invitación enviada y QR activo, listos para confirmación." },
+  { value: "confirmado", label: "Confirmado", description: "Se crearán asistentes confirmados y se generará un QR individual para cada persona." },
+  { value: "acceso_validado", label: "Acceso validado", description: "Se crearán asistentes con QR usado y check-in registrado." },
+];
+
+/** States that trigger automatic ticket/QR creation during import. */
+export const IMPORT_QR_STATES: ParticipantStatus[] = [
+  "aceptado_pendiente_envio",
+  "invitacion_enviada",
+  "confirmado",
+  "acceso_validado",
 ];
 
 export const DEFAULT_ATTENDEE_TYPE: AttendeeType = "publico";
