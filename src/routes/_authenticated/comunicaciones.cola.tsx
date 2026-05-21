@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Download, RotateCw, Archive, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail } from "lucide-react";
 import { toast } from "sonner";
+import JSZip from "jszip";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -81,14 +82,75 @@ function QueuePage() {
     URL.revokeObjectURL(url);
   };
 
+  const FROM_ADDRESS = "Figurarte Casting <casting@figurarte.es>";
+
+  // RFC 2047 encoded-word for non-ASCII headers
+  const encodeHeader = (value: string) => {
+    if (/^[\x20-\x7E]*$/.test(value)) return value;
+    const b64 = typeof window === "undefined"
+      ? Buffer.from(value, "utf-8").toString("base64")
+      : btoa(unescape(encodeURIComponent(value)));
+    return `=?UTF-8?B?${b64}?=`;
+  };
+
+  const sanitizeFilename = (s: string) =>
+    s.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80) || "mensaje";
+
+  const buildEml = (l: (typeof filtered)[number]) => {
+    const to = l.to_address ?? "";
+    const subject = l.subject ?? "(sin asunto)";
+    const body = l.body ?? "";
+    const isHtml = /<\/?[a-z][\s\S]*>/i.test(body);
+    const date = new Date(l.created_at).toUTCString();
+    const headers = [
+      `From: ${FROM_ADDRESS}`,
+      `To: ${to}`,
+      `Subject: ${encodeHeader(subject)}`,
+      `Date: ${date}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: ${isHtml ? "text/html" : "text/plain"}; charset=UTF-8`,
+      `Content-Transfer-Encoding: 8bit`,
+    ].join("\r\n");
+    return `${headers}\r\n\r\n${body.replace(/\r?\n/g, "\r\n")}`;
+  };
+
+  const exportEmlZip = async () => {
+    const target = selectedIds.length > 0
+      ? filtered.filter((l) => selected.has(l.id))
+      : filtered;
+    const ready = target.filter((l) => l.to_address && l.body);
+    if (ready.length === 0) {
+      toast.error("No hay comunicaciones con destinatario y cuerpo listas para exportar");
+      return;
+    }
+    const zip = new JSZip();
+    ready.forEach((l, i) => {
+      const name = `${String(i + 1).padStart(4, "0")}_${sanitizeFilename(
+        `${l.people?.first_name ?? ""}_${l.people?.last_name ?? ""}_${l.to_address ?? ""}`,
+      )}.eml`;
+      zip.file(name, buildEml(l));
+    });
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gmail-cola-${new Date().toISOString().slice(0, 10)}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${ready.length} mensajes exportados (.eml)`);
+  };
+
   return (
     <div>
       <PageHeader
         eyebrow="Comunicaciones"
         title="Cola de envíos"
-        description="Comunicaciones renderizadas pendientes de envío. Mientras Gmail no esté conectado, quedan en cola y se pueden exportar."
+        description="Comunicaciones renderizadas pendientes de envío. Exporta como .eml para abrir y enviar desde Gmail (casting@figurarte.es)."
         actions={
           <div className="flex gap-2">
+            <Button onClick={exportEmlZip}>
+              <Mail className="h-4 w-4 mr-2" />Descargar .eml para Gmail
+            </Button>
             <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-2" />Exportar CSV</Button>
             <Button variant="outline" asChild>
               <Link to="/comunicaciones"><ArrowLeft className="h-4 w-4 mr-2" />Volver</Link>
