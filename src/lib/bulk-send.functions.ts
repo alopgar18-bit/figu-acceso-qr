@@ -55,45 +55,77 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       : { data: null };
 
     // 3. Resolve participants
-    let pq = supabase
-      .from("event_participants")
-      .select("id, person_id, status, people(first_name,last_name,email,phone)")
-      .eq("event_id", data.event_id);
-    if (data.session_id) pq = pq.eq("session_id", data.session_id);
-    if (data.participant_ids && data.participant_ids.length > 0) {
-      pq = pq.in("id", data.participant_ids);
+    const chunk = <T,>(arr: T[], size: number): T[][] => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
+    type PartRow = {
+      id: string;
+      person_id: string;
+      status: string;
+      people:
+        | { first_name: string; last_name: string | null; email: string | null; phone: string | null }
+        | null;
+    };
+    let participants: PartRow[] = [];
+    try {
+      if (data.participant_ids && data.participant_ids.length > 0) {
+        // Chunk by 100 to keep the GET URL well under fetch limits.
+        for (const ids of chunk(data.participant_ids, 100)) {
+          const { data: rows, error } = await supabase
+            .from("event_participants")
+            .select("id, person_id, status, people(first_name,last_name,email,phone)")
+            .in("id", ids);
+          if (error) throw new Error(error.message);
+          participants = participants.concat((rows ?? []) as unknown as PartRow[]);
+        }
+      } else {
+        let pq = supabase
+          .from("event_participants")
+          .select("id, person_id, status, people(first_name,last_name,email,phone)")
+          .eq("event_id", data.event_id);
+        if (data.session_id) pq = pq.eq("session_id", data.session_id);
+        const { data: rows, error } = await pq.limit(5000);
+        if (error) throw new Error(error.message);
+        participants = (rows ?? []) as unknown as PartRow[];
+      }
+    } catch (err) {
+      throw new Error(`No se pudieron leer participantes: ${err instanceof Error ? err.message : String(err)}`);
     }
-    const { data: participants, error: pErr } = await pq.limit(5000);
-    if (pErr) throw new Error(`No se pudieron leer participantes: ${pErr.message}`);
     if (!participants || participants.length === 0) {
       return { queued: 0, skipped_no_email: 0, skipped_no_ticket: 0, skipped_already: 0, errors: [] };
     }
 
     // 4. Map participants to tickets (active)
     const ids = participants.map((p) => p.id);
-    const { data: tickets } = await supabase
-      .from("tickets")
-      .select("participant_id, qr_token")
-      .in("participant_id", ids)
-      .eq("revoked", false);
     const ticketMap = new Map<string, string>();
-    for (const t of tickets ?? []) {
-      if (!ticketMap.has(t.participant_id)) ticketMap.set(t.participant_id, t.qr_token);
+    for (const idChunk of chunk(ids, 100)) {
+      const { data: tickets } = await supabase
+        .from("tickets")
+        .select("participant_id, qr_token")
+        .in("participant_id", idChunk)
+        .eq("revoked", false);
+      for (const t of tickets ?? []) {
+        if (!ticketMap.has(t.participant_id)) ticketMap.set(t.participant_id, t.qr_token);
+      }
     }
 
     // 5. Already queued / sent in this batch+template? Avoid duplicates.
     const alreadyKeys = new Set<string>();
     if (data.skip_already_queued) {
-      let aq = supabase
-        .from("communication_logs")
-        .select("participant_id, status, template_id")
-        .eq("template_id", data.template_id)
-        .in("participant_id", ids)
-        .in("status", ["pendiente", "programado", "enviado"]);
-      if (data.batch_id) aq = aq.eq("batch_id", data.batch_id);
-      const { data: existing } = await aq;
-      for (const row of existing ?? []) {
-        if (row.participant_id) alreadyKeys.add(row.participant_id);
+      for (const idChunk of chunk(ids, 100)) {
+        let aq = supabase
+          .from("communication_logs")
+          .select("participant_id, status, template_id")
+          .eq("template_id", data.template_id)
+          .in("participant_id", idChunk)
+          .in("status", ["pendiente", "programado", "enviado"]);
+        if (data.batch_id) aq = aq.eq("batch_id", data.batch_id);
+        const { data: existing } = await aq;
+        for (const row of existing ?? []) {
+          if (row.participant_id) alreadyKeys.add(row.participant_id);
+        }
       }
     }
 
