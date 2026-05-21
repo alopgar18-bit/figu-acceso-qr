@@ -296,7 +296,9 @@ FIGURARTE Casting & Producción`,
         description={
           batchInfo.data?.filename
             ? `Importación: ${batchInfo.data.filename}`
-            : "Selecciona evento, sesión y plantilla."
+            : selectedIds && selectedIds.length > 0
+              ? `${selectedIds.length} destinatarios seleccionados desde Solicitudes`
+              : "Selecciona evento, sesión y plantilla."
         }
         actions={
           <Button variant="outline" asChild>
