@@ -7,9 +7,9 @@ const rowSchema = z.object({
   rowIndex: z.number().int().min(0),
   first_name: z.string().trim().min(1).max(120),
   last_name: z.string().trim().max(150).optional().nullable(),
-  dni: z.string().trim().min(3).max(30),
-  email: z.string().trim().email().max(255),
-  phone: z.string().trim().min(5).max(40),
+  dni: z.string().trim().max(30).optional().nullable(),
+  email: z.string().trim().max(255).optional().nullable(),
+  phone: z.string().trim().max(40).optional().nullable(),
   birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   city: z.string().trim().max(120).optional().nullable(),
   province: z.string().trim().max(120).optional().nullable(),
@@ -104,19 +104,20 @@ export const commitImport = createServerFn({ method: "POST" })
 
     for (const row of data.rows) {
       try {
-        // Find existing person by DNI / email / phone
-        const { data: matches } = await supabase
-          .from("people")
-          .select("id, dni, email, phone")
-          .or(
-            [
-              `dni.eq.${row.dni}`,
-              `email.eq.${row.email}`,
-              `phone.eq.${row.phone}`,
-            ].join(","),
-          )
-          .limit(1);
-        const existing = matches?.[0] ?? null;
+        // Find existing person by available identifiers (DNI/email/phone).
+        const orParts: string[] = [];
+        if (row.dni) orParts.push(`dni.eq.${row.dni}`);
+        if (row.email) orParts.push(`email.eq.${row.email}`);
+        if (row.phone) orParts.push(`phone.eq.${row.phone}`);
+        let existing: { id: string } | null = null;
+        if (orParts.length > 0) {
+          const { data: matches } = await supabase
+            .from("people")
+            .select("id")
+            .or(orParts.join(","))
+            .limit(1);
+          existing = matches?.[0] ?? null;
+        }
 
         let personId: string;
         if (existing) {
@@ -139,9 +140,9 @@ export const commitImport = createServerFn({ method: "POST" })
               .update({
                 first_name: row.first_name,
                 last_name: row.last_name ?? null,
-                dni: row.dni,
-                email: row.email,
-                phone: row.phone,
+                dni: row.dni ?? null,
+                email: row.email ?? null,
+                phone: row.phone ?? null,
                 birth_date: row.birth_date ?? null,
                 city: row.city ?? null,
                 province: row.province ?? null,
@@ -160,9 +161,9 @@ export const commitImport = createServerFn({ method: "POST" })
             .insert({
               first_name: row.first_name,
               last_name: row.last_name ?? null,
-              dni: row.dni,
-              email: row.email,
-              phone: row.phone,
+              dni: row.dni ?? null,
+              email: row.email ?? null,
+              phone: row.phone ?? null,
               birth_date: row.birth_date ?? null,
               city: row.city ?? null,
               province: row.province ?? null,
@@ -173,7 +174,7 @@ export const commitImport = createServerFn({ method: "POST" })
             })
             .select("id")
             .single();
-          if (pErr) throw new Error(`persona: ${pErr.message}`);
+          if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
           personId = created.id;
         }
 
@@ -207,11 +208,12 @@ export const commitImport = createServerFn({ method: "POST" })
           })
           .select("id")
           .single();
-        if (partErr) throw new Error(`participación: ${partErr.message}`);
+        if (partErr) throw new Error(`No se pudo crear la participación (${partErr.message})`);
 
-        if (issuesQrFor || row.initial_status === "confirmado") {
+        // Only generate ticket/QR if the FINAL status is "confirmado".
+        if (status === "confirmado") {
           const token = genToken();
-          await supabase.from("tickets").insert({
+          const { error: tErr } = await supabase.from("tickets").insert({
             event_id: data.eventId,
             session_id: data.sessionId,
             participant_id: participant.id,
@@ -223,6 +225,7 @@ export const commitImport = createServerFn({ method: "POST" })
               participant_id: participant.id,
             },
           });
+          if (tErr) throw new Error(`No se pudo crear el ticket (${tErr.message})`);
         }
 
         imported++;
@@ -238,7 +241,11 @@ export const commitImport = createServerFn({ method: "POST" })
         imported_rows: imported,
         error_rows: errored,
         errors: errors.slice(0, 200),
-        status: errored > 0 && imported === 0 ? "fallida" : errored > 0 ? "completada_con_errores" : "completada",
+        status: errored > 0 && imported === 0
+          ? "fallida"
+          : errored > 0
+          ? "completada_con_errores"
+          : "completada",
         completed_at: new Date().toISOString(),
       })
       .eq("id", batch.id)
