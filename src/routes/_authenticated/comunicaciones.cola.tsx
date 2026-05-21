@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Download, RotateCw } from "lucide-react";
+import { ArrowLeft, Download, RotateCw, Archive, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCommunicationLogs } from "@/lib/use-communications";
 import { COMM_STATUS_OPTIONS, type CommStatus } from "@/lib/communication-constants";
 import { retryCommunication } from "@/lib/bulk-send.functions";
+import { useArchiveCommunicationLogs, useDeleteCommunicationLogs } from "@/lib/use-admin-delete";
+import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 
 export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
   component: QueuePage,
@@ -21,10 +24,16 @@ export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
 function QueuePage() {
   const [status, setStatus] = useState<CommStatus | "all">("pendiente");
   const [search, setSearch] = useState("");
+  const [includeArchived, setIncludeArchived] = useState(false);
   const { data: logs = [], refetch, isLoading } = useCommunicationLogs({
     status: status === "all" ? undefined : status,
+    includeArchived,
   });
   const retryFn = useServerFn(retryCommunication);
+  const archiveLogs = useArchiveCommunicationLogs();
+  const deleteLogs = useDeleteCommunicationLogs();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return logs;
@@ -35,6 +44,18 @@ function QueuePage() {
       `${l.people?.first_name ?? ""} ${l.people?.last_name ?? ""}`.toLowerCase().includes(q),
     );
   }, [logs, search]);
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every((l) => selected.has(l.id));
+  const toggleAll = () => {
+    if (allVisibleSelected) setSelected(new Set());
+    else setSelected(new Set(filtered.map((l) => l.id)));
+  };
+  const toggleOne = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelected(next);
+  };
+  const selectedIds = Array.from(selected);
 
   const exportCsv = () => {
     const header = ["nombre", "apellidos", "email", "asunto", "estado", "fecha", "cuerpo"];
@@ -94,10 +115,46 @@ function QueuePage() {
                 ))}
               </SelectContent>
             </Select>
+            <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={includeArchived} onCheckedChange={(v) => setIncludeArchived(Boolean(v))} />
+              Mostrar archivadas
+            </label>
           </div>
+
+          {selectedIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <span className="font-medium">{selectedIds.length} seleccionadas</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={archiveLogs.isPending}
+                onClick={async () => {
+                  try {
+                    await archiveLogs.mutateAsync(selectedIds);
+                    toast.success("Comunicaciones archivadas");
+                    setSelected(new Set());
+                  } catch (e) { toast.error((e as Error).message); }
+                }}
+              >
+                <Archive className="h-4 w-4 mr-1" />Archivar
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />Eliminar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Limpiar selección</Button>
+            </div>
+          )}
+
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8">
+                  <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAll} aria-label="Seleccionar todo" />
+                </TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Destinatario</TableHead>
                 <TableHead>Asunto</TableHead>
@@ -108,16 +165,23 @@ function QueuePage() {
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">Cargando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Cargando…</TableCell></TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">Sin registros</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Sin registros</TableCell></TableRow>
               )}
               {filtered.map((l) => {
                 const tone = COMM_STATUS_OPTIONS.find((o) => o.value === l.status)?.tone ?? "outline";
                 const name = l.people ? `${l.people.first_name} ${l.people.last_name ?? ""}`.trim() : "—";
                 return (
                   <TableRow key={l.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(l.id)}
+                        onCheckedChange={() => toggleOne(l.id)}
+                        aria-label="Seleccionar"
+                      />
+                    </TableCell>
                     <TableCell className="text-xs">{new Date(l.created_at).toLocaleString("es-ES")}</TableCell>
                     <TableCell className="text-sm">
                       <div className="font-medium">{name}</div>
@@ -152,6 +216,28 @@ function QueuePage() {
           </Table>
         </CardContent>
       </Card>
+
+      <DangerousActionDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Eliminar comunicaciones"
+        affectedCount={selectedIds.length}
+        loading={deleteLogs.isPending}
+        destructiveLabel="Eliminar definitivamente"
+        description={
+          <>
+            <p>Se eliminarán <strong>{selectedIds.length}</strong> registros de comunicación de forma permanente.</p>
+            <p className="text-muted-foreground">Si solo quieres ocultarlos de la cola sin perder el historial, usa <em>Archivar</em>.</p>
+          </>
+        }
+        onConfirm={async () => {
+          try {
+            await deleteLogs.mutateAsync(selectedIds);
+            toast.success("Comunicaciones eliminadas");
+            setSelected(new Set());
+          } catch (e) { toast.error((e as Error).message); }
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, FileSpreadsheet, Send, Eraser } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useImportBatch } from "@/lib/use-imports";
 import { cleanDniTimestamps } from "@/lib/bulk-send.functions";
+import { useDeleteImportBatch } from "@/lib/use-admin-delete";
+import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 
 export const Route = createFileRoute("/_authenticated/importaciones/$batchId")({
   component: BatchDetailPage,
@@ -18,8 +21,12 @@ export const Route = createFileRoute("/_authenticated/importaciones/$batchId")({
 
 function BatchDetailPage() {
   const { batchId } = Route.useParams();
+  const navigate = useNavigate();
   const { data: batch, isLoading } = useImportBatch(batchId);
   const cleanFn = useServerFn(cleanDniTimestamps);
+  const deleteBatch = useDeleteImportBatch();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [includeParticipants, setIncludeParticipants] = useState(false);
 
   if (isLoading) return <div className="p-8 text-sm text-muted-foreground">Cargando lote...</div>;
   if (!batch) return <div className="p-8 text-sm text-muted-foreground">Lote no encontrado.</div>;
@@ -50,11 +57,57 @@ function BatchDetailPage() {
                 <Send className="h-4 w-4 mr-2" />Enviar invitaciones a esta importación
               </Link>
             </Button>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => { setIncludeParticipants(false); setConfirmOpen(true); }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />Eliminar solo el lote
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => { setIncludeParticipants(true); setConfirmOpen(true); }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />Eliminar lote + participantes
+            </Button>
             <Button variant="outline" asChild>
               <Link to="/importaciones"><ArrowLeft className="h-4 w-4 mr-2" />Volver</Link>
             </Button>
           </div>
         }
+      />
+
+      <DangerousActionDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={includeParticipants ? "Eliminar lote y participantes" : "Eliminar lote de importación"}
+        affectedCount={includeParticipants ? batch.imported_rows ?? 0 : 1}
+        loading={deleteBatch.isPending}
+        destructiveLabel="Eliminar definitivamente"
+        description={
+          includeParticipants ? (
+            <>
+              <p>Se eliminarán de forma <strong>permanente</strong>:</p>
+              <ul className="list-disc pl-5">
+                <li>El lote de importación y su mapeo.</li>
+                <li>Los <strong>{batch.imported_rows ?? 0} participantes</strong> creados por esta importación.</li>
+                <li>Sus QR, check-ins, acompañantes, consentimientos y comunicaciones asociadas.</li>
+              </ul>
+              <p className="text-destructive">Esta acción no se puede deshacer.</p>
+            </>
+          ) : (
+            <p>Se eliminará el registro del lote y su mapeo. Los participantes creados se mantienen.</p>
+          )
+        }
+        onConfirm={async () => {
+          try {
+            await deleteBatch.mutateAsync({ batchId, deleteParticipants: includeParticipants });
+            toast.success("Lote eliminado");
+            navigate({ to: "/importaciones" });
+          } catch (e) {
+            toast.error((e as Error).message);
+          }
+        }}
       />
 
       {suspiciousDniMapping && (

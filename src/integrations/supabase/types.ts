@@ -203,6 +203,8 @@ export type Database = {
       }
       communication_logs: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           batch_id: string | null
           body: string | null
           channel: Database["public"]["Enums"]["communication_channel"]
@@ -222,6 +224,8 @@ export type Database = {
           to_address: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           batch_id?: string | null
           body?: string | null
           channel: Database["public"]["Enums"]["communication_channel"]
@@ -241,6 +245,8 @@ export type Database = {
           to_address?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           batch_id?: string | null
           body?: string | null
           channel?: Database["public"]["Enums"]["communication_channel"]
@@ -518,6 +524,7 @@ export type Database = {
           created_at: string
           event_id: string
           id: string
+          import_batch_id: string | null
           internal_notes: string | null
           person_id: string
           session_id: string
@@ -538,6 +545,7 @@ export type Database = {
           created_at?: string
           event_id: string
           id?: string
+          import_batch_id?: string | null
           internal_notes?: string | null
           person_id: string
           session_id: string
@@ -558,6 +566,7 @@ export type Database = {
           created_at?: string
           event_id?: string
           id?: string
+          import_batch_id?: string | null
           internal_notes?: string | null
           person_id?: string
           session_id?: string
@@ -1349,6 +1358,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_archive_communication_logs: {
+        Args: { _log_ids: string[] }
+        Returns: Json
+      }
+      admin_delete_communication_logs: {
+        Args: { _log_ids: string[] }
+        Returns: Json
+      }
+      admin_delete_import_batch: {
+        Args: { _batch_id: string; _delete_participants?: boolean }
+        Returns: Json
+      }
+      admin_delete_participants: {
+        Args: { _participant_ids: string[] }
+        Returns: Json
+      }
+      admin_delete_tickets: { Args: { _ticket_ids: string[] }; Returns: Json }
       anonymize_person: {
         Args: { _person_id: string; _reason?: string }
         Returns: undefined

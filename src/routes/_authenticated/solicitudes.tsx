@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Inbox, Search, Filter, X, AlertCircle, Image as ImageIcon,
   CheckCircle2, XCircle, Clock, ArrowRightLeft, Mail, Download, Ban,
-  Users as UsersIcon, QrCode,
+  Users as UsersIcon, QrCode, Trash2,
 } from "lucide-react";
 
 import { PageHeader, EmptyState } from "@/components/page-header";
@@ -37,6 +37,9 @@ import {
 } from "@/lib/participant-constants";
 import { useServerFn } from "@tanstack/react-start";
 import { generateMissingTickets } from "@/lib/tickets.functions";
+import { useDeleteParticipants } from "@/lib/use-admin-delete";
+import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
+import { useAuth } from "@/hooks/use-auth";
 
 const searchSchema = z.object({
   eventId: z.string().optional(),
@@ -470,9 +473,12 @@ function BulkActionsBar({
   const { data: sessions = [] } = useEventSessions(singleEventId ?? undefined);
   const bulk = useBulkUpdateParticipants();
   const genTickets = useServerFn(generateMissingTickets);
+  const deleteParticipants = useDeleteParticipants();
+  const { isAdmin } = useAuth();
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [targetSession, setTargetSession] = useState<string>("");
   const [genLoading, setGenLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const run = (patch: Parameters<typeof bulk.mutate>[0]["patch"], action: string) => {
     if (!hasSelection) {
@@ -654,12 +660,48 @@ function BulkActionsBar({
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="h-4 w-4 mr-1" />Exportar
         </Button>
+        {isAdmin && hasSelection && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive hover:text-destructive border-destructive/30"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />Eliminar
+          </Button>
+        )}
         {hasSelection && (
           <Button size="sm" variant="ghost" onClick={clear}>
             <X className="h-4 w-4" />
           </Button>
         )}
       </CardContent>
+      <DangerousActionDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Eliminar participantes"
+        affectedCount={selectedIds.length}
+        loading={deleteParticipants.isPending}
+        destructiveLabel="Eliminar definitivamente"
+        description={
+          <>
+            <p>
+              Se eliminarán <strong>{selectedIds.length}</strong> participantes y todos sus
+              registros asociados (QR, check-ins, acompañantes, consentimientos y comunicaciones).
+            </p>
+            <p className="text-destructive">Esta acción no se puede deshacer.</p>
+          </>
+        }
+        onConfirm={async () => {
+          try {
+            await deleteParticipants.mutateAsync(selectedIds);
+            toast.success("Participantes eliminados");
+            clear();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Error al eliminar");
+          }
+        }}
+      />
     </Card>
   );
 }
