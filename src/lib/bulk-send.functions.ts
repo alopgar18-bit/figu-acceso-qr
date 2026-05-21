@@ -64,6 +64,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       id: string;
       person_id: string;
       status: string;
+      confirmation_token: string | null;
       people:
         | { first_name: string; last_name: string | null; email: string | null; phone: string | null }
         | null;
@@ -75,7 +76,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         for (const ids of chunk(data.participant_ids, 100)) {
           const { data: rows, error } = await supabase
             .from("event_participants")
-            .select("id, person_id, status, people(first_name,last_name,email,phone)")
+            .select("id, person_id, status, confirmation_token, people(first_name,last_name,email,phone)")
             .in("id", ids);
           if (error) throw new Error(error.message);
           participants = participants.concat((rows ?? []) as unknown as PartRow[]);
@@ -83,7 +84,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       } else {
         let pq = supabase
           .from("event_participants")
-          .select("id, person_id, status, people(first_name,last_name,email,phone)")
+          .select("id, person_id, status, confirmation_token, people(first_name,last_name,email,phone)")
           .eq("event_id", data.event_id);
         if (data.session_id) pq = pq.eq("session_id", data.session_id);
         const { data: rows, error } = await pq.limit(5000);
@@ -159,9 +160,10 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       }
       const person = p.people as { first_name: string; last_name: string | null; email: string | null; phone: string | null } | null;
       const email = person?.email ?? null;
-      const token = ticketMap.get(p.id);
+      const ticketToken = ticketMap.get(p.id);
+      const linkToken = p.confirmation_token ?? null;
 
-      if (data.only_with_ticket && !token) {
+      if (data.only_with_ticket && !ticketToken) {
         skipped_no_ticket++;
         continue;
       }
@@ -170,7 +172,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         continue;
       }
 
-      const enlace = token ? `${baseUrl}/c/${token}/entrada` : "";
+      const enlace = linkToken ? `${baseUrl}/c/${linkToken}/entrada` : "";
       const ctx: RenderContext = {
         nombre: person?.first_name ?? "",
         apellidos: person?.last_name ?? "",
@@ -181,7 +183,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         ubicacion,
         enlace_entrada: enlace,
         enlace_confirmacion: enlace,
-        qr: token ?? "",
+        qr: ticketToken ?? "",
         qr_image: enlace ? buildQrImageUrl(enlace) : "",
         telefono: person?.phone ?? "",
       };
