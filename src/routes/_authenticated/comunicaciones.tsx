@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Pencil, Trash2, RotateCw, CheckCircle2, ExternalLink, Copy } from "lucide-react";
+import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
+import { Plus, Pencil, Trash2, RotateCw, CheckCircle2, ExternalLink, Copy, Send, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,13 @@ export const Route = createFileRoute("/_authenticated/comunicaciones")({
 });
 
 function Page() {
+  const matches = useMatches();
+  const hasChild = matches.some(
+    (m) =>
+      m.routeId === "/_authenticated/comunicaciones/envio" ||
+      m.routeId === "/_authenticated/comunicaciones/cola",
+  );
+  if (hasChild) return <Outlet />;
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<TemplateRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -65,9 +72,17 @@ function Page() {
         title="Comunicaciones"
         description={`Plantillas, envíos por email desde ${SENDER_EMAIL} y WhatsApp asistido, con cola e historial.`}
         actions={
-          <Button onClick={openNew} className="uppercase tracking-wider">
-            <Plus className="h-4 w-4 mr-2" />Nueva plantilla
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/comunicaciones/envio"><Send className="h-4 w-4 mr-2" />Envío masivo</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/comunicaciones/cola"><ListChecks className="h-4 w-4 mr-2" />Cola de envíos</Link>
+            </Button>
+            <Button onClick={openNew} className="uppercase tracking-wider">
+              <Plus className="h-4 w-4 mr-2" />Nueva plantilla
+            </Button>
+          </div>
         }
       />
 
