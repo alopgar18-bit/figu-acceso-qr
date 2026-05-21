@@ -473,9 +473,12 @@ function BulkActionsBar({
   const { data: sessions = [] } = useEventSessions(singleEventId ?? undefined);
   const bulk = useBulkUpdateParticipants();
   const genTickets = useServerFn(generateMissingTickets);
+  const deleteParticipants = useDeleteParticipants();
+  const { isAdmin } = useAuth();
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [targetSession, setTargetSession] = useState<string>("");
   const [genLoading, setGenLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const run = (patch: Parameters<typeof bulk.mutate>[0]["patch"], action: string) => {
     if (!hasSelection) {
@@ -657,6 +660,16 @@ function BulkActionsBar({
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="h-4 w-4 mr-1" />Exportar
         </Button>
+        {isAdmin && hasSelection && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive hover:text-destructive border-destructive/30"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />Eliminar
+          </Button>
+        )}
         {hasSelection && (
           <Button size="sm" variant="ghost" onClick={clear}>
             <X className="h-4 w-4" />
