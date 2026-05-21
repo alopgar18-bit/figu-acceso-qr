@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -29,6 +29,8 @@ type Companion = { first_name: string; last_name: string; dni: string };
 
 function Page() {
   const { token } = Route.useParams();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isChildRoute = pathname !== `/c/${token}`;
   const navigate = useNavigate();
   const fetch = useServerFn(getConfirmation);
   const confirm = useServerFn(confirmAttendance);
@@ -36,11 +38,16 @@ function Page() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["confirmation", token],
     queryFn: () => fetch({ data: { token } }),
+    enabled: !isChildRoute,
   });
 
   const [companions, setCompanions] = useState<Companion[]>([]);
   const [acceptImage, setAcceptImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  if (isChildRoute) {
+    return <Outlet />;
+  }
 
   if (isLoading) {
     return <PublicShell><Skeleton className="h-96 w-full" /></PublicShell>;
