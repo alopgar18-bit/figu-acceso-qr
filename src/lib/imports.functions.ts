@@ -242,7 +242,7 @@ export const commitImport = createServerFn({ method: "POST" })
         error_rows: errored,
         errors: errors.slice(0, 200),
         status: errored > 0 && imported === 0
-          ? "fallida_procesamiento"
+          ? "fallida"
           : errored > 0
           ? "completada_con_errores"
           : "completada",
