@@ -529,15 +529,51 @@ function MappingStep({
   mapping,
   setMapping,
   requiredMissing,
+  requiredImportTargets,
+  resolved,
 }: {
   parsed: ParsedFile;
   mapping: Record<string, TargetField | "">;
   setMapping: (m: Record<string, TargetField | "">) => void;
   requiredMissing: string[];
+  requiredImportTargets: Set<string>;
+  resolved: Record<FieldKey, FieldRule> | null;
 }) {
   const previewRows = parsed.rows.slice(0, 5);
+  const importable = resolved
+    ? FIELD_DEFS.filter((d) => d.importTarget && resolved[d.key].in_import)
+    : FIELD_DEFS.filter((d) => d.importTarget);
   return (
     <div className="space-y-6">
+      {resolved && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Requisitos de esta sesión</CardTitle>
+            <CardDescription>Configurados en el evento o sobrescritos en la sesión.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Obligatorios</div>
+              <div className="flex flex-wrap gap-1">
+                {importable.filter((d) => resolved[d.key].required).length === 0 && (
+                  <span className="text-sm text-muted-foreground">Ninguno — solo importará lo que detecte.</span>
+                )}
+                {importable.filter((d) => resolved[d.key].required).map((d) => (
+                  <Badge key={d.key} variant="default">{d.label}</Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Opcionales</div>
+              <div className="flex flex-wrap gap-1">
+                {importable.filter((d) => !resolved[d.key].required).map((d) => (
+                  <Badge key={d.key} variant="outline">{d.label}</Badge>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {requiredMissing.length > 0 && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -570,7 +606,7 @@ function MappingStep({
                     <SelectItem value="__none__">— Sin mapear —</SelectItem>
                     {TARGET_FIELDS.map((t) => (
                       <SelectItem key={t.value} value={t.value}>
-                        {t.label}{t.required ? " *" : ""}
+                        {t.label}{requiredImportTargets.has(t.value) ? " *" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -591,6 +627,7 @@ function ValidationStep({
   onPreflight,
   defaultStatus,
   duplicateStrategy,
+  resolved,
 }: {
   normalized: { rows: Array<Record<string, unknown> & { rowIndex: number }>; errors: Array<{ row: number; msg: string }> };
   validRows: Array<Record<string, unknown> & { rowIndex: number }>;
@@ -598,9 +635,11 @@ function ValidationStep({
   onPreflight: () => void;
   defaultStatus: ParticipantStatus;
   duplicateStrategy: DuplicateStrategy;
+  resolved: Record<FieldKey, FieldRule> | null;
 }) {
   const preview = normalized.rows.slice(0, 20);
   const errSet = new Set(normalized.errors.map((e) => e.row));
+  void resolved;
   return (
     <div className="space-y-6">
       <div className="grid gap-3 md:grid-cols-4">
