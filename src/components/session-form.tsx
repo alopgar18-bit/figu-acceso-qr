@@ -24,6 +24,8 @@ import {
   type EventRow,
   type SessionRow,
 } from "@/lib/use-events";
+import { FieldRequirementsEditor } from "@/components/field-requirements-editor";
+import type { FieldRequirements } from "@/lib/field-requirements";
 
 type FormState = {
   name: string;
@@ -44,6 +46,8 @@ type FormState = {
   min_age: number;
   specific_instructions: string;
   status: SessionStatus;
+  inherit_event_fields: boolean;
+  field_requirements: FieldRequirements;
 };
 
 function initial(event: EventRow, session?: SessionRow | null): FormState {
@@ -66,6 +70,12 @@ function initial(event: EventRow, session?: SessionRow | null): FormState {
     min_age: session?.min_age ?? event.default_min_age ?? 0,
     specific_instructions: session?.specific_instructions ?? "",
     status: (session?.status as SessionStatus) ?? "programada",
+    inherit_event_fields:
+      session && typeof session.inherit_event_fields === "boolean" ? session.inherit_event_fields : true,
+    field_requirements:
+      (session && typeof (session as { field_requirements?: unknown }).field_requirements === "object"
+        ? ((session as { field_requirements?: unknown }).field_requirements as FieldRequirements)
+        : {}) ?? {},
   };
 }
 
@@ -105,6 +115,8 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
         min_age: s.min_age,
         specific_instructions: s.specific_instructions || null,
         status: s.status,
+        inherit_event_fields: s.inherit_event_fields,
+        field_requirements: s.inherit_event_fields ? {} : (s.field_requirements ?? {}),
       };
       await upsert.mutateAsync({ id: session?.id, values: payload });
       toast.success(session ? "Sesión actualizada" : "Sesión creada");
@@ -216,6 +228,28 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
             <Label>Instrucciones específicas</Label>
             <Textarea value={s.specific_instructions} onChange={(e) => update("specific_instructions", e.target.value)} rows={3} maxLength={2000} />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base uppercase tracking-wider">Requisitos de campos</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <SwitchRow
+            label="Heredar campos y requisitos del evento"
+            value={s.inherit_event_fields}
+            onChange={(v) => update("inherit_event_fields", v)}
+          />
+          {!s.inherit_event_fields && (
+            <FieldRequirementsEditor
+              value={s.field_requirements}
+              onChange={(v) => update("field_requirements", v)}
+            />
+          )}
+          {s.inherit_event_fields && (
+            <p className="text-xs text-muted-foreground">
+              Esta sesión usa la configuración de campos del evento. Desactiva el interruptor para personalizar.
+            </p>
+          )}
         </CardContent>
       </Card>
 
