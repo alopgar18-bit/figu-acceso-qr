@@ -44,10 +44,17 @@ export const COMM_VARIABLES = [
   { token: "{{enlace_confirmacion}}", description: "Enlace para confirmar asistencia" },
   { token: "{{enlace_entrada}}", description: "Enlace a la entrada / QR" },
   { token: "{{qr}}", description: "Código QR / token" },
+  { token: "{{qr_image}}", description: "URL de imagen PNG del QR (para <img src>)" },
   { token: "{{instrucciones}}", description: "Instrucciones específicas" },
 ] as const;
 
 export const SENDER_EMAIL = "casting@figurarte.es";
+export const PUBLIC_SITE_URL_FALLBACK = "https://figu-acceso-qr.lovable.app";
+
+export function buildQrImageUrl(data: string, size = 320): string {
+  if (!data) return "";
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(data)}`;
+}
 
 export interface RenderContext {
   nombre?: string | null;
@@ -60,6 +67,7 @@ export interface RenderContext {
   enlace_confirmacion?: string | null;
   enlace_entrada?: string | null;
   qr?: string | null;
+  qr_image?: string | null;
   instrucciones?: string | null;
   telefono?: string | null;
 }
