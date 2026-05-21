@@ -82,6 +82,7 @@ export interface LogFilters {
   status?: CommStatus;
   channel?: CommChannel;
   eventId?: string;
+  includeArchived?: boolean;
 }
 
 export function useCommunicationLogs(filters: LogFilters = {}) {
@@ -96,6 +97,7 @@ export function useCommunicationLogs(filters: LogFilters = {}) {
       if (filters.status) q = q.eq("status", filters.status);
       if (filters.channel) q = q.eq("channel", filters.channel);
       if (filters.eventId) q = q.eq("event_id", filters.eventId);
+      if (!filters.includeArchived) q = q.is("archived_at", null);
       const { data, error } = await q;
       if (error) throw error;
       return data as (LogRow & {
