@@ -34,6 +34,8 @@ interface PartRow {
   id: string;
   status: string;
   person_id: string;
+  event_id?: string;
+  session_id?: string;
   people:
     | {
         first_name: string;
