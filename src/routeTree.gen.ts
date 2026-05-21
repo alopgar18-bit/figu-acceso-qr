@@ -49,6 +49,8 @@ import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/
 import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
 import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
 import { Route as AuthenticatedControlAccesoSessionIdRouteImport } from './routes/_authenticated/control-acceso.$sessionId'
+import { Route as AuthenticatedComunicacionesEnvioRouteImport } from './routes/_authenticated/comunicaciones.envio'
+import { Route as AuthenticatedComunicacionesColaRouteImport } from './routes/_authenticated/comunicaciones.cola'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
 import { Route as AuthenticatedEventosEventIdSesionesNuevaRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.nueva'
 import { Route as AuthenticatedEventosEventIdSesionesSessionIdRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.$sessionId'
@@ -265,6 +267,18 @@ const AuthenticatedControlAccesoSessionIdRoute =
     path: '/$sessionId',
     getParentRoute: () => AuthenticatedControlAccesoRoute,
   } as any)
+const AuthenticatedComunicacionesEnvioRoute =
+  AuthenticatedComunicacionesEnvioRouteImport.update({
+    id: '/envio',
+    path: '/envio',
+    getParentRoute: () => AuthenticatedComunicacionesRoute,
+  } as any)
+const AuthenticatedComunicacionesColaRoute =
+  AuthenticatedComunicacionesColaRouteImport.update({
+    id: '/cola',
+    path: '/cola',
+    getParentRoute: () => AuthenticatedComunicacionesRoute,
+  } as any)
 const AuthenticatedEventosEventIdEditarRoute =
   AuthenticatedEventosEventIdEditarRouteImport.update({
     id: '/editar',
@@ -291,7 +305,7 @@ export interface FileRoutesByFullPath {
   '/privacidad': typeof PrivacidadRoute
   '/branding': typeof AuthenticatedBrandingRoute
   '/clientes': typeof AuthenticatedClientesRoute
-  '/comunicaciones': typeof AuthenticatedComunicacionesRoute
+  '/comunicaciones': typeof AuthenticatedComunicacionesRouteWithChildren
   '/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
@@ -309,6 +323,8 @@ export interface FileRoutesByFullPath {
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
   '/portal/': typeof PortalIndexRoute
+  '/comunicaciones/cola': typeof AuthenticatedComunicacionesColaRoute
+  '/comunicaciones/envio': typeof AuthenticatedComunicacionesEnvioRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
@@ -334,7 +350,7 @@ export interface FileRoutesByTo {
   '/privacidad': typeof PrivacidadRoute
   '/branding': typeof AuthenticatedBrandingRoute
   '/clientes': typeof AuthenticatedClientesRoute
-  '/comunicaciones': typeof AuthenticatedComunicacionesRoute
+  '/comunicaciones': typeof AuthenticatedComunicacionesRouteWithChildren
   '/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
@@ -352,6 +368,8 @@ export interface FileRoutesByTo {
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
   '/portal': typeof PortalIndexRoute
+  '/comunicaciones/cola': typeof AuthenticatedComunicacionesColaRoute
+  '/comunicaciones/envio': typeof AuthenticatedComunicacionesEnvioRoute
   '/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
@@ -380,7 +398,7 @@ export interface FileRoutesById {
   '/privacidad': typeof PrivacidadRoute
   '/_authenticated/branding': typeof AuthenticatedBrandingRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
-  '/_authenticated/comunicaciones': typeof AuthenticatedComunicacionesRoute
+  '/_authenticated/comunicaciones': typeof AuthenticatedComunicacionesRouteWithChildren
   '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
@@ -398,6 +416,8 @@ export interface FileRoutesById {
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
   '/portal/': typeof PortalIndexRoute
+  '/_authenticated/comunicaciones/cola': typeof AuthenticatedComunicacionesColaRoute
+  '/_authenticated/comunicaciones/envio': typeof AuthenticatedComunicacionesEnvioRoute
   '/_authenticated/control-acceso/$sessionId': typeof AuthenticatedControlAccesoSessionIdRoute
   '/_authenticated/eventos/$eventId': typeof AuthenticatedEventosEventIdRouteWithChildren
   '/_authenticated/eventos/nuevo': typeof AuthenticatedEventosNuevoRoute
@@ -444,6 +464,8 @@ export interface FileRouteTypes {
     | '/portal/incidencias'
     | '/portal/informes'
     | '/portal/'
+    | '/comunicaciones/cola'
+    | '/comunicaciones/envio'
     | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
@@ -487,6 +509,8 @@ export interface FileRouteTypes {
     | '/portal/incidencias'
     | '/portal/informes'
     | '/portal'
+    | '/comunicaciones/cola'
+    | '/comunicaciones/envio'
     | '/control-acceso/$sessionId'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
@@ -532,6 +556,8 @@ export interface FileRouteTypes {
     | '/portal/incidencias'
     | '/portal/informes'
     | '/portal/'
+    | '/_authenticated/comunicaciones/cola'
+    | '/_authenticated/comunicaciones/envio'
     | '/_authenticated/control-acceso/$sessionId'
     | '/_authenticated/eventos/$eventId'
     | '/_authenticated/eventos/nuevo'
@@ -844,6 +870,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedControlAccesoSessionIdRouteImport
       parentRoute: typeof AuthenticatedControlAccesoRoute
     }
+    '/_authenticated/comunicaciones/envio': {
+      id: '/_authenticated/comunicaciones/envio'
+      path: '/envio'
+      fullPath: '/comunicaciones/envio'
+      preLoaderRoute: typeof AuthenticatedComunicacionesEnvioRouteImport
+      parentRoute: typeof AuthenticatedComunicacionesRoute
+    }
+    '/_authenticated/comunicaciones/cola': {
+      id: '/_authenticated/comunicaciones/cola'
+      path: '/cola'
+      fullPath: '/comunicaciones/cola'
+      preLoaderRoute: typeof AuthenticatedComunicacionesColaRouteImport
+      parentRoute: typeof AuthenticatedComunicacionesRoute
+    }
     '/_authenticated/eventos/$eventId/editar': {
       id: '/_authenticated/eventos/$eventId/editar'
       path: '/editar'
@@ -867,6 +907,23 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthenticatedComunicacionesRouteChildren {
+  AuthenticatedComunicacionesColaRoute: typeof AuthenticatedComunicacionesColaRoute
+  AuthenticatedComunicacionesEnvioRoute: typeof AuthenticatedComunicacionesEnvioRoute
+}
+
+const AuthenticatedComunicacionesRouteChildren: AuthenticatedComunicacionesRouteChildren =
+  {
+    AuthenticatedComunicacionesColaRoute: AuthenticatedComunicacionesColaRoute,
+    AuthenticatedComunicacionesEnvioRoute:
+      AuthenticatedComunicacionesEnvioRoute,
+  }
+
+const AuthenticatedComunicacionesRouteWithChildren =
+  AuthenticatedComunicacionesRoute._addFileChildren(
+    AuthenticatedComunicacionesRouteChildren,
+  )
 
 interface AuthenticatedControlAccesoRouteChildren {
   AuthenticatedControlAccesoSessionIdRoute: typeof AuthenticatedControlAccesoSessionIdRoute
@@ -952,7 +1009,7 @@ const AuthenticatedEventosEventIdRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedBrandingRoute: typeof AuthenticatedBrandingRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
-  AuthenticatedComunicacionesRoute: typeof AuthenticatedComunicacionesRoute
+  AuthenticatedComunicacionesRoute: typeof AuthenticatedComunicacionesRouteWithChildren
   AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRouteWithChildren
@@ -972,7 +1029,8 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBrandingRoute: AuthenticatedBrandingRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
-  AuthenticatedComunicacionesRoute: AuthenticatedComunicacionesRoute,
+  AuthenticatedComunicacionesRoute:
+    AuthenticatedComunicacionesRouteWithChildren,
   AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedImportacionesRoute: AuthenticatedImportacionesRouteWithChildren,
@@ -1064,3 +1122,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
