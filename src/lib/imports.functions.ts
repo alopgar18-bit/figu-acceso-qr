@@ -223,6 +223,7 @@ export const commitImport = createServerFn({ method: "POST" })
             approved_by: approvedLike ? userId : null,
             approved_at: approvedLike ? new Date().toISOString() : null,
             confirmed_at: status === "confirmado" || status === "acceso_validado" ? new Date().toISOString() : null,
+            import_batch_id: batch.id,
           })
           .select("id")
           .single();
