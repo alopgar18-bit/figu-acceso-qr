@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
-import { renderTemplate, type RenderContext } from "./communication-constants";
+import { renderTemplate, buildQrImageUrl, PUBLIC_SITE_URL_FALLBACK, type RenderContext } from "./communication-constants";
 
 const inputSchema = z.object({
   event_id: z.string().uuid(),
@@ -150,7 +150,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     const ubicacion =
       sessLoc?.location_name ?? event?.location_name ?? sessLoc?.location_address ?? event?.location_address ?? "";
 
-    const baseUrl = process.env.PUBLIC_SITE_URL ?? "";
+    const baseUrl = process.env.PUBLIC_SITE_URL ?? PUBLIC_SITE_URL_FALLBACK;
 
     for (const p of participants) {
       if (data.skip_already_queued && alreadyKeys.has(p.id)) {
@@ -182,6 +182,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         enlace_entrada: enlace,
         enlace_confirmacion: enlace,
         qr: token ?? "",
+        qr_image: enlace ? buildQrImageUrl(enlace) : "",
         telefono: person?.phone ?? "",
       };
 
