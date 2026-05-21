@@ -596,7 +596,9 @@ export type Database = {
           doors_open_at: string | null
           ends_at: string | null
           event_id: string
+          field_requirements: Json
           id: string
+          inherit_event_fields: boolean
           location_address: string | null
           location_name: string | null
           max_companions_per_participant: number
@@ -621,7 +623,9 @@ export type Database = {
           doors_open_at?: string | null
           ends_at?: string | null
           event_id: string
+          field_requirements?: Json
           id?: string
+          inherit_event_fields?: boolean
           location_address?: string | null
           location_name?: string | null
           max_companions_per_participant?: number
@@ -646,7 +650,9 @@ export type Database = {
           doors_open_at?: string | null
           ends_at?: string | null
           event_id?: string
+          field_requirements?: Json
           id?: string
+          inherit_event_fields?: boolean
           location_address?: string | null
           location_name?: string | null
           max_companions_per_participant?: number
@@ -688,6 +694,7 @@ export type Database = {
           description: string | null
           ends_at: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          field_requirements: Json
           general_instructions: string | null
           id: string
           location_address: string | null
@@ -721,6 +728,7 @@ export type Database = {
           description?: string | null
           ends_at?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          field_requirements?: Json
           general_instructions?: string | null
           id?: string
           location_address?: string | null
@@ -754,6 +762,7 @@ export type Database = {
           description?: string | null
           ends_at?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          field_requirements?: Json
           general_instructions?: string | null
           id?: string
           location_address?: string | null
