@@ -43,18 +43,17 @@ export const Route = createFileRoute("/_authenticated/comunicaciones")({
 
 function Page() {
   const matches = useMatches();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editing, setEditing] = useState<TemplateRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const { data: templates = [], isLoading: loadingTemplates } = useTemplates();
+  const del = useDeleteTemplate();
   const hasChild = matches.some(
     (m) =>
       m.routeId === "/_authenticated/comunicaciones/envio" ||
       m.routeId === "/_authenticated/comunicaciones/cola",
   );
   if (hasChild) return <Outlet />;
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<TemplateRow | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-
-  const { data: templates = [], isLoading: loadingTemplates } = useTemplates();
-  const del = useDeleteTemplate();
 
   const openNew = () => {
     setEditing(null);
