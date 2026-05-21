@@ -1,58 +1,73 @@
-# Envío masivo de invitaciones con QR
+# Solicitudes → Comunicar → QR → Cola + borrado controlado
 
-Ampliar el módulo de comunicaciones para permitir, desde una importación / sesión / evento, enviar invitaciones individuales con QR a todos los participantes seleccionados, con cola y reintentos. Incluye correcciones al mapeo de importación y limpieza de DNIs mal mapeados.
+Alcance grande. Lo divido en 3 fases entregables para que cada una sea verificable end-to-end. Recomiendo aprobar la Fase 1 primero (el bloqueo actual) y luego seguir.
 
-## Alcance
+## Fase 1 — Desbloquear "Comunicar" desde Solicitudes (PRIORIDAD)
 
-1. **Corrección de mapeo de importación**
-   - `src/lib/import-constants.ts`: en `guessTarget`, ignorar "Marca temporal", "Timestamp", "Fecha de envío" (no mapear a `dni`).
-   - Aviso en el wizard si una columna detectada como `dni` contiene valores tipo fecha.
-   - Acción admin en detalle de importación: **"Limpiar DNI con marcas temporales"** que vacía `people.dni` cuando coincide con regex de fecha (sin borrar personas ni participaciones).
+Resuelve el síntoma reportado: 401 resultados visibles, pero "Envío masivo" muestra 0.
 
-2. **Generación de QR en lote** (sin `gen_random_bytes`)
-   - Nueva server function `generateMissingTickets({ event_id, session_id, participant_ids? })`.
-   - Para cada participante sin ticket activo crea fila en `tickets` con `qr_token = gen_random_uuid()` concatenado.
-   - No exige DNI/email/teléfono. Devuelve `{ generated, skipped, errors }`.
+### Cambios
 
-3. **Asistente de envío masivo** (`/comunicaciones/envio`)
-   - Paso 1 — Destinatarios: filtros por evento, sesión, import_batch_id, estado, tiene email, tiene QR, estado de envío. Resumen con conteos.
-   - Paso 2 — QR: detecta cuántos faltan, botón "Generar QR faltantes".
-   - Paso 3 — Plantilla: selector de plantilla activa. Botón "Crear plantilla sugerida" que inserta **"Invitación público — El Perro Andaluz"**.
-   - Paso 4 — Previsualización con datos reales del primer destinatario, conteo de omitidos.
-   - Paso 5 — Crear cola: inserta filas en `communication_logs` con estado `pendiente` (renderiza subject/body). Si Gmail no configurado, queda en `pendiente` con aviso.
-   - Paso 6 — Resultado por estado.
+1. **`solicitudes.tsx` → `BulkActionsBar`**
+   - Activar el botón `Comunicar` (quitar `disabled`).
+   - Navegar a `/comunicaciones/envio` pasando `participant_ids` (los seleccionados) por search-params, además de `event_id` y `session_id` cuando existan.
+   - Añadir botón secundario "Comunicar a todos los filtrados" (cuando hay filtros con resultados pero ninguna selección): pasa los IDs de `filteredRows` completos.
+   - Añadir botón "Generar QR" que llama directamente a `generateMissingTickets` con los IDs seleccionados (requiere mismo evento+sesión).
 
-4. **Plantilla con fallback de nombre vacío**
-   - Extender `renderTemplate`: si `nombre` está vacío, reemplazar "Hola {{nombre}}," → "Hola,".
+2. **`comunicaciones.envio.tsx`**
+   - Ampliar `searchSchema` con `participant_ids` (lista, codificada como CSV en URL para evitar URLs gigantes; usar sessionStorage como fallback si > 100 IDs).
+   - Nueva fuente de destinatarios: si llegan `participant_ids`, cargar `event_participants` por `.in('id', ids)` en lugar de filtrar por `event_id+session_id+batch_id`.
+   - Derivar `event_id`/`session_id` desde el primer participante si no vienen explícitos. Validar que todos comparten evento+sesión (mostrar error claro si no).
+   - Mostrar tabla de destinatarios (Nombre, Apellidos, Email, Teléfono, Estado, ¿QR?, ¿En cola?) antes del paso "Crear cola".
 
-5. **Botones de entrada**
-   - Detalle de importación → "Enviar invitaciones a esta importación" (preselecciona `import_batch_id`).
-   - Detalle de sesión → "Enviar invitaciones a esta sesión".
-   - En lista de participantes: "Ver entrada", "Copiar enlace de entrada", "Reenviar invitación".
+3. **`bulk-send.functions.ts` → `queueBulkInvitations`**
+   - Aceptar `participant_ids` ya filtrados desde el cliente (ya lo hace, verificar).
+   - Estado de log: si falta email → `cancelado` con `error_message = 'omitido_sin_email'`; si falta QR y `require_ticket=true` → `cancelado` con `omitido_sin_qr`. Devolver contadores diferenciados.
 
-6. **Cola de envíos** (`/comunicaciones/cola`)
-   - Tabla con destinatario, estado, error, fecha, acción "Reintentar" (resetea estado a `pendiente`).
+### Resultado verificable
+- Solicitudes → filtrar evento+sesión → seleccionar 1 → Comunicar → asistente muestra Total: 1.
+- Sin selección + filtros con 401 → "Comunicar a todos los filtrados" → Total: 401.
+- "Generar QR" en barra de acciones funciona sin pedir DNI.
 
-7. **Gmail**
-   - Solo detección. Si no hay secrets `GMAIL_*`, banner "Gmail no configurado" con instrucciones. No implementar OAuth ahora.
-   - Botón "Exportar CSV de la cola" como workaround para envío manual.
+---
 
-## Lo que NO se toca
+## Fase 2 — Borrado controlado (admin)
 
-- No se cambian usuarios, roles, formularios públicos ni informes.
-- No se borra ningún dato existente.
-- No se hacen DNI/email/teléfono obligatorios globales.
-- No se activa WhatsApp API ni modo offline.
-- No se implementa OAuth de Google ahora (solo el andamiaje de cola).
+Después de Fase 1, añadir borrado/archivado con confirmación.
 
-## Migración SQL necesaria
+### Migración
+- Añadir `deleted_at`, `deleted_by`, `archived_at`, `archived_by` a:
+  `import_batches`, `people`, `event_participants`, `tickets`, `communication_logs`, `incidents`, `checkins`, `form_submissions`.
+- Crear función SQL `delete_import_cascade(batch_id, mode)` con `mode in ('archive','delete_records','delete_full')` que:
+  - Borra/archiva participantes, tickets, comm_logs, checkins, incidents asociados al batch.
+  - Borra `people` solo si no tiene participaciones en otros batches.
+  - Registra en `audit_logs`.
+- Políticas RLS: solo `superadmin` o `admin_figurarte` pueden hacer UPDATE de `deleted_at`/`archived_at`.
 
-- Añadir a `communication_logs`: `batch_id uuid` (referencia lógica a `import_batches`) para poder filtrar por importación.
-- Índice en `(event_id, session_id, status)`.
-- Confirmar que no hay residuos de `gen_random_bytes` (ya verificado).
+### Server functions (`src/lib/admin-delete.functions.ts`)
+- `deleteImportBatch({ batch_id, mode })`
+- `deleteParticipants({ ids, hard })`
+- `deleteTickets({ ids })`, `cancelTickets({ ids })`, `regenerateTickets({ ids })`
+- `deleteCommunicationLogs({ ids })`, `archiveCommunicationLogs({ ids })`
+- Cada una: rol-guard, dry-run que devuelve impacto, requiere `confirm_text === 'BORRAR'` para masivos > 10.
 
-## Archivos a crear / editar
+### UI
+- Diálogo reusable `<DangerousActionDialog>` con preview de impacto + input "BORRAR".
+- En `importaciones.$batchId.tsx`: dropdown "Archivar / Borrar registros / Borrar todo".
+- En Solicitudes BulkActionsBar: "Borrar seleccionados", "Borrar QR", "Borrar comunicaciones".
+- En Comunicaciones cola: borrado y archivado por selección.
+- Listados filtran `deleted_at IS NULL` por defecto + toggle "Mostrar archivados".
 
-- crear: `src/lib/tickets.functions.ts`, `src/lib/bulk-send.functions.ts`, `src/routes/_authenticated/comunicaciones.envio.tsx`, `src/routes/_authenticated/comunicaciones.cola.tsx`
-- editar: `src/lib/import-constants.ts`, `src/lib/communication-constants.ts`, `src/routes/_authenticated/importaciones.$batchId.tsx`, `src/routes/_authenticated/eventos.$eventId.sesiones.$sessionId.tsx`, `src/routes/_authenticated/comunicaciones.tsx`, `src/components/app-sidebar.tsx`
-- migración: nueva en `supabase/migrations/`
+---
+
+## Fase 3 — Refinamientos opcionales
+
+- Plantilla "Invitación público — El Perro Andaluz" creada vía seed/migración (ya existe botón "Crear plantilla sugerida" en el asistente; solo confirmar variables `{{evento}}`, `{{sesion}}`, etc., son las que renderiza `renderTemplate`).
+- Pantalla "Generar QR" como flujo guiado independiente (selección → preview → confirmación) accesible desde sidebar.
+- Envío Gmail real (queda fuera; ya hay infraestructura de cola + CSV export).
+
+---
+
+## Pregunta
+
+¿Empiezo por **Fase 1** (desbloquear el flujo Solicitudes → Comunicar)? Es lo que resuelve el "0 destinatarios". Fase 2 (borrado controlado) la abordo en cuanto Fase 1 esté validada.
