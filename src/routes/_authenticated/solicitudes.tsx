@@ -52,8 +52,8 @@ export const Route = createFileRoute("/_authenticated/solicitudes")({
 });
 
 function Page() {
-  const search = useSearch({ from: "/_authenticated/solicitudes" });
-  const navigate = useNavigate({ from: "/_authenticated/solicitudes" });
+  const search = useSearch({ from: Route.id });
+  const navigate = useNavigate({ from: Route.fullPath });
 
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(search.eventId);
