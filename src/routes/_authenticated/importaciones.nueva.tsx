@@ -731,7 +731,7 @@ function ResultStep({
   onNew,
   onViewBatch,
 }: {
-  result: { batchId: string; total: number; imported: number; skipped: number; updated: number; errored: number; finalStatus: string };
+  result: { batchId: string; total: number; imported: number; skipped: number; updated: number; errored: number; qrGenerated?: number; noContactChannel?: number; finalStatus: string };
   onNew: () => void;
   onViewBatch: () => void;
 }) {
@@ -742,11 +742,13 @@ function ResultStep({
         <CardDescription>Estado del lote: <strong>{result.finalStatus}</strong></CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
           <StatCard label="Total" value={result.total} />
           <StatCard label="Importadas" value={result.imported} tone="success" />
           <StatCard label="Actualizadas" value={result.updated} tone="info" />
           <StatCard label="Saltadas" value={result.skipped} tone="warning" />
+          <StatCard label="QR generados" value={result.qrGenerated ?? 0} tone="info" />
+          <StatCard label="Sin canal contacto" value={result.noContactChannel ?? 0} tone={(result.noContactChannel ?? 0) > 0 ? "warning" : "neutral"} />
           <StatCard label="Errores" value={result.errored} tone={result.errored > 0 ? "danger" : "neutral"} />
         </div>
         <div className="flex gap-2 justify-end">
