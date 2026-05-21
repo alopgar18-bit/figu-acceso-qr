@@ -39,7 +39,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { generateMissingTickets } from "@/lib/tickets.functions";
 import { useDeleteParticipants } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
-import { useRole } from "@/components/auth-provider";
+import { useAuth } from "@/hooks/use-auth";
 
 const searchSchema = z.object({
   eventId: z.string().optional(),
