@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { Upload, Plus, FileSpreadsheet } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,13 @@ const STATUS_TONE: Record<string, "default" | "secondary" | "destructive" | "out
 
 function Page() {
   const { data: batches = [], isLoading } = useImportBatches();
+  const matches = useMatches();
+  const hasChild = matches.some(
+    (m) =>
+      m.routeId === "/_authenticated/importaciones/nueva" ||
+      m.routeId === "/_authenticated/importaciones/$batchId",
+  );
+  if (hasChild) return <Outlet />;
 
   return (
     <div>
