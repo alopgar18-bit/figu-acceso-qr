@@ -1,82 +1,58 @@
-# Configuración de campos obligatorios por evento/sesión
+# Envío masivo de invitaciones con QR
 
-## Objetivo
-Eliminar la rigidez actual (DNI, email, teléfono, nombre, apellidos siempre obligatorios) y permitir que cada evento — y opcionalmente cada sesión — decida qué campos son visibles, obligatorios, opcionales u ocultos. Corregir además el mapeo automático del importador y el error `gen_random_bytes`.
+Ampliar el módulo de comunicaciones para permitir, desde una importación / sesión / evento, enviar invitaciones individuales con QR a todos los participantes seleccionados, con cola y reintentos. Incluye correcciones al mapeo de importación y limpieza de DNIs mal mapeados.
 
-## Alcance funcional
-- Editor de **Evento**: nueva sección "Campos del formulario y requisitos" con matriz por campo (Mostrar / Obligatorio / Usar en importación / Usar en informes).
-- Editor de **Sesión**: toggle "Heredar campos del evento". Si se desactiva, misma matriz a nivel sesión.
-- **Formulario público** `/e/:slug/inscripcion`: se construye dinámicamente a partir de la config resuelta (sesión → evento → defaults).
-- **Importador Excel/CSV**: 
-  - Muestra "Requisitos de esta sesión" antes de importar (obligatorios / opcionales).
-  - Solo exige mapeo de campos marcados como obligatorios+importables para esa sesión.
-  - Corrige el auto-mapeo (`Apellido` → `last_name`, nunca a `dni`).
-  - No genera QR durante la importación salvo `status = confirmado` **y** se cumplan los obligatorios.
-  - Sustituye `gen_random_bytes` por `crypto.randomUUID()` en el backend (TS).
-- **QR / Confirmación**: bloquea generación solo si faltan campos obligatorios *configurados para esa sesión*, con mensaje listando los campos.
-- **Check-in**: no marca error por campos no obligatorios; alerta si falta uno obligatorio.
-- **Informes**: incluye todos los campos disponibles; vacíos como "—", no como error.
+## Alcance
 
-## Campos base
-`first_name, last_name, dni, email, phone, birth_date, photo_url, social_media, city, province, gender, profession, notes, special_needs, companions, consent_privacy, consent_participation, consent_image, consent_future_processes`
+1. **Corrección de mapeo de importación**
+   - `src/lib/import-constants.ts`: en `guessTarget`, ignorar "Marca temporal", "Timestamp", "Fecha de envío" (no mapear a `dni`).
+   - Aviso en el wizard si una columna detectada como `dni` contiene valores tipo fecha.
+   - Acción admin en detalle de importación: **"Limpiar DNI con marcas temporales"** que vacía `people.dni` cuando coincide con regex de fecha (sin borrar personas ni participaciones).
 
-## Modelo de datos (migración)
-Añadir dos columnas JSONB:
+2. **Generación de QR en lote** (sin `gen_random_bytes`)
+   - Nueva server function `generateMissingTickets({ event_id, session_id, participant_ids? })`.
+   - Para cada participante sin ticket activo crea fila en `tickets` con `qr_token = gen_random_uuid()` concatenado.
+   - No exige DNI/email/teléfono. Devuelve `{ generated, skipped, errors }`.
 
-```sql
-ALTER TABLE public.events
-  ADD COLUMN field_requirements jsonb NOT NULL DEFAULT '{}'::jsonb;
+3. **Asistente de envío masivo** (`/comunicaciones/envio`)
+   - Paso 1 — Destinatarios: filtros por evento, sesión, import_batch_id, estado, tiene email, tiene QR, estado de envío. Resumen con conteos.
+   - Paso 2 — QR: detecta cuántos faltan, botón "Generar QR faltantes".
+   - Paso 3 — Plantilla: selector de plantilla activa. Botón "Crear plantilla sugerida" que inserta **"Invitación público — El Perro Andaluz"**.
+   - Paso 4 — Previsualización con datos reales del primer destinatario, conteo de omitidos.
+   - Paso 5 — Crear cola: inserta filas en `communication_logs` con estado `pendiente` (renderiza subject/body). Si Gmail no configurado, queda en `pendiente` con aviso.
+   - Paso 6 — Resultado por estado.
 
-ALTER TABLE public.event_sessions
-  ADD COLUMN inherit_event_fields boolean NOT NULL DEFAULT true,
-  ADD COLUMN field_requirements jsonb NOT NULL DEFAULT '{}'::jsonb;
-```
+4. **Plantilla con fallback de nombre vacío**
+   - Extender `renderTemplate`: si `nombre` está vacío, reemplazar "Hola {{nombre}}," → "Hola,".
 
-Forma del JSON (por campo):
-```json
-{
-  "first_name": { "visible": true, "required": true,  "in_import": true,  "in_report": true },
-  "dni":        { "visible": true, "required": false, "in_import": true,  "in_report": true },
-  ...
-}
-```
-Defaults sensatos (en código, no en BD): solo `first_name` requerido; el resto visible+opcional. Consentimientos: `consent_privacy` requerido por defecto, el resto opcionales.
+5. **Botones de entrada**
+   - Detalle de importación → "Enviar invitaciones a esta importación" (preselecciona `import_batch_id`).
+   - Detalle de sesión → "Enviar invitaciones a esta sesión".
+   - En lista de participantes: "Ver entrada", "Copiar enlace de entrada", "Reenviar invitación".
 
-## Resolución de config
-Helper `resolveFieldRequirements(event, session?)`:
-1. Empieza con defaults base.
-2. Aplica `event.field_requirements`.
-3. Si `session && !session.inherit_event_fields` → aplica `session.field_requirements` encima.
+6. **Cola de envíos** (`/comunicaciones/cola`)
+   - Tabla con destinatario, estado, error, fecha, acción "Reintentar" (resetea estado a `pendiente`).
 
-Se usa en: formulario público, importador (cliente+servidor), confirmación/QR, check-in, informes.
+7. **Gmail**
+   - Solo detección. Si no hay secrets `GMAIL_*`, banner "Gmail no configurado" con instrucciones. No implementar OAuth ahora.
+   - Botón "Exportar CSV de la cola" como workaround para envío manual.
 
-## Cambios por archivo (resumen)
-- **migración** nueva en `supabase/migrations/`
-- **`src/lib/field-requirements.ts`** (nuevo): tipos, defaults, `resolveFieldRequirements`, lista de campos.
-- **`src/components/field-requirements-editor.tsx`** (nuevo): matriz reutilizable.
-- **`src/components/event-form.tsx`**: añadir sección.
-- **`src/components/session-form.tsx`**: toggle herencia + sección.
-- **`src/routes/e.$slug.inscripcion.tsx`** + **`src/lib/public-forms.functions.ts`**: render dinámico, validación condicional.
-- **`src/lib/import-constants.ts`**: arreglar `guessTarget` (separar `apellido` de `dni`, ya está, pero revisar normalización con/ sin "s").
-- **`src/routes/_authenticated/importaciones.nueva.tsx`**: panel "Requisitos de esta sesión", validación según config, no exigir DNI globalmente.
-- **`src/lib/imports.functions.ts`**: 
-  - sustituir `gen_random_bytes` (en realidad usamos `crypto.getRandomValues`, revisar) por `crypto.randomUUID()`.
-  - validar filas contra config resuelta del evento/sesión.
-  - emitir QR solo si confirmado + cumple obligatorios.
-- **`src/lib/confirmation.functions.ts`**: bloquear emisión de QR si faltan campos obligatorios.
-- **`src/routes/_authenticated/control-acceso.$sessionId.tsx`**: tolerar campos vacíos.
-- **`src/lib/report-export.ts`** / `informes.$eventId.tsx`: mostrar todos los campos, vacíos como "—".
+## Lo que NO se toca
 
-## Lo que NO cambia
-- No se tocan usuarios, ni se borran datos.
-- No se modifica RLS (las columnas nuevas heredan políticas existentes).
-- Datos actuales: tras la migración, todos los eventos quedan con `field_requirements = {}` → se aplican defaults (solo `first_name` requerido). Esto es intencional y coincide con la nueva regla.
+- No se cambian usuarios, roles, formularios públicos ni informes.
+- No se borra ningún dato existente.
+- No se hacen DNI/email/teléfono obligatorios globales.
+- No se activa WhatsApp API ni modo offline.
+- No se implementa OAuth de Google ahora (solo el andamiaje de cola).
 
-## Validación post-cambio
-1. Crear evento "demo" sin obligar DNI → importar el XLSX de ejemplo con solo nombre/apellido/teléfono/email → debe completarse sin errores.
-2. Marcar DNI obligatorio en otro evento → mismo XLSX debe avisar "falta mapear DNI".
-3. Formulario público de un evento sin DNI obligatorio → permite enviar sin DNI.
-4. Confirmar participación sin campo obligatorio configurado → bloquea QR con mensaje.
+## Migración SQL necesaria
 
-## Tamaño estimado
-1 migración + ~3 archivos nuevos + ediciones en ~8 archivos. Es un cambio mediano-grande pero acotado.
+- Añadir a `communication_logs`: `batch_id uuid` (referencia lógica a `import_batches`) para poder filtrar por importación.
+- Índice en `(event_id, session_id, status)`.
+- Confirmar que no hay residuos de `gen_random_bytes` (ya verificado).
+
+## Archivos a crear / editar
+
+- crear: `src/lib/tickets.functions.ts`, `src/lib/bulk-send.functions.ts`, `src/routes/_authenticated/comunicaciones.envio.tsx`, `src/routes/_authenticated/comunicaciones.cola.tsx`
+- editar: `src/lib/import-constants.ts`, `src/lib/communication-constants.ts`, `src/routes/_authenticated/importaciones.$batchId.tsx`, `src/routes/_authenticated/eventos.$eventId.sesiones.$sessionId.tsx`, `src/routes/_authenticated/comunicaciones.tsx`, `src/components/app-sidebar.tsx`
+- migración: nueva en `supabase/migrations/`
