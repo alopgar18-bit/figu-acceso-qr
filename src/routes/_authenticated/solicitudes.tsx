@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Inbox, Search, Filter, X, AlertCircle, Image as ImageIcon,
   CheckCircle2, XCircle, Clock, ArrowRightLeft, Mail, Download, Ban,
-  Users as UsersIcon, QrCode,
+  Users as UsersIcon, QrCode, Trash2,
 } from "lucide-react";
 
 import { PageHeader, EmptyState } from "@/components/page-header";
@@ -37,6 +37,9 @@ import {
 } from "@/lib/participant-constants";
 import { useServerFn } from "@tanstack/react-start";
 import { generateMissingTickets } from "@/lib/tickets.functions";
+import { useDeleteParticipants } from "@/lib/use-admin-delete";
+import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
+import { useRole } from "@/components/auth-provider";
 
 const searchSchema = z.object({
   eventId: z.string().optional(),
