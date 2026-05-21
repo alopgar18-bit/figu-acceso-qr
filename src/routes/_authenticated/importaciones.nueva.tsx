@@ -21,6 +21,7 @@ import {
   TARGET_FIELDS,
   IMPORT_STATUS_OPTIONS,
   DUPLICATE_STRATEGIES,
+  IMPORT_QR_STATES,
   guessTarget,
   type TargetField,
   type DuplicateStrategy,
@@ -654,11 +655,14 @@ function ValidationStep({
         />
       </div>
 
-      {defaultStatus === "confirmado" && (
+      {IMPORT_QR_STATES.includes(defaultStatus) && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Se generarán códigos QR</AlertTitle>
-          <AlertDescription>El estado por defecto es "Confirmado": cada participación creará un ticket con QR.</AlertDescription>
+          <AlertTitle>Se generarán códigos QR ({validRows.length})</AlertTitle>
+          <AlertDescription>
+            {IMPORT_STATUS_OPTIONS.find((o) => o.value === defaultStatus)?.description}
+            {" "}Las filas sin email ni teléfono se marcarán como "sin canal de contacto" y quedarán excluidas del envío masivo individual.
+          </AlertDescription>
         </Alert>
       )}
 
