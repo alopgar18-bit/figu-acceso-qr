@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Button } from "@/components/ui/button";
-import { Camera, CameraOff } from "lucide-react";
+import { Camera, CameraOff, SwitchCamera } from "lucide-react";
 
 interface QrScannerProps {
   onResult: (text: string) => void;
@@ -13,6 +13,9 @@ export function QrScanner({ onResult, paused }: QrScannerProps) {
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(true);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
   const lastRef = useRef<{ text: string; at: number }>({ text: "", at: 0 });
 
   useEffect(() => {
@@ -22,10 +25,27 @@ export function QrScanner({ onResult, paused }: QrScannerProps) {
 
     (async () => {
       try {
-        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-        const back = devices.find((d) => /back|rear|environment/i.test(d.label)) ?? devices[0];
+        // Prompt for permission so device labels are available
+        try {
+          const tmp = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: facing } },
+          });
+          tmp.getTracks().forEach((t) => t.stop());
+        } catch {
+          // ignore — will surface below if truly blocked
+        }
+        const list = await BrowserMultiFormatReader.listVideoInputDevices();
+        if (!cancelled) setDevices(list);
+        const wantRear = facing === "environment";
+        const preferred =
+          (deviceId && list.find((d) => d.deviceId === deviceId)) ||
+          (wantRear
+            ? list.find((d) => /back|rear|environment|trasera|traseira|posterior/i.test(d.label))
+            : list.find((d) => /front|user|face|delantera|frontal/i.test(d.label))) ||
+          list[list.length - 1] ||
+          list[0];
         if (!videoRef.current) return;
-        const controls = await reader.decodeFromVideoDevice(back?.deviceId, videoRef.current, (result) => {
+        const controls = await reader.decodeFromVideoDevice(preferred?.deviceId, videoRef.current, (result) => {
           if (!result || cancelled) return;
           const text = result.getText();
           const now = Date.now();
@@ -44,7 +64,19 @@ export function QrScanner({ onResult, paused }: QrScannerProps) {
       controlsRef.current?.stop();
       controlsRef.current = null;
     };
-  }, [active, paused, onResult]);
+  }, [active, paused, onResult, facing, deviceId]);
+
+  const switchCamera = () => {
+    if (devices.length > 1) {
+      const idx = devices.findIndex((d) => d.deviceId === deviceId);
+      const next = devices[(idx + 1) % devices.length] ?? devices[0];
+      setDeviceId(next.deviceId);
+      setFacing((f) => (f === "environment" ? "user" : "environment"));
+    } else {
+      setDeviceId(undefined);
+      setFacing((f) => (f === "environment" ? "user" : "environment"));
+    }
+  };
 
   if (error) {
     return (
@@ -64,6 +96,12 @@ export function QrScanner({ onResult, paused }: QrScannerProps) {
         <div className="w-3/4 h-3/4 border-2 border-white/70 rounded-md shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
       </div>
       <div className="absolute top-2 right-2">
+        <Button size="sm" variant="secondary" onClick={switchCamera} title="Cambiar cámara">
+          <SwitchCamera className="h-4 w-4 mr-1" />
+          {facing === "environment" ? "Trasera" : "Frontal"}
+        </Button>
+      </div>
+      <div className="absolute top-2 left-2">
         <Button size="sm" variant="secondary" onClick={() => setActive((v) => !v)}>
           <Camera className="h-4 w-4 mr-1" />{active ? "Pausar" : "Reanudar"}
         </Button>
