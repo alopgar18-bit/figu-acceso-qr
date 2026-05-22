@@ -108,7 +108,15 @@ export const validateQr = createServerFn({ method: "POST" })
         ticket: { id: ticket.id, qr_payload: ticket.qr_payload },
       };
     }
-    if (!["confirmado", "qr_generado", "acceso_validado"].includes(participant.status)) {
+    if (![
+      "aprobado",
+      "aceptado_pendiente_envio",
+      "invitacion_enviada",
+      "pendiente_confirmacion",
+      "confirmado",
+      "qr_generado",
+      "acceso_validado",
+    ].includes(participant.status)) {
       return {
         code: "no_confirmado",
         message: msgFor("no_confirmado"),
