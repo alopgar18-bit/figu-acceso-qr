@@ -3,9 +3,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
-import { CalendarDays, MapPin, Clock, AlertCircle, Ticket, Download, Loader2, IdCard, Users } from "lucide-react";
+import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users } from "lucide-react";
 
-import { FigurarteLogo } from "@/components/figurarte-logo";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/c/$token/entrada")({
   component: Page,
   head: () => ({
     meta: [
-      { title: "Tu entrada · FIGURARTE" },
+      { title: "Tu entrada" },
       { name: "robots", content: "noindex" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
     ],
@@ -66,23 +66,14 @@ function Page() {
         <Card className="overflow-hidden shadow-xl border-2" style={brandColor ? { borderColor: brandColor } : undefined}>
           {/* Header */}
           <div
-            className="px-6 py-5 text-center"
+            className="px-6 py-6 text-center"
             style={{ background: brandColor ?? "hsl(var(--primary))", color: "white" }}
           >
-            <div className="flex justify-center mb-3 bg-white/95 rounded-md inline-flex px-3 py-2 mx-auto">
-              <FigurarteLogo />
-            </div>
-            <div className="text-[10px] uppercase tracking-[0.3em] opacity-90 flex items-center justify-center gap-1">
-              <Ticket className="h-3 w-3" /> Entrada digital
-            </div>
+            <h1 className="text-xl font-black uppercase tracking-tight leading-tight">{event.name}</h1>
+            <div className="mt-1 text-sm opacity-90">{session.name}</div>
           </div>
 
           <CardContent className="p-6 space-y-5">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Evento</div>
-              <h1 className="text-2xl font-black uppercase tracking-tight leading-tight">{event.name}</h1>
-              <div className="mt-1 text-sm text-muted-foreground">{session.name}</div>
-            </div>
 
             <div className="space-y-2 text-sm">
               <InfoLine icon={<CalendarDays className="h-4 w-4" />}>
@@ -185,7 +176,7 @@ function Page() {
         </div>
 
         <p className="mt-4 text-[10px] text-center text-muted-foreground">
-          © FIGURARTE Casting & Producción · Conserva este enlace para volver a ver tu entrada.
+          Conserva este enlace para volver a ver tu entrada.
         </p>
       </div>
     </div>
