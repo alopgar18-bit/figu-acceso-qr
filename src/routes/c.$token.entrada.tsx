@@ -3,9 +3,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
-import { CalendarDays, MapPin, Clock, AlertCircle, Ticket, Download, Loader2, IdCard, Users } from "lucide-react";
+import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users } from "lucide-react";
 
-import { FigurarteLogo } from "@/components/figurarte-logo";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
