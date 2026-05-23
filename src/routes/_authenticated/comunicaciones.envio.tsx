@@ -393,7 +393,7 @@ FIGURARTE Casting & Producción`,
         <Card>
           <CardHeader>
             <CardTitle>3 · Plantilla de email</CardTitle>
-            <CardDescription>Se enviará desde {SENDER_EMAIL} (cuando Gmail esté configurado).</CardDescription>
+            <CardDescription>Se enviará desde {SENDER_EMAIL} mediante Resend. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
