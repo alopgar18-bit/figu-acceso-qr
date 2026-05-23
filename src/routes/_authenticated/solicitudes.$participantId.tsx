@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
 import { toast } from "sonner";
 import {
   ArrowLeft, CheckCircle2, XCircle, Clock, ArrowRightLeft, Ban, Mail,
-  Save, AlertCircle, Image as ImageIcon, Shield, UserCheck,
+  Save, AlertCircle, Image as ImageIcon, Shield, UserCheck, Users as UsersIcon,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
@@ -37,11 +38,14 @@ type Status = Database["public"]["Enums"]["participant_status"];
 type Attendee = Database["public"]["Enums"]["attendee_type"];
 
 export const Route = createFileRoute("/_authenticated/solicitudes/$participantId")({
+  validateSearch: (s) => z.object({ from: z.string().optional() }).parse(s),
   component: Page,
 });
 
 function Page() {
   const { participantId } = Route.useParams();
+  const { from } = Route.useSearch();
+  const fromPersonas = from === "personas";
   const { data: p, isLoading } = useParticipant(participantId);
   const { data: companions = [] } = useParticipantCompanions(participantId);
   const { data: consents = [] } = useParticipantConsents(participantId);
