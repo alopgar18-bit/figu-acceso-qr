@@ -327,13 +327,33 @@ FIGURARTE Casting & Producción`,
         </CardHeader>
         <CardContent>
           {!eventId || !sessionId ? (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Sin contexto</AlertTitle>
-              <AlertDescription>
-                Abre este asistente desde la página de detalle de una importación o sesión.
-              </AlertDescription>
-            </Alert>
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Selecciona contexto</AlertTitle>
+                <AlertDescription>
+                  Elige manualmente el evento y la sesión para preparar los destinatarios.
+                </AlertDescription>
+              </Alert>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Select value={eventId} onValueChange={handleEventChange}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona evento" /></SelectTrigger>
+                  <SelectContent>
+                    {events.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={sessionId} onValueChange={setSessionId} disabled={!eventId}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona sesión" /></SelectTrigger>
+                  <SelectContent>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>{session.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <Stat label="Total" value={stats.total} />
