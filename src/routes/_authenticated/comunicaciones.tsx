@@ -261,8 +261,13 @@ function LogsTable({ defaultStatus }: { defaultStatus?: CommStatus }) {
                     <div className="text-xs text-muted-foreground">{l.to_address ?? "—"}</div>
                   </TableCell>
                   <TableCell className="text-sm max-w-md">
-                    {l.subject && <div className="font-medium truncate">{l.subject}</div>}
-                    <div className="text-xs text-muted-foreground truncate">{l.body ?? ""}</div>
+                    {(() => {
+                      const plain = (l.body ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                      const display = l.subject && l.subject.trim()
+                        ? l.subject
+                        : plain.slice(0, 80) + (plain.length > 80 ? "…" : "");
+                      return <div className="font-medium truncate" title={display}>{display || "—"}</div>;
+                    })()}
                     {l.error_message && <div className="text-xs text-destructive mt-1">{l.error_message}</div>}
                   </TableCell>
                   <TableCell><Badge variant={tone}>{labelFor(l.status as CommStatus, COMM_STATUS_OPTIONS)}</Badge></TableCell>
