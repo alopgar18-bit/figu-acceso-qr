@@ -345,9 +345,15 @@ function ImportWizardPage() {
             </Button>
           ) : (
             <Button
-              onClick={() => setStep((s) => s + 1)}
+              onClick={() => {
+                if (step === 0 && !parsed) {
+                  setUploadError(true);
+                  return;
+                }
+                setUploadError(false);
+                setStep((s) => s + 1);
+              }}
               disabled={
-                (step === 0 && !parsed) ||
                 (step === 1 && !canNextFromConfig) ||
                 (step === 2 && !canNextFromMapping)
               }
