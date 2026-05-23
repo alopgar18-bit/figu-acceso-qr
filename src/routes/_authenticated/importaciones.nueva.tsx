@@ -55,6 +55,7 @@ function ImportWizardPage() {
 
   const [step, setStep] = useState(0);
   const [parsed, setParsed] = useState<ParsedFile | null>(null);
+  const [uploadError, setUploadError] = useState(false);
   const [source, setSource] = useState("");
   const [eventId, setEventId] = useState<string>("");
   const [sessionId, setSessionId] = useState<string>("");
