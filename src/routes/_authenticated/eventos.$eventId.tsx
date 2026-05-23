@@ -29,20 +29,31 @@ function Page() {
   const { eventId } = Route.useParams();
   const location = useLocation();
   const { data: event, isLoading } = useEvent(eventId);
-  const { data: sessions = [], isLoading: loadingSessions } = useEventSessions(eventId);
-  const { data: stats } = useSessionStats(eventId);
+  const { data: sessions = [], isLoading: loadingSessions } = useEventSessions(event?.id);
+  const { data: stats } = useSessionStats(event?.id);
   const isChildRoute = location.pathname !== `/eventos/${eventId}`;
 
   if (isChildRoute) {
     return <Outlet />;
   }
 
-  if (isLoading || !event) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-72" />
         <Skeleton className="h-32" />
         <Skeleton className="h-64" />
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div className="space-y-4">
+        <Button asChild variant="ghost" size="sm" className="-ml-2">
+          <Link to="/eventos"><ArrowLeft className="h-4 w-4 mr-1" />Eventos</Link>
+        </Button>
+        <EmptyState title="Evento no encontrado" description={`No existe ningún evento con el identificador "${eventId}".`} />
       </div>
     );
   }
