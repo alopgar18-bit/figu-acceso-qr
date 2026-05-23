@@ -284,7 +284,7 @@ function ImportWizardPage() {
       <Stepper step={step} />
 
       {step === 0 && (
-        <UploadStep onFile={handleFile} source={source} setSource={setSource} />
+        <UploadStep onFile={handleFile} source={source} setSource={setSource} error={uploadError} />
       )}
 
       {step === 1 && parsed && (
