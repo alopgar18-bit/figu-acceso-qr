@@ -396,7 +396,7 @@ function Stepper({ step }: { step: number }) {
   );
 }
 
-function UploadStep({ onFile, source, setSource }: { onFile: (f: File) => void; source: string; setSource: (v: string) => void }) {
+function UploadStep({ onFile, source, setSource, error }: { onFile: (f: File) => void; source: string; setSource: (v: string) => void; error?: boolean }) {
   return (
     <Card>
       <CardHeader>
@@ -408,20 +408,25 @@ function UploadStep({ onFile, source, setSource }: { onFile: (f: File) => void; 
           <Label htmlFor="source">Origen del archivo (cliente / productora)</Label>
           <Input id="source" placeholder="Ej: Mediapro – Casting marzo" value={source} onChange={(e) => setSource(e.target.value)} className="mt-2 max-w-md" />
         </div>
-        <label className="block border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:bg-muted/50 transition">
-          <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
-          <p className="font-semibold">Selecciona o arrastra un archivo</p>
-          <p className="text-sm text-muted-foreground mt-1">.xlsx · .csv</p>
-          <input
-            type="file"
-            accept=".xlsx,.csv,.xls"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onFile(f);
-            }}
-          />
-        </label>
+        <div>
+          <label className={"block border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:bg-muted/50 transition " + (error ? "border-destructive bg-destructive/5" : "")}>
+            <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+            <p className="font-semibold">Selecciona o arrastra un archivo</p>
+            <p className="text-sm text-muted-foreground mt-1">.xlsx · .csv</p>
+            <input
+              type="file"
+              accept=".xlsx,.csv,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onFile(f);
+              }}
+            />
+          </label>
+          {error && (
+            <p className="text-sm text-destructive mt-2">Debes subir un archivo .xlsx o .csv para continuar</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
