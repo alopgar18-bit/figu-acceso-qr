@@ -28,11 +28,12 @@ export function useEvent(eventId: string | undefined) {
     queryKey: ["event", eventId],
     enabled: !!eventId,
     queryFn: async () => {
+      const isUuid = !!eventId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
       const { data, error } = await supabase
         .from("events")
         .select("*, clients(id, name)")
-        .eq("id", eventId!)
-        .single();
+        .eq(isUuid ? "id" : "slug", eventId!)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
