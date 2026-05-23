@@ -96,6 +96,11 @@ function BulkSendPage() {
     }
   }, [batchInfo.data]);
 
+  const handleEventChange = (value: string) => {
+    setEventId(value);
+    setSessionId(undefined);
+  };
+
   // Participants for the selected session (and optionally batch via people.source)
   const participantsQ = useQuery({
     queryKey: ["bulk_participants", eventId, sessionId, batchId, batchInfo.data?.filename, selectedIds?.join(",") ?? null],
