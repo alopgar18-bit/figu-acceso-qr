@@ -17,6 +17,7 @@ import { generateMissingTickets } from "@/lib/tickets.functions";
 import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
 import { renderTemplate, type RenderContext, SENDER_EMAIL } from "@/lib/communication-constants";
+import { useEvents, useEventSessions } from "@/lib/use-events";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -53,6 +54,8 @@ function BulkSendPage() {
   const [sessionId, setSessionId] = useState<string | undefined>(search.session_id);
   const [templateId, setTemplateId] = useState<string | undefined>();
   const batchId = search.batch_id;
+  const { data: events = [] } = useEvents();
+  const { data: sessions = [] } = useEventSessions(eventId);
 
   // Participant IDs from a selection passed via sessionStorage (avoids huge URLs).
   const [selectedIds, setSelectedIds] = useState<string[] | null>(null);
