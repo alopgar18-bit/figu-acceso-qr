@@ -443,9 +443,9 @@ FIGURARTE Casting & Producción`,
           <CardContent className="space-y-3">
             <Alert>
               <Mail className="h-4 w-4" />
-              <AlertTitle>Gmail no configurado</AlertTitle>
+              <AlertTitle>Envío mediante Resend</AlertTitle>
               <AlertDescription>
-                Se creará la cola con cada email renderizado en estado "pendiente". Cuando se conecte la cuenta {SENDER_EMAIL}, podrán enviarse automáticamente. Mientras tanto puedes exportar la cola desde "Cola de envíos".
+                Se creará la cola con cada email renderizado en estado "pendiente". Se enviarán desde {SENDER_EMAIL} mediante Resend. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.
               </AlertDescription>
             </Alert>
             <div className="flex gap-2">
