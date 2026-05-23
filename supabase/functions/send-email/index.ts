@@ -9,8 +9,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// TEMPORAL: usando remitente de pruebas de Resend mientras se verifica figurarte.es
-const FROM_ADDRESS = "Figurarte Casting <onboarding@resend.dev>";
+// Remitente verificado en Resend para el dominio figurarte.app
+const FROM_ADDRESS = "Figurarte Casting <casting@figurarte.app>";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
