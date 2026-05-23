@@ -34,9 +34,12 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    let body: { limit?: number; ids?: string[] } = {};
+    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
-    const limit = Math.min(Math.max(body.limit ?? 100, 1), 200);
+    const limit = Math.min(Math.max(body.limit ?? 100, 1), 1000);
+    const batchSize = Math.min(Math.max(body.batch_size ?? 100, 1), 200);
+    const delayMs = Math.min(Math.max(body.delay_ms ?? 500, 0), 10000);
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     let query = supabase
       .from("communication_logs")
@@ -62,7 +65,9 @@ Deno.serve(async (req) => {
     let failed = 0;
     const errors: Array<{ id: string; error: string }> = [];
 
-    for (const log of logs ?? []) {
+    const allLogs = logs ?? [];
+    for (let i = 0; i < allLogs.length; i++) {
+      const log = allLogs[i];
       if (!log.to_address) {
         failed++;
         await supabase
@@ -117,10 +122,22 @@ Deno.serve(async (req) => {
         errors.push({ id: log.id, error: message });
         failed++;
       }
+
+      // Delay entre emails dentro de un batch
+      const isLast = i === allLogs.length - 1;
+      const isBatchBoundary = (i + 1) % batchSize === 0;
+      if (!isLast) {
+        if (isBatchBoundary) {
+          // Pausa más larga entre batches (2x el delay normal)
+          await sleep(delayMs * 2);
+        } else if (delayMs > 0) {
+          await sleep(delayMs);
+        }
+      }
     }
 
     return new Response(
-      JSON.stringify({ configured: true, processed: (logs ?? []).length, sent, failed, errors }),
+      JSON.stringify({ configured: true, processed: allLogs.length, sent, failed, batch_size: batchSize, delay_ms: delayMs, errors }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
