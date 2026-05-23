@@ -17,6 +17,7 @@ import { generateMissingTickets } from "@/lib/tickets.functions";
 import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
 import { renderTemplate, type RenderContext, SENDER_EMAIL } from "@/lib/communication-constants";
+import { useEvents, useEventSessions } from "@/lib/use-events";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -53,6 +54,8 @@ function BulkSendPage() {
   const [sessionId, setSessionId] = useState<string | undefined>(search.session_id);
   const [templateId, setTemplateId] = useState<string | undefined>();
   const batchId = search.batch_id;
+  const { data: events = [] } = useEvents();
+  const { data: sessions = [] } = useEventSessions(eventId);
 
   // Participant IDs from a selection passed via sessionStorage (avoids huge URLs).
   const [selectedIds, setSelectedIds] = useState<string[] | null>(null);
@@ -92,6 +95,11 @@ function BulkSendPage() {
       setSessionId((cur) => cur ?? batchInfo.data!.session_id ?? undefined);
     }
   }, [batchInfo.data]);
+
+  const handleEventChange = (value: string) => {
+    setEventId(value);
+    setSessionId(undefined);
+  };
 
   // Participants for the selected session (and optionally batch via people.source)
   const participantsQ = useQuery({
@@ -319,13 +327,33 @@ FIGURARTE Casting & Producción`,
         </CardHeader>
         <CardContent>
           {!eventId || !sessionId ? (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Sin contexto</AlertTitle>
-              <AlertDescription>
-                Abre este asistente desde la página de detalle de una importación o sesión.
-              </AlertDescription>
-            </Alert>
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Selecciona contexto</AlertTitle>
+                <AlertDescription>
+                  Elige manualmente el evento y la sesión para preparar los destinatarios.
+                </AlertDescription>
+              </Alert>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Select value={eventId} onValueChange={handleEventChange}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona evento" /></SelectTrigger>
+                  <SelectContent>
+                    {events.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={sessionId} onValueChange={setSessionId} disabled={!eventId}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona sesión" /></SelectTrigger>
+                  <SelectContent>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>{session.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <Stat label="Total" value={stats.total} />
