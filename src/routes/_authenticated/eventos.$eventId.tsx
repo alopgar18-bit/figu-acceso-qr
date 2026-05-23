@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import {
   ArrowLeft, Pencil, Plus, MapPin, CalendarDays, Users, Tag,
-  CheckCircle2, UserCheck, ScanLine, Inbox, AlertCircle,
+  CheckCircle2, UserCheck, ScanLine, Inbox, AlertCircle, Mail,
 } from "lucide-react";
 
 import { PageHeader, EmptyState } from "@/components/page-header";
