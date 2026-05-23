@@ -52,7 +52,7 @@ function Page() {
                 <TableRow
                   key={row.person_id}
                   className="cursor-pointer"
-                  onClick={() => navigate({ to: "/solicitudes/$participantId", params: { participantId: row.id } })}
+                  onClick={() => navigate({ to: "/solicitudes/$participantId", params: { participantId: row.id }, search: { from: "personas" } })}
                 >
                   <TableCell className="font-medium">
                     {[row.people?.first_name, row.people?.last_name].filter(Boolean).join(" ") || "—"}

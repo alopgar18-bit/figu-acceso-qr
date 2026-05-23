@@ -379,6 +379,7 @@ function Page() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-20 sticky left-0 bg-background z-10">Abrir</TableHead>
                   <TableHead className="w-10">
                     <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                   </TableHead>
@@ -390,7 +391,6 @@ function Page() {
                   <TableHead>Ciudad</TableHead>
                   <TableHead>Acomp.</TableHead>
                   <TableHead>Recibida</TableHead>
-                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -409,6 +409,11 @@ function Page() {
                         navigate({ to: "/solicitudes/$participantId", params: { participantId: r.id } });
                       }}
                     >
+                      <TableCell className="sticky left-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
+                        <Button asChild variant="default" size="sm">
+                          <Link to="/solicitudes/$participantId" params={{ participantId: r.id }}>Abrir</Link>
+                        </Button>
+                      </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggle(r.id)} />
                       </TableCell>
@@ -436,11 +441,6 @@ function Page() {
                       <TableCell className="text-sm tabular-nums">{r.companions_count}</TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(r.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button asChild variant="ghost" size="sm">
-                          <Link to="/solicitudes/$participantId" params={{ participantId: r.id }}>Abrir</Link>
-                        </Button>
                       </TableCell>
                     </TableRow>
                   );

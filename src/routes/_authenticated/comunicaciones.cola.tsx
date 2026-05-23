@@ -263,6 +263,8 @@ function QueuePage() {
               {filtered.map((l) => {
                 const tone = COMM_STATUS_OPTIONS.find((o) => o.value === l.status)?.tone ?? "outline";
                 const name = l.people ? `${l.people.first_name} ${l.people.last_name ?? ""}`.trim() : "—";
+                const plainBody = (l.body ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                const display = (l.subject && l.subject.trim()) ? l.subject : plainBody.slice(0, 80) + (plainBody.length > 80 ? "…" : "");
                 return (
                   <TableRow key={l.id}>
                     <TableCell>
@@ -277,7 +279,7 @@ function QueuePage() {
                       <div className="font-medium">{name}</div>
                       <div className="text-xs text-muted-foreground">{l.to_address ?? "—"}</div>
                     </TableCell>
-                    <TableCell className="text-sm max-w-md truncate">{l.subject ?? "—"}</TableCell>
+                    <TableCell className="text-sm max-w-md truncate" title={display}>{display || "—"}</TableCell>
                     <TableCell><Badge variant={tone}>{l.status}</Badge></TableCell>
                     <TableCell className="text-xs text-destructive">{l.error_message ?? ""}</TableCell>
                     <TableCell className="text-right">

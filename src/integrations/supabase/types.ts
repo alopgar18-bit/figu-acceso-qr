@@ -59,6 +59,63 @@ export type Database = {
         }
         Relationships: []
       }
+      brand_profiles: {
+        Row: {
+          client_id: string | null
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          primary_color: string
+          secondary_color: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          primary_color?: string
+          secondary_color?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          primary_color?: string
+          secondary_color?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_profiles_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkins: {
         Row: {
           checked_in_at: string
