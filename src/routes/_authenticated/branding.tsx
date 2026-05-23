@@ -90,12 +90,16 @@ function Page() {
         client_id: input.client_id || null,
         event_id: input.event_id || null,
       };
+      const db = supabase.from("brand_profiles" as never) as unknown as {
+        update: (p: typeof payload) => { eq: (k: string, v: string) => Promise<{ error: unknown }> };
+        insert: (p: typeof payload) => Promise<{ error: unknown }>;
+      };
       if (input.id) {
-        const { error } = await supabase.from("brand_profiles" as never).update(payload).eq("id", input.id);
-        if (error) throw error;
+        const { error } = await db.update(payload).eq("id", input.id);
+        if (error) throw error as Error;
       } else {
-        const { error } = await supabase.from("brand_profiles" as never).insert(payload);
-        if (error) throw error;
+        const { error } = await db.insert(payload);
+        if (error) throw error as Error;
       }
     },
     onSuccess: () => {
