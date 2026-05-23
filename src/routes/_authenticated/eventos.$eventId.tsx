@@ -29,8 +29,9 @@ function Page() {
   const { eventId } = Route.useParams();
   const location = useLocation();
   const { data: event, isLoading } = useEvent(eventId);
-  const { data: sessions = [], isLoading: loadingSessions } = useEventSessions(eventId);
-  const { data: stats } = useSessionStats(eventId);
+  const resolvedEventId = event?.id ?? eventId;
+  const { data: sessions = [], isLoading: loadingSessions } = useEventSessions(event?.id);
+  const { data: stats } = useSessionStats(event?.id);
   const isChildRoute = location.pathname !== `/eventos/${eventId}`;
 
   if (isChildRoute) {
