@@ -128,6 +128,15 @@ function Page() {
 
   return (
     <div className="space-y-6">
+      {fromPersonas && (
+        <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
+          <UsersIcon className="h-4 w-4 text-primary" />
+          <span className="font-medium">Ficha de persona — vista desde Personas</span>
+          <Link to="/personas" className="ml-auto inline-flex items-center gap-1 text-xs uppercase tracking-wider text-primary hover:underline">
+            <ArrowLeft className="h-3 w-3" />Volver a Personas
+          </Link>
+        </div>
+      )}
       <Button asChild variant="ghost" size="sm" className="-ml-2">
         <Link to="/solicitudes"><ArrowLeft className="h-4 w-4 mr-1" />Volver a solicitudes</Link>
       </Button>
