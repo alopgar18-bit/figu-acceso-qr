@@ -94,7 +94,14 @@ function Page() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {clients.map((c) => (
-            <div key={c.id} className="rounded-lg border bg-card p-4">
+            <div
+              key={c.id}
+              className="rounded-lg border bg-card p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+              role="button"
+              tabIndex={0}
+              onClick={() => setEditingClient(c)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingClient(c); } }}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-medium">{c.name}</div>
@@ -104,7 +111,13 @@ function Page() {
                   <Badge variant={c.is_active ? "default" : "outline"}>
                     {c.is_active ? "Activo" : "Inactivo"}
                   </Badge>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => setEditingClient(c)} aria-label={`Editar ${c.name}`}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => { e.stopPropagation(); setEditingClient(c); }}
+                    aria-label={`Editar ${c.name}`}
+                  >
                     <Pencil className="h-4 w-4" />
                   </Button>
                 </div>

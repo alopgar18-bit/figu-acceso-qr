@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, Plus, Search, ChevronRight } from "lucide-react";
 
 import { PageHeader, EmptyState } from "@/components/page-header";
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/_authenticated/eventos/")({
 
 function Page() {
   const { data: events, isLoading } = useEvents();
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [type, setType] = useState<string>("all");
@@ -98,11 +99,13 @@ function Page() {
             </TableHeader>
             <TableBody>
               {filtered.map((e) => (
-                <TableRow key={e.id} className="cursor-pointer">
+                <TableRow
+                  key={e.id}
+                  className="cursor-pointer"
+                  onClick={() => navigate({ to: "/eventos/$eventId", params: { eventId: e.id } })}
+                >
                   <TableCell>
-                    <Link to="/eventos/$eventId" params={{ eventId: e.id }} className="font-medium hover:underline">
-                      {e.name}
-                    </Link>
+                    <span className="font-medium">{e.name}</span>
                     {e.slug && <div className="text-xs text-muted-foreground">/{e.slug}</div>}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -116,9 +119,7 @@ function Page() {
                     <StatusBadge status={e.status} />
                   </TableCell>
                   <TableCell>
-                    <Link to="/eventos/$eventId" params={{ eventId: e.id }}>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </Link>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </TableCell>
                 </TableRow>
               ))}

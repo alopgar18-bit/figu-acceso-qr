@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
@@ -57,6 +57,8 @@ export const Route = createFileRoute("/_authenticated/solicitudes")({
 function Page() {
   const search = useSearch({ from: Route.id });
   const navigate = useNavigate({ from: Route.fullPath });
+  const location = useLocation();
+  const isChildRoute = location.pathname !== "/solicitudes";
 
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(search.eventId);
@@ -96,6 +98,10 @@ function Page() {
   }), [search, searchText, extraFilters]);
 
   const { data: rows = [], isLoading } = useParticipants(filters);
+
+  if (isChildRoute) {
+    return <Outlet />;
+  }
 
   const duplicateIds = useMemo(() => findDuplicateIds(rows), [rows]);
 
@@ -393,8 +399,17 @@ function Page() {
                   const age = ageFromBirth(person?.birth_date);
                   const tone = statusTone(r.status);
                   return (
-                    <TableRow key={r.id} data-state={selected.has(r.id) ? "selected" : undefined}>
-                      <TableCell>
+                    <TableRow
+                      key={r.id}
+                      data-state={selected.has(r.id) ? "selected" : undefined}
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (target.closest('input,button,a,[role="checkbox"],label')) return;
+                        navigate({ to: "/solicitudes/$participantId", params: { participantId: r.id } });
+                      }}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggle(r.id)} />
                       </TableCell>
                       <TableCell>
