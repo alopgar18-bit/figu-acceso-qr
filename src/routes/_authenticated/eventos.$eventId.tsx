@@ -205,11 +205,18 @@ function Page() {
                       </TableCell>
                       <TableCell><Badge variant="outline">{labelOf(SESSION_STATUS_OPTIONS, s.status)}</Badge></TableCell>
                       <TableCell className="text-right">
-                        <Button asChild variant="ghost" size="sm">
-                          <Link to="/eventos/$eventId/sesiones/$sessionId" params={{ eventId, sessionId: s.id }}>
-                            Editar
-                          </Link>
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to="/comunicaciones/envio" search={{ event_id: eventId, session_id: s.id }}>
+                              <Mail className="h-3.5 w-3.5 mr-1" />Enviar invitaciones
+                            </Link>
+                          </Button>
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to="/eventos/$eventId/sesiones/$sessionId" params={{ eventId, sessionId: s.id }}>
+                              Editar
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
