@@ -137,6 +137,7 @@ function ImportWizardPage() {
         return;
       }
       setParsed({ filename: file.name, headers, rows });
+      setUploadError(false);
       autoGuessMapping(headers);
       setStep(1);
     } catch (err) {
