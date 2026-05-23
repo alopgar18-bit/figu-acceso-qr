@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail } from "lucide-react";
+import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
+import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +36,29 @@ function QueuePage() {
   const deleteLogs = useDeleteCommunicationLogs();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const sendPendingEmails = async () => {
+    setSending(true);
+    try {
+      const ids = selectedIds.length > 0 ? selectedIds : undefined;
+      const { data, error } = await supabase.functions.invoke("send-email", {
+        body: ids ? { ids } : {},
+      });
+      if (error) throw error;
+      if (data?.configured === false) {
+        toast.message(data.message ?? "Servicio de email no configurado");
+      } else {
+        toast.success(`Enviados: ${data?.sent ?? 0} · Fallidos: ${data?.failed ?? 0}`);
+      }
+      setSelected(new Set());
+      await refetch();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return logs;
@@ -148,6 +172,10 @@ function QueuePage() {
         description="Comunicaciones renderizadas pendientes de envío. Exporta como .eml para abrir y enviar desde Gmail (casting@figurarte.es)."
         actions={
           <div className="flex gap-2">
+            <Button onClick={sendPendingEmails} disabled={sending}>
+              <Send className="h-4 w-4 mr-2" />
+              {sending ? "Enviando…" : selectedIds.length > 0 ? `Enviar ${selectedIds.length} seleccionados` : "Enviar emails pendientes"}
+            </Button>
             <Button onClick={exportEmlZip}>
               <Mail className="h-4 w-4 mr-2" />Descargar .eml para Gmail
             </Button>
