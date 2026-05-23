@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Users, Plus } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/_authenticated/personas")({
 });
 
 function Page() {
+  const navigate = useNavigate();
   const { data: participants = [], isLoading } = useParticipants({});
   const peopleById = new Map<string, (typeof participants)[number]>();
   for (const participant of participants) {
@@ -48,7 +49,11 @@ function Page() {
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow key={row.person_id}>
+                <TableRow
+                  key={row.person_id}
+                  className="cursor-pointer"
+                  onClick={() => navigate({ to: "/solicitudes/$participantId", params: { participantId: row.id } })}
+                >
                   <TableCell className="font-medium">
                     {[row.people?.first_name, row.people?.last_name].filter(Boolean).join(" ") || "—"}
                   </TableCell>

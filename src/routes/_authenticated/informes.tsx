@@ -38,9 +38,9 @@ function Page() {
               key={e.id}
               to="/informes/$eventId"
               params={{ eventId: e.id }}
-              className="block group"
+              className="block group cursor-pointer"
             >
-              <Card className="rounded-none border-l-4 border-l-primary hover:bg-muted/30 transition-colors">
+              <Card className="rounded-none border-l-4 border-l-primary hover:bg-muted/30 transition-colors cursor-pointer">
                 <CardContent className="p-4 flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-xs uppercase tracking-wider text-muted-foreground">
