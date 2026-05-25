@@ -29,7 +29,20 @@ export async function requireRole(
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
-  if (error) throw new ForbiddenError("No se pudieron verificar permisos");
+  if (error) {
+    // Surface the underlying Supabase error so production issues
+    // (JWT validation, RLS, network) are diagnosable instead of opaque.
+    console.error("[requireRole] user_roles select failed", {
+      userId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new ForbiddenError(
+      `No se pudieron verificar permisos: ${error.message}${error.code ? ` (${error.code})` : ""}`,
+    );
+  }
   const roles = (data ?? []).map((r) => r.role as AppRole);
   const ok = roles.some((r) => allowed.includes(r));
   if (!ok) throw new ForbiddenError("No tienes permisos para esta acción");
