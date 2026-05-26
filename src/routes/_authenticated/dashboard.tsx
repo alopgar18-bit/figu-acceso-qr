@@ -569,16 +569,18 @@ function Stat({ label, value, tone, small }: { label: string; value: number | st
   );
 }
 
-function EmptyBlock({ icon, title, description, actionLabel, actionHref }: { icon: React.ReactNode; title: string; description: string; actionLabel: string; actionHref: string }) {
+function EmptyBlock({ icon, title, description, actionLabel, actionHref }: { icon: React.ReactNode; title: string; description: string; actionLabel?: string; actionHref?: string }) {
   return (
     <Card className="rounded-none border-2 border-dashed">
       <CardContent className="p-10 text-center flex flex-col items-center">
         <div className="text-muted-foreground mb-3">{icon}</div>
         <div className="font-semibold">{title}</div>
         <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-md">{description}</p>
-        <Button asChild>
-          <Link to={actionHref}>{actionLabel}</Link>
-        </Button>
+        {actionLabel && actionHref && (
+          <Button asChild>
+            <Link to={actionHref}>{actionLabel}</Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
