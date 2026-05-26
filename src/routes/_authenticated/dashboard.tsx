@@ -212,6 +212,9 @@ function toTitleCase(str: string) {
 
 function DashboardPage() {
   const { user, profile, roles } = useAuth();
+  const canCreateEvents = roles.some((r) =>
+    r === "superadmin" || r === "admin_figurarte" || r === "coordinador",
+  );
   const rolesLabel = roles.length ? roles.map((r) => ROLE_LABELS[r] ?? r).join(" · ") : "Sin rol asignado";
   const { data, isLoading } = useDashboardData();
   const m = data?.metrics;
