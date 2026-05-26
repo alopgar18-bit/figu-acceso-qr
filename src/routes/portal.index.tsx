@@ -22,7 +22,7 @@ function toTitleCase(str: string) {
 function PortalDashboard() {
   const { user, profile } = useAuth();
   const { data: ctx } = useClientContext();
-  const { data: events = [], isLoading } = useClientEvents(ctx?.clientId);
+  const { data: events = [], isLoading } = useClientEvents(ctx?.clientIds);
 
   const rawClientName = ctx?.clientName;
   const hasClientName = rawClientName && rawClientName !== "—" && rawClientName.trim().length > 1;

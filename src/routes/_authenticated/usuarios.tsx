@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { UserCog, Plus, Mail, Phone, ShieldCheck, CircleSlash } from "lucide-react";
+import { UserCog, Plus, Mail, Phone, ShieldCheck, CircleSlash, Pencil } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { createUser } from "@/lib/users.functions";
+import { createUser, updateUserRoles, updateUserClients } from "@/lib/users.functions";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: Page,
@@ -48,24 +48,32 @@ const ROLE_OPTIONS = [
 function Page() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin-users-with-roles"],
     queryFn: async () => {
-      const [profilesRes, rolesRes] = await Promise.all([
+      const [profilesRes, rolesRes, clientUsersRes] = await Promise.all([
         supabase.from("profiles").select("id, full_name, email, phone, is_active, created_at").order("created_at", { ascending: false }),
         supabase.from("user_roles").select("user_id, role"),
+        supabase.from("client_users").select("user_id, client_id"),
       ]);
       if (profilesRes.error) throw profilesRes.error;
       if (rolesRes.error) throw rolesRes.error;
+      if (clientUsersRes.error) throw clientUsersRes.error;
 
       const rolesByUser = new Map<string, string[]>();
       for (const row of rolesRes.data ?? []) {
         rolesByUser.set(row.user_id, [...(rolesByUser.get(row.user_id) ?? []), row.role]);
       }
+      const clientsByUser = new Map<string, string[]>();
+      for (const row of clientUsersRes.data ?? []) {
+        clientsByUser.set(row.user_id, [...(clientsByUser.get(row.user_id) ?? []), row.client_id]);
+      }
 
       return (profilesRes.data ?? []).map((profile) => ({
         ...profile,
         roles: rolesByUser.get(profile.id) ?? [],
+        clientIds: clientsByUser.get(profile.id) ?? [],
       }));
     },
   });
@@ -110,6 +118,7 @@ function Page() {
                   <TableHead>Roles</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Alta</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -144,6 +153,11 @@ function Page() {
                     <TableCell className="text-xs text-muted-foreground">
                       {new Date(u.created_at).toLocaleDateString("es-ES")}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => setEditingUserId(u.id)}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" />Editar
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -157,6 +171,15 @@ function Page() {
         onOpenChange={setOpen}
         onCreated={() => {
           void qc.invalidateQueries({ queryKey: ["admin-users-with-roles"] });
+        }}
+      />
+
+      <EditUserDialog
+        user={users.find((u) => u.id === editingUserId) ?? null}
+        onOpenChange={(v) => { if (!v) setEditingUserId(null); }}
+        onSaved={() => {
+          void qc.invalidateQueries({ queryKey: ["admin-users-with-roles"] });
+          void qc.invalidateQueries({ queryKey: ["client-portal"] });
         }}
       />
     </div>
@@ -279,5 +302,185 @@ function NewUserDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type EditableUser = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  roles: string[];
+  clientIds: string[];
+};
+
+function EditUserDialog({
+  user,
+  onOpenChange,
+  onSaved,
+}: {
+  user: EditableUser | null;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const updateRolesFn = useServerFn(updateUserRoles);
+  const updateClientsFn = useServerFn(updateUserClients);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [clientIds, setClientIds] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["admin-clients-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Sync state when target user changes.
+  const userId = user?.id ?? null;
+
+  return (
+    <Dialog
+      open={!!user}
+      onOpenChange={(v) => { if (!submitting) onOpenChange(v); }}
+    >
+      <DialogContent>
+        {user && (
+          <EditUserDialogBody
+            key={userId ?? "none"}
+            user={user}
+            clients={clients}
+            roles={roles}
+            setRoles={setRoles}
+            clientIds={clientIds}
+            setClientIds={setClientIds}
+            submitting={submitting}
+            onCancel={() => onOpenChange(false)}
+            onSubmit={async () => {
+              if (roles.length === 0) {
+                toast.error("Selecciona al menos un rol");
+                return;
+              }
+              setSubmitting(true);
+              try {
+                await updateRolesFn({ data: { user_id: user.id, roles: roles as (typeof ROLE_OPTIONS)[number][] } });
+                const isClient = roles.includes("cliente_productora");
+                await updateClientsFn({
+                  data: {
+                    user_id: user.id,
+                    client_ids: isClient ? clientIds : [],
+                  },
+                });
+                toast.success("Usuario actualizado");
+                onSaved();
+                onOpenChange(false);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Error al actualizar");
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditUserDialogBody({
+  user,
+  clients,
+  roles,
+  setRoles,
+  clientIds,
+  setClientIds,
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  user: EditableUser;
+  clients: { id: string; name: string }[];
+  roles: string[];
+  setRoles: (v: string[]) => void;
+  clientIds: string[];
+  setClientIds: (v: string[]) => void;
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  // Initialize once per mount (key remount when user changes).
+  const [initialized, setInitialized] = useState(false);
+  if (!initialized) {
+    setRoles(user.roles);
+    setClientIds(user.clientIds);
+    setInitialized(true);
+  }
+
+  const toggleRole = (role: string) => {
+    setRoles(roles.includes(role) ? roles.filter((r) => r !== role) : [...roles, role]);
+  };
+  const toggleClient = (id: string) => {
+    setClientIds(clientIds.includes(id) ? clientIds.filter((c) => c !== id) : [...clientIds, id]);
+  };
+
+  const isClient = roles.includes("cliente_productora");
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Editar usuario</DialogTitle>
+        <DialogDescription>
+          {user.full_name || user.email}
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>Roles</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {ROLE_OPTIONS.map((role) => (
+              <label key={role} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={roles.includes(role)}
+                  onCheckedChange={() => toggleRole(role)}
+                />
+                {ROLE_LABELS[role]}
+              </label>
+            ))}
+          </div>
+        </div>
+        {isClient && (
+          <div className="space-y-2">
+            <Label>Productoras asignadas</Label>
+            <p className="text-xs text-muted-foreground">
+              El usuario verá en el portal los eventos de las productoras seleccionadas.
+            </p>
+            <div className="max-h-60 overflow-y-auto border rounded p-2 space-y-1">
+              {clients.length === 0 ? (
+                <p className="text-xs text-muted-foreground p-2">No hay productoras activas.</p>
+              ) : clients.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 text-sm p-1 hover:bg-muted rounded cursor-pointer">
+                  <Checkbox
+                    checked={clientIds.includes(c.id)}
+                    onCheckedChange={() => toggleClient(c.id)}
+                  />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel} disabled={submitting}>Cancelar</Button>
+        <Button onClick={onSubmit} disabled={submitting}>
+          {submitting ? "Guardando…" : "Guardar"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

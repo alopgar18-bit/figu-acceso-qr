@@ -12,7 +12,7 @@ export const Route = createFileRoute("/portal/informes")({
 function Reports() {
   const { data: ctx } = useClientContext();
   const perms = ctx?.perms;
-  const { data: events = [] } = useClientEvents(ctx?.clientId);
+  const { data: events = [] } = useClientEvents(ctx?.clientIds);
 
   const canExport = perms?.export_data || perms?.export_pdf;
 

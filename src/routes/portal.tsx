@@ -25,13 +25,13 @@ function PortalLayout() {
   const isClient = hasRole("cliente_productora");
   if (!isAdmin && !isClient) return <Navigate to="/dashboard" />;
 
-  if (!isAdmin && !isLoading && !ctx) {
+  if (!isAdmin && !isLoading && (!ctx || ctx.clientIds.length === 0)) {
     return (
       <ClientPortalShell>
         <div className="text-center py-20">
-          <h1 className="text-2xl font-bold uppercase">Sin cliente asociado</h1>
+          <h1 className="text-2xl font-bold uppercase">Sin productora asignada</h1>
           <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto">
-            Tu cuenta no está vinculada a ningún cliente o productora. Contacta con FIGURARTE para activar tu acceso.
+            Tu cuenta no tiene ninguna productora asignada. Contacta con el administrador de FIGURARTE.
           </p>
         </div>
       </ClientPortalShell>

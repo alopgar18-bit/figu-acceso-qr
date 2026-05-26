@@ -12,7 +12,7 @@ export const Route = createFileRoute("/portal/eventos")({
 
 function EventsList() {
   const { data: ctx } = useClientContext();
-  const { data: events = [], isLoading } = useClientEvents(ctx?.clientId);
+  const { data: events = [], isLoading } = useClientEvents(ctx?.clientIds);
 
   return (
     <div>

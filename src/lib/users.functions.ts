@@ -104,3 +104,32 @@ export const setUserActive = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+const UpdateClientsSchema = z.object({
+  user_id: z.string().uuid(),
+  client_ids: z.array(z.string().uuid()).max(50),
+});
+
+export const updateUserClients = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateClientsSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRole(context.supabase, context.userId, [
+      "superadmin",
+      "admin_figurarte",
+    ]);
+    await supabaseAdmin
+      .from("client_users")
+      .delete()
+      .eq("user_id", data.user_id);
+    if (data.client_ids.length) {
+      const { error } = await supabaseAdmin.from("client_users").insert(
+        data.client_ids.map((client_id) => ({
+          user_id: data.user_id,
+          client_id,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
