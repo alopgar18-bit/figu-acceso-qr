@@ -97,7 +97,8 @@ export function EventForm({ event }: { event?: EventRow | null }) {
   const navigate = useNavigate();
   const [s, setS] = useState<FormState>(() => initial(event));
   const [slugTouched, setSlugTouched] = useState(!!event?.slug);
-  const { data: clients = [] } = useClientsList();
+  const { data: clients, isLoading: clientsLoading } = useClientsList();
+  const clientsList = clients ?? [];
   const upsert = useUpsertEvent();
 
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setS((p) => ({ ...p, [k]: v }));
@@ -154,13 +155,21 @@ export function EventForm({ event }: { event?: EventRow | null }) {
           </div>
           <div>
             <Label>Cliente / Productora</Label>
-            <Select value={s.client_id ?? "none"} onValueChange={(v) => update("client_id", v === "none" ? null : v)}>
-              <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin asignar</SelectItem>
-                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {clientsLoading ? (
+              <Input value="Cargando…" disabled readOnly />
+            ) : (
+              <Select
+                key={clientsList.length}
+                value={s.client_id ?? "none"}
+                onValueChange={(v) => update("client_id", v === "none" ? null : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {clientsList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div>
             <Label>Tipo de evento</Label>
