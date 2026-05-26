@@ -273,9 +273,11 @@ function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild size="lg" className="font-semibold">
-            <Link to="/eventos/nuevo"><Plus className="h-4 w-4 mr-1" /> Crear evento</Link>
-          </Button>
+          {canCreateEvents && (
+            <Button asChild size="lg" className="font-semibold">
+              <Link to="/eventos/nuevo"><Plus className="h-4 w-4 mr-1" /> Crear evento</Link>
+            </Button>
+          )}
           {f?.slug && (
             <Button asChild variant="outline" size="lg">
               <a href={`/e/${f.slug}`} target="_blank" rel="noreferrer">
