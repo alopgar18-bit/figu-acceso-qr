@@ -41,32 +41,48 @@ export function useClientContext() {
         .select("client_id")
         .eq("user_id", user!.id);
       if (error) throw error;
-      const row = cu?.[0];
-      if (!row) return null;
-      // Fetch client cleanly
-      const { data: client } = await supabase
+      const ids = (cu ?? []).map((r) => r.client_id);
+      if (ids.length === 0) return null;
+      const { data: clientsData } = await supabase
         .from("clients")
         .select("id, name, visibility_permissions")
-        .eq("id", row.client_id)
-        .single();
-      const perms: VisibilityPermissions = {
-        ...DEFAULT_PERMS,
-        ...((client?.visibility_permissions as Record<string, boolean>) ?? {}),
+        .in("id", ids);
+      const clients = (clientsData ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        perms: {
+          ...DEFAULT_PERMS,
+          ...((c.visibility_permissions as Record<string, boolean>) ?? {}),
+        } as VisibilityPermissions,
+      }));
+      // Merge perms across all assigned clients (OR-ed: most permissive wins).
+      const perms: VisibilityPermissions = { ...DEFAULT_PERMS };
+      for (const c of clients) {
+        for (const k of Object.keys(c.perms) as (keyof VisibilityPermissions)[]) {
+          if (c.perms[k]) perms[k] = true;
+        }
+      }
+      return {
+        clientIds: clients.map((c) => c.id),
+        clientId: clients[0]?.id,
+        clientName: clients.map((c) => c.name).join(" · ") || "—",
+        clients,
+        perms,
       };
-      return { clientId: row.client_id, clientName: client?.name ?? "—", perms };
     },
   });
 }
 
-export function useClientEvents(clientId: string | undefined) {
+export function useClientEvents(clientIds: string[] | string | undefined) {
+  const ids = Array.isArray(clientIds) ? clientIds : clientIds ? [clientIds] : [];
   return useQuery({
-    queryKey: ["client-portal", "events", clientId],
-    enabled: !!clientId,
+    queryKey: ["client-portal", "events", ids.slice().sort().join(",")],
+    enabled: ids.length > 0,
     queryFn: async () => {
       const { data: assigns, error } = await supabase
         .from("event_assignments")
         .select("event_id, events(id, name, status, event_type, starts_at, ends_at, city, location_name, cover_image_url)")
-        .eq("client_id", clientId!)
+        .in("client_id", ids)
         .eq("role", "cliente_productora");
       if (error) throw error;
       const unique = new Map<string, NonNullable<(typeof assigns)[number]["events"]>>();
