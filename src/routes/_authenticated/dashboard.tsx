@@ -41,14 +41,11 @@ function useDashboardData() {
   return useQuery({
     queryKey: ["dashboard-admin-v2"],
     queryFn: async () => {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-
       const [evCount, solCount, confCount, chkCount, incCount, capAgg] = await Promise.all([
         supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "publicado"),
         supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["solicitud_recibida", "lista_espera"]),
         supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["confirmado", "qr_generado", "acceso_validado"]),
-        supabase.from("checkins").select("id", { count: "exact", head: true }).gte("checked_in_at", startOfDay.toISOString()),
+        supabase.from("checkins").select("id", { count: "exact", head: true }),
         supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "abierta"),
         supabase
           .from("event_sessions")
@@ -239,7 +236,7 @@ function DashboardPage() {
     { label: "Eventos activos", value: m?.eventos, icon: CalendarDays, href: "/eventos", tone: "primary" },
     { label: "Solicitudes pendientes", value: m?.solicitudes, icon: Inbox, href: "/solicitudes", tone: "warning" },
     { label: "Confirmados", value: m?.confirmados, icon: CheckCircle2, href: "/solicitudes", tone: "success" },
-    { label: "Check-ins hoy", value: m?.checkins, icon: ScanLine, href: "/control-acceso", tone: "info" },
+    { label: "Check-ins totales", value: m?.checkins, icon: ScanLine, href: "/control-acceso", tone: "info" },
     { label: "Incidencias abiertas", value: m?.incidencias, icon: AlertTriangle, href: "/incidencias", tone: "danger" },
     { label: "Aforo ocupado", value: m ? `${m.aforo}%` : undefined, icon: BarChart3, href: "/informes", tone: "muted" },
   ];
