@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,12 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  beforeLoad: ({ context }) => {
+    const roles = context.auth?.roles ?? [];
+    if (roles.includes("validador") && !roles.some((r: string) => ["superadmin", "admin_figurarte", "coordinador", "cliente_productora"].includes(r))) {
+      throw redirect({ to: "/control-acceso" });
+    }
+  },
   component: DashboardPage,
 });
 
