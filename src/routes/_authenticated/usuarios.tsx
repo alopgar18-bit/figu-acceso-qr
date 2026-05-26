@@ -304,3 +304,187 @@ function NewUserDialog({
     </Dialog>
   );
 }
+
+type EditableUser = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  roles: string[];
+  clientIds: string[];
+};
+
+function EditUserDialog({
+  user,
+  onOpenChange,
+  onSaved,
+}: {
+  user: EditableUser | null;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const updateRolesFn = useServerFn(updateUserRoles);
+  const updateClientsFn = useServerFn(updateUserClients);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [clientIds, setClientIds] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["admin-clients-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Sync state when target user changes.
+  const userId = user?.id ?? null;
+  useState(() => undefined);
+  if (user && roles.join(",") === "" && user.roles.length > 0 && !submitting) {
+    // no-op: initialization handled via key remount below
+  }
+
+  return (
+    <Dialog
+      open={!!user}
+      onOpenChange={(v) => { if (!submitting) onOpenChange(v); }}
+    >
+      <DialogContent>
+        {user && (
+          <EditUserDialogBody
+            key={userId ?? "none"}
+            user={user}
+            clients={clients}
+            roles={roles}
+            setRoles={setRoles}
+            clientIds={clientIds}
+            setClientIds={setClientIds}
+            submitting={submitting}
+            onCancel={() => onOpenChange(false)}
+            onSubmit={async () => {
+              if (roles.length === 0) {
+                toast.error("Selecciona al menos un rol");
+                return;
+              }
+              setSubmitting(true);
+              try {
+                await updateRolesFn({ data: { user_id: user.id, roles: roles as (typeof ROLE_OPTIONS)[number][] } });
+                const isClient = roles.includes("cliente_productora");
+                await updateClientsFn({
+                  data: {
+                    user_id: user.id,
+                    client_ids: isClient ? clientIds : [],
+                  },
+                });
+                toast.success("Usuario actualizado");
+                onSaved();
+                onOpenChange(false);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Error al actualizar");
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditUserDialogBody({
+  user,
+  clients,
+  roles,
+  setRoles,
+  clientIds,
+  setClientIds,
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  user: EditableUser;
+  clients: { id: string; name: string }[];
+  roles: string[];
+  setRoles: (v: string[]) => void;
+  clientIds: string[];
+  setClientIds: (v: string[]) => void;
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  // Initialize once per mount (key remount when user changes).
+  const [initialized, setInitialized] = useState(false);
+  if (!initialized) {
+    setRoles(user.roles);
+    setClientIds(user.clientIds);
+    setInitialized(true);
+  }
+
+  const toggleRole = (role: string) => {
+    setRoles(roles.includes(role) ? roles.filter((r) => r !== role) : [...roles, role]);
+  };
+  const toggleClient = (id: string) => {
+    setClientIds(clientIds.includes(id) ? clientIds.filter((c) => c !== id) : [...clientIds, id]);
+  };
+
+  const isClient = roles.includes("cliente_productora");
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Editar usuario</DialogTitle>
+        <DialogDescription>
+          {user.full_name || user.email}
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>Roles</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {ROLE_OPTIONS.map((role) => (
+              <label key={role} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={roles.includes(role)}
+                  onCheckedChange={() => toggleRole(role)}
+                />
+                {ROLE_LABELS[role]}
+              </label>
+            ))}
+          </div>
+        </div>
+        {isClient && (
+          <div className="space-y-2">
+            <Label>Productoras asignadas</Label>
+            <p className="text-xs text-muted-foreground">
+              El usuario verá en el portal los eventos de las productoras seleccionadas.
+            </p>
+            <div className="max-h-60 overflow-y-auto border rounded p-2 space-y-1">
+              {clients.length === 0 ? (
+                <p className="text-xs text-muted-foreground p-2">No hay productoras activas.</p>
+              ) : clients.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 text-sm p-1 hover:bg-muted rounded cursor-pointer">
+                  <Checkbox
+                    checked={clientIds.includes(c.id)}
+                    onCheckedChange={() => toggleClient(c.id)}
+                  />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel} disabled={submitting}>Cancelar</Button>
+        <Button onClick={onSubmit} disabled={submitting}>
+          {submitting ? "Guardando…" : "Guardar"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
