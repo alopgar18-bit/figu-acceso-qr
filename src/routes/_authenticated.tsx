@@ -2,13 +2,14 @@ import { createFileRoute, Outlet, Navigate } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
-  const { session, loading, roles, isAdmin, hasRole } = useAuth();
+  const { session, loading, roles, isAdmin, hasRole, signOut } = useAuth();
 
   if (loading) {
     return (
@@ -37,6 +38,9 @@ function AuthenticatedLayout() {
             Tu usuario no tiene rol asignado. Contacta con un administrador de
             FIGURARTE para activar tu acceso.
           </p>
+          <Button variant="outline" onClick={() => signOut()}>
+            Cerrar sesión
+          </Button>
         </div>
       </div>
     );
