@@ -388,9 +388,11 @@ function DashboardPage() {
           <EmptyBlock
             icon={<CalendarDays className="h-10 w-10" />}
             title="No hay eventos publicados"
-            description="Crea tu primer evento para empezar a recibir solicitudes."
-            actionLabel="Crear evento"
-            actionHref="/eventos/nuevo"
+            description={canCreateEvents
+              ? "Crea tu primer evento para empezar a recibir solicitudes."
+              : "Aún no se han publicado eventos."}
+            actionLabel={canCreateEvents ? "Crear evento" : undefined}
+            actionHref={canCreateEvents ? "/eventos/nuevo" : undefined}
           />
         )}
       </section>
@@ -524,9 +526,11 @@ function DashboardPage() {
                   <p className="text-sm text-muted-foreground mt-1 mb-4">
                     Aquí verás solicitudes, check-ins e incidencias en tiempo real.
                   </p>
-                  <Button asChild size="sm" variant="outline">
-                    <Link to="/eventos/nuevo">Crear primer evento</Link>
-                  </Button>
+                  {canCreateEvents && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/eventos/nuevo">Crear primer evento</Link>
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
