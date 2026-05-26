@@ -24,8 +24,13 @@ function EventsList() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {events.map((e) => (
-            <Link key={e.id} to="/portal/eventos/$eventId" params={{ eventId: e.id }}>
-              <Card className="rounded-none p-5 hover:border-primary transition-colors h-full">
+            <Link
+              key={e.id}
+              to="/portal/eventos/$eventId"
+              params={{ eventId: e.id }}
+              className="block"
+            >
+              <Card className="rounded-none p-5 hover:border-primary hover:shadow-md transition-all h-full cursor-pointer">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-widest text-muted-foreground">

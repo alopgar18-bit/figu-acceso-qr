@@ -3,11 +3,14 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Download, AlertTriangle, BarChart3 } from "lucide-react";
 import { useClientContext, useClientEventDetail, useClientIncidents } from "@/lib/use-client-portal";
 import { labelOf, EVENT_STATUS_OPTIONS, EVENT_TYPE_OPTIONS, SESSION_STATUS_OPTIONS } from "@/lib/event-constants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/portal/eventos/$eventId")({
   component: EventDetail,
@@ -19,6 +22,28 @@ function EventDetail() {
   const perms = ctx?.perms;
   const { data, isLoading } = useClientEventDetail(eventId);
   const { data: incidents = [] } = useClientIncidents(perms?.see_incidents ? eventId : undefined);
+  const queryClient = useQueryClient();
+
+  // Realtime: refresh detail when check-ins or participants change for this event.
+  useEffect(() => {
+    if (!eventId || !perms?.see_checkin_status) return;
+    const channel = supabase
+      .channel(`portal-event-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "checkins", filter: `event_id=eq.${eventId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["client-portal", "event", eventId] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "event_participants", filter: `event_id=eq.${eventId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["client-portal", "event", eventId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventId, perms?.see_checkin_status, queryClient]);
 
   if (isLoading || !data) {
     return <p className="text-sm text-muted-foreground">Cargando…</p>;
@@ -57,6 +82,13 @@ function EventDetail() {
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="outline">{labelOf(EVENT_STATUS_OPTIONS, event.status)}</Badge>
+            {(perms?.export_data || perms?.export_pdf) && (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/portal/informes">
+                  <BarChart3 className="h-4 w-4 mr-2" />Informe
+                </Link>
+              </Button>
+            )}
             {perms?.export_data && (
               <Button variant="outline" size="sm" onClick={handleExportCSV}>
                 <Download className="h-4 w-4 mr-2" />CSV
