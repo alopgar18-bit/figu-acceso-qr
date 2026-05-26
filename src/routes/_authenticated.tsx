@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_authenticated")({
 // Centralised route → allowed roles map. Defence in depth on top of RLS.
 // Order matters: longer prefixes first so /eventos/:id/editar matches before /eventos.
 const ROUTE_ROLES: Array<{ prefix: string; roles: AppRole[] }> = [
-  { prefix: "/dashboard", roles: ["superadmin", "admin_figurarte", "coordinador", "validador"] },
+  { prefix: "/dashboard", roles: ["superadmin", "admin_figurarte", "coordinador", "validador", "cliente_productora"] },
   { prefix: "/control-acceso", roles: ["superadmin", "admin_figurarte", "coordinador", "validador"] },
   { prefix: "/incidencias", roles: ["superadmin", "admin_figurarte", "coordinador", "validador"] },
   { prefix: "/eventos", roles: ["superadmin", "admin_figurarte", "coordinador"] },
