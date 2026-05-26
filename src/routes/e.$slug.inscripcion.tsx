@@ -131,13 +131,16 @@ function Page() {
 
     setSubmitting(true);
     try {
-      // 1. Upload photo
-      const ext = photo.name.split(".").pop()?.toLowerCase() ?? "jpg";
-      const path = `${event.id}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("submission-photos")
-        .upload(path, photo, { contentType: photo.type, upsert: false });
-      if (upErr) throw new Error("No se pudo subir la foto: " + upErr.message);
+      // 1. Upload photo (optional)
+      let path: string | undefined;
+      if (photo) {
+        const ext = photo.name.split(".").pop()?.toLowerCase() ?? "jpg";
+        path = `${event.id}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("submission-photos")
+          .upload(path, photo, { contentType: photo.type, upsert: false });
+        if (upErr) throw new Error("No se pudo subir la foto: " + upErr.message);
+      }
 
       // 2. Submit form
       const result = await submit({
