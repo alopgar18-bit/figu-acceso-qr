@@ -50,7 +50,7 @@ type NavItem = {
 };
 
 const operationalItems: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: ["superadmin", "admin_figurarte", "coordinador", "cliente_productora"] },
   { title: "Eventos", url: "/eventos", icon: CalendarDays, roles: ["superadmin", "admin_figurarte", "coordinador"] },
   { title: "Sesiones", url: "/sesiones", icon: Clock, roles: ["superadmin", "admin_figurarte", "coordinador"] },
   { title: "Solicitudes", url: "/solicitudes", icon: Inbox, roles: ["superadmin", "admin_figurarte", "coordinador"] },
