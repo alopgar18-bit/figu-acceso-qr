@@ -46,7 +46,7 @@ function Page() {
     if (!data) return [];
     const q = searchText.trim().toLowerCase();
     return data.filter((s) => {
-      const ev = (s as any).events as { name: string } | null;
+      const ev = (s as any).events as { id: string; name: string } | null;
       if (selectedEventId !== "all" && ev?.id !== selectedEventId) return false;
       if (!q) return true;
       const haystack = [
