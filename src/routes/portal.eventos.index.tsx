@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader, EmptyState } from "@/components/page-header";
 import { CalendarDays } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -11,7 +11,6 @@ export const Route = createFileRoute("/portal/eventos/")({
 });
 
 function EventsList() {
-  const navigate = useNavigate();
   const { data: ctx } = useClientContext();
   const { data: events = [], isLoading } = useClientEvents(ctx?.clientIds);
 
@@ -33,20 +32,13 @@ function EventsList() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {events.map((e) => (
-            <div
+            <Link
               key={e.id}
-              role="link"
-              tabIndex={0}
-              onClick={() => navigate({ to: "/portal/eventos/$eventId", params: { eventId: e.id } })}
-              onKeyDown={(ev) => {
-                if (ev.key === "Enter" || ev.key === " ") {
-                  ev.preventDefault();
-                  navigate({ to: "/portal/eventos/$eventId", params: { eventId: e.id } });
-                }
-              }}
-              className="block cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+              to="/portal/eventos/$eventId"
+              params={{ eventId: e.id }}
+              className="block cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary rounded-none"
             >
-              <Card className="rounded-none p-5 hover:border-primary hover:shadow-md transition-all h-full">
+              <Card className="rounded-none p-5 hover:border-primary hover:shadow-md hover:bg-muted/30 transition-all h-full">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -65,7 +57,7 @@ function EventsList() {
                   <Badge variant="outline">{labelOf(EVENT_STATUS_OPTIONS, e.status)}</Badge>
                 </div>
               </Card>
-            </div>
+            </Link>
           ))}
         </div>
       )}

@@ -320,9 +320,9 @@ function DashboardPage() {
                 </CardHeader>
                 <CardContent className="pb-3">
                   {isLoading ? (
-                    <Skeleton className="h-8 w-14" />
+                    <Skeleton className="h-10 w-20" />
                   ) : (
-                    <div className="text-2xl md:text-3xl font-black tracking-tight">{s.value ?? 0}</div>
+                    <div className="text-2xl md:text-3xl font-black tracking-tight">{s.value !== undefined ? s.value : "—"}</div>
                   )}
                 </CardContent>
               </Card>
