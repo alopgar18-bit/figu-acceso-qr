@@ -87,7 +87,21 @@ function Page() {
   );
 
   if (isLoading) return <PublicShell><Skeleton className="h-96" /></PublicShell>;
-  if (!data) return <Navigate to="/e/$slug/cerrado" params={{ slug }} />;
+  if (!data) {
+    return (
+      <PublicShell>
+        <div className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-semibold mb-3">Error 404</div>
+        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Evento no encontrado</h1>
+        <p className="mt-4 text-muted-foreground">
+          El enlace <code className="font-mono text-foreground">/e/{slug}</code> no corresponde a ningún evento.
+        </p>
+        <div className="mt-8">
+          <Button asChild variant="outline"><Link to="/">Volver al inicio</Link></Button>
+        </div>
+      </PublicShell>
+    );
+  }
+  if (data.closed) return <Navigate to="/e/$slug/cerrado" params={{ slug }} />;
 
   const { event, sessions } = data;
   if (!event.public_registration_enabled || sessions.length === 0) {
@@ -219,11 +233,11 @@ function Page() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <Field label="Nombre *"><Input required maxLength={100} value={state.firstName} onChange={(e) => update("firstName", e.target.value)} /></Field>
             <Field label="Apellidos *"><Input required maxLength={150} value={state.lastName} onChange={(e) => update("lastName", e.target.value)} /></Field>
-            <Field label="DNI / NIE / Pasaporte *"><Input required maxLength={20} value={state.dni} onChange={(e) => update("dni", e.target.value.toUpperCase())} /></Field>
+            <Field label="DNI / NIE / Pasaporte"><Input maxLength={20} value={state.dni} onChange={(e) => update("dni", e.target.value.toUpperCase())} /></Field>
             <Field label="Email *"><Input required type="email" maxLength={255} value={state.email} onChange={(e) => update("email", e.target.value)} /></Field>
-            <Field label="Teléfono *"><Input required type="tel" maxLength={30} value={state.phone} onChange={(e) => update("phone", e.target.value)} /></Field>
-            <Field label="Fecha de nacimiento *">
-              <Input required type="date" max={new Date().toISOString().slice(0, 10)} value={state.birthDate} onChange={(e) => update("birthDate", e.target.value)} />
+            <Field label="Teléfono"><Input type="tel" maxLength={30} value={state.phone} onChange={(e) => update("phone", e.target.value)} /></Field>
+            <Field label="Fecha de nacimiento">
+              <Input type="date" max={new Date().toISOString().slice(0, 10)} value={state.birthDate} onChange={(e) => update("birthDate", e.target.value)} />
               {computedAge !== null && (
                 <p className={"text-xs mt-1 " + (ageBlocked ? "text-destructive" : "text-muted-foreground")}>
                   Edad: {computedAge} años {minAge > 0 && `· edad mínima ${minAge}`}
@@ -240,11 +254,11 @@ function Page() {
         <Card>
           <CardHeader><CardTitle className="text-base uppercase tracking-wider">Material y redes</CardTitle></CardHeader>
           <CardContent className="grid gap-4">
-            <Field label="Foto reciente * (JPG/PNG/WebP, máx. 5 MB)">
-              <Input required type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+            <Field label="Foto reciente (JPG/PNG/WebP, máx. 5 MB)">
+              <Input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
             </Field>
-            <Field label="Redes sociales * (Instagram, TikTok…)">
-              <Textarea required maxLength={500} value={state.socialMedia} onChange={(e) => update("socialMedia", e.target.value)} placeholder="@usuario, enlaces…" rows={2} />
+            <Field label="Redes sociales (Instagram, TikTok…)">
+              <Textarea maxLength={500} value={state.socialMedia} onChange={(e) => update("socialMedia", e.target.value)} placeholder="@usuario, enlaces…" rows={2} />
             </Field>
           </CardContent>
         </Card>
