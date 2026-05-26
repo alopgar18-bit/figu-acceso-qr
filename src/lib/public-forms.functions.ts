@@ -131,11 +131,13 @@ export const submitPublicForm = createServerFn({ method: "POST" })
       return { ok: false, code: "inscripciones_cerradas" as const };
     }
 
-    // Age
-    const age = calcAge(data.birthDate);
+    // Age (only enforced if birthDate provided)
     const minAge = session.min_age || event.default_min_age || 0;
-    if (minAge > 0 && age < minAge) {
-      return { ok: false, code: "edad_minima_no_cumplida" as const, minAge };
+    if (data.birthDate && minAge > 0) {
+      const age = calcAge(data.birthDate);
+      if (age < minAge) {
+        return { ok: false, code: "edad_minima_no_cumplida" as const, minAge };
+      }
     }
 
     // Capacity
@@ -158,10 +160,14 @@ export const submitPublicForm = createServerFn({ method: "POST" })
 
     // Person upsert (by email)
     let personId: string;
+    const dniValue = data.dni && data.dni.length > 0 ? data.dni : null;
+    const orFilter = dniValue
+      ? `email.eq.${data.email},dni.eq.${dniValue}`
+      : `email.eq.${data.email}`;
     const { data: existingPerson } = await supabaseAdmin
       .from("people")
       .select("id")
-      .or(`email.eq.${data.email},dni.eq.${data.dni}`)
+      .or(orFilter)
       .limit(1)
       .maybeSingle();
     if (existingPerson) {
@@ -171,10 +177,10 @@ export const submitPublicForm = createServerFn({ method: "POST" })
         .update({
           first_name: data.firstName,
           last_name: data.lastName,
-          dni: data.dni,
+          dni: dniValue,
           email: data.email,
-          phone: data.phone,
-          birth_date: data.birthDate,
+          phone: data.phone || null,
+          birth_date: data.birthDate || null,
           city: data.city ?? null,
           province: data.province ?? null,
           gender: data.gender ?? null,
@@ -186,10 +192,10 @@ export const submitPublicForm = createServerFn({ method: "POST" })
         .insert({
           first_name: data.firstName,
           last_name: data.lastName,
-          dni: data.dni,
+          dni: dniValue,
           email: data.email,
-          phone: data.phone,
-          birth_date: data.birthDate,
+          phone: data.phone || null,
+          birth_date: data.birthDate || null,
           city: data.city ?? null,
           province: data.province ?? null,
           gender: data.gender ?? null,
@@ -221,11 +227,11 @@ export const submitPublicForm = createServerFn({ method: "POST" })
         person_id: personId,
         payload: {
           profession: data.profession ?? null,
-          social_media: data.socialMedia,
+          social_media: data.socialMedia || null,
           special_needs: data.specialNeeds ?? null,
           notes: data.notes ?? null,
           companions_count: data.companionsCount,
-          photo_path: data.photoPath,
+          photo_path: data.photoPath || null,
         },
         user_agent: data.userAgent ?? null,
       })
