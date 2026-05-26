@@ -123,8 +123,7 @@ function Page() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!photo) { toast.error("Por favor adjunta una foto reciente."); return; }
-    if (photo.size > 5 * 1024 * 1024) { toast.error("La foto debe pesar menos de 5 MB."); return; }
+    if (photo && photo.size > 5 * 1024 * 1024) { toast.error("La foto debe pesar menos de 5 MB."); return; }
     if (userCanChoose && !state.sessionId) { toast.error("Selecciona una sesión."); return; }
     if (!state.acceptPrivacy || !state.acceptAttendance) { toast.error("Debes aceptar los consentimientos obligatorios."); return; }
     if (imageRequired && !state.acceptImage) { toast.error("Este evento requiere consentimiento de imagen."); return; }
