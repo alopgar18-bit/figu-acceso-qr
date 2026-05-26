@@ -55,7 +55,7 @@ export function QrScanner({ onResult, paused }: QrScannerProps) {
         });
         controlsRef.current = controls;
       } catch (e) {
-        setError(e instanceof Error ? e.message : "No se pudo acceder a la cámara");
+        setError(translateCameraError(e));
       }
     })();
 
@@ -124,4 +124,25 @@ export function extractQrToken(text: string): string {
     // not a URL
   }
   return text.trim();
+}
+
+function translateCameraError(e: unknown): string {
+  const name = (e as { name?: string } | null)?.name ?? "";
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (name === "NotFoundError" || /not found|devices? not found/i.test(msg)) {
+    return "No se ha encontrado ninguna cámara en este dispositivo.";
+  }
+  if (name === "NotAllowedError" || /permission|denied/i.test(msg)) {
+    return "Permiso de cámara denegado. Habilítalo en los ajustes del navegador.";
+  }
+  if (name === "NotReadableError" || /in use|could not start/i.test(msg)) {
+    return "La cámara está siendo usada por otra aplicación.";
+  }
+  if (name === "OverconstrainedError") {
+    return "La cámara seleccionada no admite la configuración pedida.";
+  }
+  if (name === "SecurityError") {
+    return "Acceso a cámara bloqueado por seguridad. Usa HTTPS y comprueba permisos.";
+  }
+  return "No se pudo acceder a la cámara.";
 }
