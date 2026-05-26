@@ -212,6 +212,11 @@ function toTitleCase(str: string) {
 
 function DashboardPage() {
   const { user, profile, roles } = useAuth();
+  // Validador-only users go straight to Control de acceso (their daily workspace).
+  const isValidadorOnly =
+    roles.length > 0 &&
+    roles.every((r) => r === "validador");
+  if (isValidadorOnly) return <Navigate to="/control-acceso" />;
   const canCreateEvents = roles.some((r) =>
     r === "superadmin" || r === "admin_figurarte" || r === "coordinador",
   );
