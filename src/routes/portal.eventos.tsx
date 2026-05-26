@@ -16,11 +16,19 @@ function EventsList() {
 
   return (
     <div>
-      <PageHeader eyebrow="Portal cliente" title="Eventos asignados" description="Eventos en los que tu cliente / productora tiene visibilidad." />
+      <PageHeader
+        eyebrow="Portal cliente"
+        title="Eventos asignados"
+        description="Eventos en los que tu cliente / productora tiene visibilidad."
+      />
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : events.length === 0 ? (
-        <EmptyState icon={<CalendarDays className="h-12 w-12" />} title="Sin eventos asignados" description="Aún no tienes eventos vinculados." />
+        <EmptyState
+          icon={<CalendarDays className="h-12 w-12" />}
+          title="Sin eventos asignados"
+          description="Aún no tienes eventos vinculados."
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {events.map((e) => (
@@ -30,15 +38,15 @@ function EventsList() {
               params={{ eventId: e.id }}
               className="block cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <Card
-                className="rounded-none p-5 hover:border-primary hover:shadow-md transition-all h-full"
-              >
+              <Card className="rounded-none p-5 hover:border-primary hover:shadow-md transition-all h-full">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                       {labelOf(EVENT_TYPE_OPTIONS, e.event_type)}
                     </div>
-                    <h3 className="font-black text-lg uppercase tracking-tight mt-1 truncate">{e.name}</h3>
+                    <h3 className="font-black text-lg uppercase tracking-tight mt-1 truncate">
+                      {e.name}
+                    </h3>
                     <div className="text-xs text-muted-foreground mt-2">
                       {e.starts_at ? new Date(e.starts_at).toLocaleString("es-ES") : "Sin fecha"}
                     </div>
