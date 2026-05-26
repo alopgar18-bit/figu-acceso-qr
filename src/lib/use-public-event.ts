@@ -10,16 +10,18 @@ export function usePublicEvent(slug: string | undefined) {
         .from("events")
         .select("*")
         .eq("slug", slug!)
-        .eq("status", "publicado")
         .maybeSingle();
       if (error) throw error;
       if (!event) return null;
+      if (event.status !== "publicado") {
+        return { event, sessions: [], closed: true as const };
+      }
       const { data: sessions } = await supabase
         .from("event_sessions")
         .select("*")
         .eq("event_id", event.id)
         .order("starts_at", { ascending: true });
-      return { event, sessions: sessions ?? [] };
+      return { event, sessions: sessions ?? [], closed: false as const };
     },
   });
 }

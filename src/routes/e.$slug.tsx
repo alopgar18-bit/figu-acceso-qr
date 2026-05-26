@@ -29,7 +29,21 @@ function Page() {
   if (isLoading) {
     return <PublicShell><Skeleton className="h-64" /></PublicShell>;
   }
-  if (!data) return <Navigate to="/e/$slug/cerrado" params={{ slug }} />;
+  if (!data) {
+    return (
+      <PublicShell>
+        <div className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-semibold mb-3">Error 404</div>
+        <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight">Evento no encontrado</h1>
+        <p className="mt-4 text-muted-foreground">
+          El enlace <code className="font-mono text-foreground">/e/{slug}</code> no corresponde a ningún evento. Comprueba la URL o contacta con quien te lo compartió.
+        </p>
+        <div className="mt-8">
+          <Button asChild variant="outline"><Link to="/">Volver al inicio</Link></Button>
+        </div>
+      </PublicShell>
+    );
+  }
+  if (data.closed) return <Navigate to="/e/$slug/cerrado" params={{ slug }} />;
   const { event, sessions } = data;
   const openSessions = sessions.filter((s) => s.status !== "cerrada" && s.status !== "cancelada" && s.status !== "completada");
   const registrationOpen = event.public_registration_enabled && openSessions.length > 0;
