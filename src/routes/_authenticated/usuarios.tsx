@@ -343,10 +343,6 @@ function EditUserDialog({
 
   // Sync state when target user changes.
   const userId = user?.id ?? null;
-  useState(() => undefined);
-  if (user && roles.join(",") === "" && user.roles.length > 0 && !submitting) {
-    // no-op: initialization handled via key remount below
-  }
 
   return (
     <Dialog
