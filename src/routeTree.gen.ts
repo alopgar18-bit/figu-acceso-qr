@@ -34,6 +34,7 @@ import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authen
 import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticated/branding'
+import { Route as PortalEventosIndexRouteImport } from './routes/portal.eventos.index'
 import { Route as AuthenticatedEventosIndexRouteImport } from './routes/_authenticated/eventos.index'
 import { Route as PortalEventosEventIdRouteImport } from './routes/portal.eventos.$eventId'
 import { Route as ESlugInscripcionRouteImport } from './routes/e.$slug.inscripcion'
@@ -183,6 +184,11 @@ const AuthenticatedBrandingRoute = AuthenticatedBrandingRouteImport.update({
   id: '/branding',
   path: '/branding',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const PortalEventosIndexRoute = PortalEventosIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PortalEventosRoute,
 } as any)
 const AuthenticatedEventosIndexRoute =
   AuthenticatedEventosIndexRouteImport.update({
@@ -340,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
   '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/eventos/': typeof AuthenticatedEventosIndexRoute
+  '/portal/eventos/': typeof PortalEventosIndexRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -364,7 +371,6 @@ export interface FileRoutesByTo {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
-  '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
   '/portal': typeof PortalIndexRoute
@@ -385,6 +391,7 @@ export interface FileRoutesByTo {
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
   '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/eventos': typeof AuthenticatedEventosIndexRoute
+  '/portal/eventos': typeof PortalEventosIndexRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -433,6 +440,7 @@ export interface FileRoutesById {
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
   '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/_authenticated/eventos/': typeof AuthenticatedEventosIndexRoute
+  '/portal/eventos/': typeof PortalEventosIndexRoute
   '/_authenticated/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/_authenticated/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/_authenticated/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
@@ -481,6 +489,7 @@ export interface FileRouteTypes {
     | '/e/$slug/inscripcion'
     | '/portal/eventos/$eventId'
     | '/eventos/'
+    | '/portal/eventos/'
     | '/eventos/$eventId/editar'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
@@ -505,7 +514,6 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/c/$token'
     | '/e/$slug'
-    | '/portal/eventos'
     | '/portal/incidencias'
     | '/portal/informes'
     | '/portal'
@@ -526,6 +534,7 @@ export interface FileRouteTypes {
     | '/e/$slug/inscripcion'
     | '/portal/eventos/$eventId'
     | '/eventos'
+    | '/portal/eventos'
     | '/eventos/$eventId/editar'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
@@ -573,6 +582,7 @@ export interface FileRouteTypes {
     | '/e/$slug/inscripcion'
     | '/portal/eventos/$eventId'
     | '/_authenticated/eventos/'
+    | '/portal/eventos/'
     | '/_authenticated/eventos/$eventId/editar'
     | '/_authenticated/eventos/$eventId/sesiones/$sessionId'
     | '/_authenticated/eventos/$eventId/sesiones/nueva'
@@ -764,6 +774,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/branding'
       preLoaderRoute: typeof AuthenticatedBrandingRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/portal/eventos/': {
+      id: '/portal/eventos/'
+      path: '/'
+      fullPath: '/portal/eventos/'
+      preLoaderRoute: typeof PortalEventosIndexRouteImport
+      parentRoute: typeof PortalEventosRoute
     }
     '/_authenticated/eventos/': {
       id: '/_authenticated/eventos/'
@@ -1054,10 +1071,12 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 interface PortalEventosRouteChildren {
   PortalEventosEventIdRoute: typeof PortalEventosEventIdRoute
+  PortalEventosIndexRoute: typeof PortalEventosIndexRoute
 }
 
 const PortalEventosRouteChildren: PortalEventosRouteChildren = {
   PortalEventosEventIdRoute: PortalEventosEventIdRoute,
+  PortalEventosIndexRoute: PortalEventosIndexRoute,
 }
 
 const PortalEventosRouteWithChildren = PortalEventosRoute._addFileChildren(
