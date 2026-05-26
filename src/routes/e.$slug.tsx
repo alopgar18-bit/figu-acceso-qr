@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
 import { CalendarDays, MapPin, Users, AlertCircle } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,13 @@ export const Route = createFileRoute("/e/$slug")({
 
 function Page() {
   const { slug } = Route.useParams();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isChildRoute = pathname !== `/e/${slug}`;
   const { data, isLoading } = usePublicEvent(slug);
+
+  if (isChildRoute) {
+    return <Outlet />;
+  }
 
   if (isLoading) {
     return <PublicShell><Skeleton className="h-64" /></PublicShell>;
