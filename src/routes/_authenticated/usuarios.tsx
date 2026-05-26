@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { UserCog, Plus, Mail, Phone, ShieldCheck, CircleSlash } from "lucide-react";
+import { UserCog, Plus, Mail, Phone, ShieldCheck, CircleSlash, Pencil } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { createUser } from "@/lib/users.functions";
+import { createUser, updateUserRoles, updateUserClients } from "@/lib/users.functions";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: Page,
@@ -48,24 +48,32 @@ const ROLE_OPTIONS = [
 function Page() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin-users-with-roles"],
     queryFn: async () => {
-      const [profilesRes, rolesRes] = await Promise.all([
+      const [profilesRes, rolesRes, clientUsersRes] = await Promise.all([
         supabase.from("profiles").select("id, full_name, email, phone, is_active, created_at").order("created_at", { ascending: false }),
         supabase.from("user_roles").select("user_id, role"),
+        supabase.from("client_users").select("user_id, client_id"),
       ]);
       if (profilesRes.error) throw profilesRes.error;
       if (rolesRes.error) throw rolesRes.error;
+      if (clientUsersRes.error) throw clientUsersRes.error;
 
       const rolesByUser = new Map<string, string[]>();
       for (const row of rolesRes.data ?? []) {
         rolesByUser.set(row.user_id, [...(rolesByUser.get(row.user_id) ?? []), row.role]);
       }
+      const clientsByUser = new Map<string, string[]>();
+      for (const row of clientUsersRes.data ?? []) {
+        clientsByUser.set(row.user_id, [...(clientsByUser.get(row.user_id) ?? []), row.client_id]);
+      }
 
       return (profilesRes.data ?? []).map((profile) => ({
         ...profile,
         roles: rolesByUser.get(profile.id) ?? [],
+        clientIds: clientsByUser.get(profile.id) ?? [],
       }));
     },
   });
@@ -110,6 +118,7 @@ function Page() {
                   <TableHead>Roles</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Alta</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -144,6 +153,11 @@ function Page() {
                     <TableCell className="text-xs text-muted-foreground">
                       {new Date(u.created_at).toLocaleDateString("es-ES")}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => setEditingUserId(u.id)}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" />Editar
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -157,6 +171,15 @@ function Page() {
         onOpenChange={setOpen}
         onCreated={() => {
           void qc.invalidateQueries({ queryKey: ["admin-users-with-roles"] });
+        }}
+      />
+
+      <EditUserDialog
+        user={users.find((u) => u.id === editingUserId) ?? null}
+        onOpenChange={(v) => { if (!v) setEditingUserId(null); }}
+        onSaved={() => {
+          void qc.invalidateQueries({ queryKey: ["admin-users-with-roles"] });
+          void qc.invalidateQueries({ queryKey: ["client-portal"] });
         }}
       />
     </div>
