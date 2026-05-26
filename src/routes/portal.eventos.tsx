@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PageHeader, EmptyState } from "@/components/page-header";
 import { CalendarDays } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/portal/eventos")({
 });
 
 function EventsList() {
+  const navigate = useNavigate();
   const { data: ctx } = useClientContext();
   const { data: events = [], isLoading } = useClientEvents(ctx?.clientIds);
 
@@ -32,10 +33,17 @@ function EventsList() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {events.map((e) => (
-            <Link
+            <div
               key={e.id}
-              to="/portal/eventos/$eventId"
-              params={{ eventId: e.id }}
+              role="link"
+              tabIndex={0}
+              onClick={() => navigate({ to: "/portal/eventos/$eventId", params: { eventId: e.id } })}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter" || ev.key === " ") {
+                  ev.preventDefault();
+                  navigate({ to: "/portal/eventos/$eventId", params: { eventId: e.id } });
+                }
+              }}
               className="block cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <Card className="rounded-none p-5 hover:border-primary hover:shadow-md transition-all h-full">
@@ -57,7 +65,7 @@ function EventsList() {
                   <Badge variant="outline">{labelOf(EVENT_STATUS_OPTIONS, e.status)}</Badge>
                 </div>
               </Card>
-            </Link>
+            </div>
           ))}
         </div>
       )}
