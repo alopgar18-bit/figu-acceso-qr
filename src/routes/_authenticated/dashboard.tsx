@@ -212,6 +212,9 @@ function toTitleCase(str: string) {
 
 function DashboardPage() {
   const { user, profile, roles } = useAuth();
+  const canCreateEvents = roles.some((r) =>
+    r === "superadmin" || r === "admin_figurarte" || r === "coordinador",
+  );
   const rolesLabel = roles.length ? roles.map((r) => ROLE_LABELS[r] ?? r).join(" · ") : "Sin rol asignado";
   const { data, isLoading } = useDashboardData();
   const m = data?.metrics;
@@ -270,9 +273,11 @@ function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild size="lg" className="font-semibold">
-            <Link to="/eventos/nuevo"><Plus className="h-4 w-4 mr-1" /> Crear evento</Link>
-          </Button>
+          {canCreateEvents && (
+            <Button asChild size="lg" className="font-semibold">
+              <Link to="/eventos/nuevo"><Plus className="h-4 w-4 mr-1" /> Crear evento</Link>
+            </Button>
+          )}
           {f?.slug && (
             <Button asChild variant="outline" size="lg">
               <a href={`/e/${f.slug}`} target="_blank" rel="noreferrer">
@@ -383,9 +388,11 @@ function DashboardPage() {
           <EmptyBlock
             icon={<CalendarDays className="h-10 w-10" />}
             title="No hay eventos publicados"
-            description="Crea tu primer evento para empezar a recibir solicitudes."
-            actionLabel="Crear evento"
-            actionHref="/eventos/nuevo"
+            description={canCreateEvents
+              ? "Crea tu primer evento para empezar a recibir solicitudes."
+              : "Aún no se han publicado eventos."}
+            actionLabel={canCreateEvents ? "Crear evento" : undefined}
+            actionHref={canCreateEvents ? "/eventos/nuevo" : undefined}
           />
         )}
       </section>
@@ -519,9 +526,11 @@ function DashboardPage() {
                   <p className="text-sm text-muted-foreground mt-1 mb-4">
                     Aquí verás solicitudes, check-ins e incidencias en tiempo real.
                   </p>
-                  <Button asChild size="sm" variant="outline">
-                    <Link to="/eventos/nuevo">Crear primer evento</Link>
-                  </Button>
+                  {canCreateEvents && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/eventos/nuevo">Crear primer evento</Link>
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -560,16 +569,18 @@ function Stat({ label, value, tone, small }: { label: string; value: number | st
   );
 }
 
-function EmptyBlock({ icon, title, description, actionLabel, actionHref }: { icon: React.ReactNode; title: string; description: string; actionLabel: string; actionHref: string }) {
+function EmptyBlock({ icon, title, description, actionLabel, actionHref }: { icon: React.ReactNode; title: string; description: string; actionLabel?: string; actionHref?: string }) {
   return (
     <Card className="rounded-none border-2 border-dashed">
       <CardContent className="p-10 text-center flex flex-col items-center">
         <div className="text-muted-foreground mb-3">{icon}</div>
         <div className="font-semibold">{title}</div>
         <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-md">{description}</p>
-        <Button asChild>
-          <Link to={actionHref}>{actionLabel}</Link>
-        </Button>
+        {actionLabel && actionHref && (
+          <Button asChild>
+            <Link to={actionHref}>{actionLabel}</Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
