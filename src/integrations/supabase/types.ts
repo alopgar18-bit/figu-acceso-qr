@@ -179,6 +179,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "checkins_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "checkins_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
@@ -356,6 +363,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "event_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communication_logs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
             referencedColumns: ["id"]
           },
           {
@@ -565,6 +579,13 @@ export type Database = {
             referencedRelation: "event_sessions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "event_assignments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       event_participants: {
@@ -651,6 +672,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "event_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
             referencedColumns: ["id"]
           },
           {
@@ -936,6 +964,13 @@ export type Database = {
             referencedRelation: "event_sessions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "form_submissions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       import_batches: {
@@ -997,6 +1032,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "event_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_batches_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
             referencedColumns: ["id"]
           },
         ]
@@ -1111,6 +1153,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "event_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
             referencedColumns: ["id"]
           },
         ]
@@ -1320,6 +1369,13 @@ export type Database = {
             referencedRelation: "event_sessions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "public_forms_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       tickets: {
@@ -1387,6 +1443,13 @@ export type Database = {
             referencedRelation: "event_sessions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tickets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       user_roles: {
@@ -1412,7 +1475,95 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      event_sessions_public: {
+        Row: {
+          allow_companions: boolean | null
+          capacity: number | null
+          companions_qr_mode:
+            | Database["public"]["Enums"]["companions_qr_mode"]
+            | null
+          created_at: string | null
+          description: string | null
+          doors_open_at: string | null
+          ends_at: string | null
+          event_id: string | null
+          field_requirements: Json | null
+          id: string | null
+          inherit_event_fields: boolean | null
+          location_address: string | null
+          location_name: string | null
+          max_companions_per_participant: number | null
+          min_age: number | null
+          name: string | null
+          public_form_enabled: boolean | null
+          starts_at: string | null
+          status: Database["public"]["Enums"]["session_status"] | null
+          updated_at: string | null
+          user_selectable: boolean | null
+          waitlist_enabled: boolean | null
+        }
+        Insert: {
+          allow_companions?: boolean | null
+          capacity?: number | null
+          companions_qr_mode?:
+            | Database["public"]["Enums"]["companions_qr_mode"]
+            | null
+          created_at?: string | null
+          description?: string | null
+          doors_open_at?: string | null
+          ends_at?: string | null
+          event_id?: string | null
+          field_requirements?: Json | null
+          id?: string | null
+          inherit_event_fields?: boolean | null
+          location_address?: string | null
+          location_name?: string | null
+          max_companions_per_participant?: number | null
+          min_age?: number | null
+          name?: string | null
+          public_form_enabled?: boolean | null
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["session_status"] | null
+          updated_at?: string | null
+          user_selectable?: boolean | null
+          waitlist_enabled?: boolean | null
+        }
+        Update: {
+          allow_companions?: boolean | null
+          capacity?: number | null
+          companions_qr_mode?:
+            | Database["public"]["Enums"]["companions_qr_mode"]
+            | null
+          created_at?: string | null
+          description?: string | null
+          doors_open_at?: string | null
+          ends_at?: string | null
+          event_id?: string | null
+          field_requirements?: Json | null
+          id?: string | null
+          inherit_event_fields?: boolean | null
+          location_address?: string | null
+          location_name?: string | null
+          max_companions_per_participant?: number | null
+          min_age?: number | null
+          name?: string | null
+          public_form_enabled?: boolean | null
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["session_status"] | null
+          updated_at?: string | null
+          user_selectable?: boolean | null
+          waitlist_enabled?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sessions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       admin_archive_communication_logs: {
