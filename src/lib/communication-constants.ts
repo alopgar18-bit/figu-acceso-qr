@@ -42,6 +42,7 @@ export const COMM_VARIABLES = [
   { token: "{{fecha}}", description: "Fecha de la sesión" },
   { token: "{{hora_acceso}}", description: "Hora de acceso" },
   { token: "{{ubicacion}}", description: "Lugar / dirección" },
+  { token: "{{direccion}}", description: "Dirección completa (calle, ciudad)" },
   { token: "{{enlace_confirmacion}}", description: "Enlace para confirmar asistencia" },
   { token: "{{enlace_entrada}}", description: "Enlace a la entrada / QR" },
   { token: "{{qr}}", description: "Código QR / token" },
@@ -83,6 +84,7 @@ export interface RenderContext {
   fecha?: string | null;
   hora_acceso?: string | null;
   ubicacion?: string | null;
+  direccion?: string | null;
   enlace_confirmacion?: string | null;
   enlace_entrada?: string | null;
   qr?: string | null;
