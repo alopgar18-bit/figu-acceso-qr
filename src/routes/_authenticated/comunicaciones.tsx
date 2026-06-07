@@ -24,6 +24,7 @@ import { TemplateEditorDialog } from "@/components/template-editor-dialog";
 import {
   useTemplates,
   useDeleteTemplate,
+  useDuplicateTemplate,
   useCommunicationLogs,
   useUpdateLogStatus,
   type TemplateRow,
@@ -48,6 +49,7 @@ function Page() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const { data: templates = [], isLoading: loadingTemplates } = useTemplates();
   const del = useDeleteTemplate();
+  const duplicate = useDuplicateTemplate();
   const hasChild = matches.some(
     (m) =>
       m.routeId === "/_authenticated/comunicaciones/envio" ||
@@ -124,6 +126,15 @@ function Page() {
                       <TableCell className="text-xs">{new Date(t.updated_at).toLocaleString("es-ES")}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(t)}><Pencil className="h-4 w-4" /></Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Duplicar"
+                          onClick={async () => {
+                            try { await duplicate.mutateAsync(t); toast.success("Plantilla duplicada"); }
+                            catch (e) { toast.error((e as Error).message); }
+                          }}
+                        ><Copy className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(t.id)}><Trash2 className="h-4 w-4" /></Button>
                       </TableCell>
                     </TableRow>
