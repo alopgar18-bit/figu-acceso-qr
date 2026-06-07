@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send } from "lucide-react";
+import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,7 @@ function QueuePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendingWa, setSendingWa] = useState(false);
   const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
 
   const sendPendingEmails = async () => {
@@ -58,6 +59,28 @@ function QueuePage() {
       toast.error((e as Error).message);
     } finally {
       setSending(false);
+    }
+  };
+
+  const sendPendingWhatsapps = async () => {
+    setSendingWa(true);
+    try {
+      const ids = selectedIds.length > 0 ? selectedIds : undefined;
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: ids ? { ids } : {},
+      });
+      if (error) throw error;
+      if (data?.configured === false) {
+        toast.message(data.message ?? "Wassenger no configurado");
+      } else {
+        toast.success(`WhatsApps enviados: ${data?.sent ?? 0} · Fallidos: ${data?.failed ?? 0}`);
+      }
+      setSelected(new Set());
+      await refetch();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSendingWa(false);
     }
   };
 
@@ -184,6 +207,10 @@ function QueuePage() {
             <Button onClick={sendPendingEmails} disabled={sending}>
               <Send className="h-4 w-4 mr-2" />
               {sending ? "Enviando…" : selectedIds.length > 0 ? `Enviar ${selectedIds.length} seleccionados` : "Enviar emails pendientes"}
+            </Button>
+            <Button onClick={sendPendingWhatsapps} disabled={sendingWa} variant="secondary">
+              <MessageCircle className="h-4 w-4 mr-2" />
+              {sendingWa ? "Enviando WhatsApps…" : "Enviar WhatsApps pendientes"}
             </Button>
             <Button onClick={exportEmlZip}>
               <Mail className="h-4 w-4 mr-2" />Descargar .eml para Gmail

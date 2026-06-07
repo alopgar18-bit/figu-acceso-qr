@@ -6,6 +6,7 @@ export type CommStatus = Database["public"]["Enums"]["communication_status"];
 export const COMM_CHANNEL_OPTIONS: { value: CommChannel; label: string }[] = [
   { value: "email", label: "Email" },
   { value: "whatsapp_asistido", label: "WhatsApp asistido" },
+  { value: "whatsapp_business", label: "WhatsApp Business (Wassenger)" },
   { value: "sms", label: "SMS" },
   { value: "manual", label: "Manual" },
 ];
