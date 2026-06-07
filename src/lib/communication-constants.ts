@@ -56,7 +56,9 @@ export const PUBLIC_SITE_URL_FALLBACK = "https://figurarte.app";
 
 export function buildEntryUrl(token: string | null | undefined): string {
   const cleanToken = (token ?? "").trim();
-  return cleanToken ? `${PUBLIC_SITE_URL_FALLBACK}/c/${cleanToken}/entrada` : "";
+  // Apuntamos a /og/c/[token]: SSR público con Open Graph para previsualizaciones
+  // (WhatsApp, Facebook, Twitter). Para usuarios normales redirige a /c/[token]/entrada.
+  return cleanToken ? `${PUBLIC_SITE_URL_FALLBACK}/og/c/${cleanToken}` : "";
 }
 
 export interface SenderOption {
