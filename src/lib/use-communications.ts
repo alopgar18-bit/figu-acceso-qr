@@ -78,6 +78,31 @@ export function useDeleteTemplate() {
   });
 }
 
+export function useDuplicateTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (source: TemplateRow) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase
+        .from("communication_templates")
+        .insert({
+          name: `Copia de ${source.name}`,
+          channel: source.channel,
+          subject: source.subject,
+          body: source.body,
+          variables: source.variables,
+          is_active: source.is_active,
+          created_by: user?.id ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["communication_templates"] }),
+  });
+}
+
 export interface LogFilters {
   status?: CommStatus;
   channel?: CommChannel;

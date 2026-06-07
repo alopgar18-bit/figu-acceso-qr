@@ -1381,6 +1381,42 @@ export type Database = {
           },
         ]
       }
+      ticket_designs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          design: Json
+          id: string
+          is_global_default: boolean
+          name: string
+          scope_event_id: string | null
+          scope_session_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          design?: Json
+          id?: string
+          is_global_default?: boolean
+          name: string
+          scope_event_id?: string | null
+          scope_session_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          design?: Json
+          id?: string
+          is_global_default?: boolean
+          name?: string
+          scope_event_id?: string | null
+          scope_session_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tickets: {
         Row: {
           created_at: string
