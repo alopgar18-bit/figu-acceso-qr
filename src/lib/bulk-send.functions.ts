@@ -191,7 +191,10 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         enlace_entrada: enlace,
         enlace_confirmacion: enlace,
         qr: ticketToken ?? "",
-        qr_image: enlace ? buildQrImageUrl(enlace) : "",
+        // En WhatsApp las imágenes no se renderizan inline, así que {{qr_image}}
+        // debe apuntar al enlace limpio de la entrada (donde se ve el QR), no a
+        // la URL externa de generación de QR.
+        qr_image: isWhatsapp ? enlace : enlace ? buildQrImageUrl(enlace) : "",
         telefono: person?.phone ?? "",
       };
 
