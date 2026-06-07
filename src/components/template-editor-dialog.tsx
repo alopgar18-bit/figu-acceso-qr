@@ -70,10 +70,10 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
     fecha: "21/05/2026",
     hora_acceso: "19:30",
     ubicacion: "Teatro Alameda, Sevilla",
-    enlace_entrada: "https://figu-acceso-qr.lovable.app/c/demo-token/entrada",
-    enlace_confirmacion: "https://figu-acceso-qr.lovable.app/c/demo-token/entrada",
+    enlace_entrada: "https://figurarte.app/c/demo-token/entrada",
+    enlace_confirmacion: "https://figurarte.app/c/demo-token/entrada",
     qr: "demo-token",
-    qr_image: buildQrImageUrl("https://figu-acceso-qr.lovable.app/c/demo-token/entrada"),
+    qr_image: buildQrImageUrl("https://figurarte.app/c/demo-token/entrada"),
     instrucciones: "Recuerda llevar el DNI en vigor.",
     telefono: "",
   };
