@@ -50,10 +50,9 @@ export const COMM_VARIABLES = [
 
 export const SENDER_EMAIL = "casting@figurarte.es";
 // Dominio público al que apuntan los enlaces de los emails ({{enlace_entrada}}, {{enlace_confirmacion}}).
-// Puede sobreescribirse en runtime con la variable de entorno PUBLIC_SITE_URL del servidor.
-// IMPORTANTE: debe ser el dominio donde está desplegada ESTA app. Si en el futuro se configura
-// figurarte.app como dominio personalizado del proyecto, cambiar este valor.
-export const PUBLIC_SITE_URL_FALLBACK = "https://figu-acceso-qr.lovable.app";
+// Puede sobreescribirse en runtime con la variable de entorno PUBLIC_SITE_URL del servidor
+// (tanto en Lovable Cloud / Supabase Secrets como en Vercel).
+export const PUBLIC_SITE_URL_FALLBACK = "https://figurarte.app";
 
 export interface SenderOption {
   value: string; // full "Name <email>" used as Resend `from`
