@@ -83,8 +83,12 @@ Deno.serve(async (req) => {
 
       try {
         const isHtml = (log.body ?? "").trim().startsWith("<");
+        const perLogFrom = (log.metadata as Record<string, unknown> | null)?.from;
+        const effectiveFrom = typeof perLogFrom === "string" && perLogFrom.trim().length > 0
+          ? perLogFrom.trim()
+          : fromAddress;
         const payload: Record<string, unknown> = {
-          from: fromAddress,
+          from: effectiveFrom,
           to: [log.to_address],
           subject: log.subject ?? "(sin asunto)",
         };
