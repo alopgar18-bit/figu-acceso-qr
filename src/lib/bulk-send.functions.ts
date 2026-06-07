@@ -151,6 +151,8 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     const sessLoc = (session as { location_name?: string; location_address?: string } | null);
     const ubicacion =
       sessLoc?.location_name ?? event?.location_name ?? sessLoc?.location_address ?? event?.location_address ?? "";
+    const direccion =
+      sessLoc?.location_address ?? event?.location_address ?? "";
 
     const baseUrl = process.env.PUBLIC_SITE_URL ?? PUBLIC_SITE_URL_FALLBACK;
 
@@ -188,6 +190,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         fecha: sessionDateStr,
         hora_acceso: accessTimeStr,
         ubicacion,
+        direccion,
         enlace_entrada: enlace,
         enlace_confirmacion: enlace,
         qr: ticketToken ?? "",
@@ -472,6 +475,8 @@ export const resendInvitations = createServerFn({ method: "POST" })
         sess?.location_address ??
         p.events?.location_address ??
         "";
+      const direccion =
+        sess?.location_address ?? p.events?.location_address ?? "";
 
       const ticketToken = ticketMap.get(p.id);
       const linkToken = p.confirmation_token;
@@ -484,6 +489,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
         fecha: sessionDateStr,
         hora_acceso: accessTimeStr,
         ubicacion,
+        direccion,
         enlace_entrada: enlace,
         enlace_confirmacion: enlace,
         qr: ticketToken ?? "",
