@@ -3,6 +3,18 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
+function isPublicConfirmationPath(request: Request): boolean {
+  const { pathname } = new URL(request.url);
+  return pathname === "/c" || pathname.startsWith("/c/");
+}
+
+const publicConfirmationRouteMiddleware = createMiddleware().server(async ({ next, request }) => {
+  if (isPublicConfirmationPath(request)) {
+    return next({ context: { skipAuth: true, publicRoute: true } });
+  }
+  return next();
+});
+
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
@@ -19,6 +31,6 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [publicConfirmationRouteMiddleware, errorMiddleware],
   functionMiddleware: [attachSupabaseAuth],
 }));
