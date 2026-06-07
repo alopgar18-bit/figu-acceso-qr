@@ -1,0 +1,1 @@
+alter table public.events add column if not exists ticket_design jsonb not null default '{}'::jsonb;

@@ -814,6 +814,7 @@ export type Database = {
           slug: string | null
           starts_at: string | null
           status: Database["public"]["Enums"]["event_status"]
+          ticket_design: Json
           updated_at: string
           user_can_choose_session: boolean
         }
@@ -848,6 +849,7 @@ export type Database = {
           slug?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
+          ticket_design?: Json
           updated_at?: string
           user_can_choose_session?: boolean
         }
@@ -882,6 +884,7 @@ export type Database = {
           slug?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
+          ticket_design?: Json
           updated_at?: string
           user_can_choose_session?: boolean
         }
