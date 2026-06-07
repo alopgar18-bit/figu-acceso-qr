@@ -287,3 +287,225 @@ export const retryCommunication = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/**
+ * Re-queues an invitation email for each participant, using the latest template
+ * they were sent (or an explicit override). Re-renders with current person /
+ * session data so the recipient gets up-to-date info.
+ */
+const resendInputSchema = z.object({
+  participant_ids: z.array(z.string().uuid()).min(1).max(500),
+  template_id: z.string().uuid().optional(),
+  from: z.string().max(200).optional(),
+});
+
+export const resendInvitations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => resendInputSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+    ]);
+
+    const chunk = <T,>(arr: T[], size: number): T[][] => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
+
+    // 1) Load participants with related person/event/session.
+    type PartRow = {
+      id: string;
+      person_id: string;
+      event_id: string;
+      session_id: string;
+      confirmation_token: string | null;
+      people:
+        | { first_name: string; last_name: string | null; email: string | null; phone: string | null }
+        | null;
+      events: { name: string; location_name: string | null; location_address: string | null } | null;
+      event_sessions:
+        | {
+            name: string;
+            starts_at: string;
+            doors_open_at: string | null;
+            location_name: string | null;
+            location_address: string | null;
+          }
+        | null;
+    };
+
+    const participants: PartRow[] = [];
+    for (const ids of chunk(data.participant_ids, 100)) {
+      const { data: rows, error } = await supabase
+        .from("event_participants")
+        .select(
+          "id, person_id, event_id, session_id, confirmation_token, people(first_name,last_name,email,phone), events(name,location_name,location_address), event_sessions(name,starts_at,doors_open_at,location_name,location_address)",
+        )
+        .in("id", ids);
+      if (error) throw new Error(error.message);
+      for (const r of (rows ?? []) as unknown as PartRow[]) participants.push(r);
+    }
+    if (participants.length === 0) {
+      return { queued: 0, skipped_no_email: 0, skipped_no_template: 0, errors: [] as Array<{ participant_id: string; reason: string }> };
+    }
+
+    // 2) Resolve template per participant.
+    let overrideTemplate:
+      | { id: string; subject: string | null; body: string; channel: string }
+      | null = null;
+    if (data.template_id) {
+      const { data: t, error: tErr } = await supabase
+        .from("communication_templates")
+        .select("id, subject, body, channel")
+        .eq("id", data.template_id)
+        .single();
+      if (tErr || !t) throw new Error("Plantilla no encontrada");
+      overrideTemplate = t;
+    }
+
+    // Latest template per participant (from prior email logs with a template).
+    const templateIdByParticipant = new Map<string, string>();
+    if (!overrideTemplate) {
+      for (const ids of chunk(participants.map((p) => p.id), 100)) {
+        const { data: logs } = await supabase
+          .from("communication_logs")
+          .select("participant_id, template_id, created_at")
+          .eq("channel", "email")
+          .in("participant_id", ids)
+          .not("template_id", "is", null)
+          .order("created_at", { ascending: false });
+        for (const row of logs ?? []) {
+          if (!row.participant_id || !row.template_id) continue;
+          if (!templateIdByParticipant.has(row.participant_id)) {
+            templateIdByParticipant.set(row.participant_id, row.template_id);
+          }
+        }
+      }
+    }
+
+    // Load all needed templates in one call.
+    const neededTemplateIds = Array.from(
+      new Set(
+        overrideTemplate
+          ? [overrideTemplate.id]
+          : [...templateIdByParticipant.values()],
+      ),
+    );
+    const templatesById = new Map<
+      string,
+      { id: string; subject: string | null; body: string; channel: string }
+    >();
+    if (overrideTemplate) templatesById.set(overrideTemplate.id, overrideTemplate);
+    else if (neededTemplateIds.length > 0) {
+      const { data: tpls } = await supabase
+        .from("communication_templates")
+        .select("id, subject, body, channel")
+        .in("id", neededTemplateIds);
+      for (const t of tpls ?? []) templatesById.set(t.id, t);
+    }
+
+    // 3) Tickets per participant (active).
+    const ticketMap = new Map<string, string>();
+    for (const ids of chunk(participants.map((p) => p.id), 100)) {
+      const { data: tickets } = await supabase
+        .from("tickets")
+        .select("participant_id, qr_token")
+        .in("participant_id", ids)
+        .eq("revoked", false);
+      for (const t of tickets ?? []) {
+        if (!ticketMap.has(t.participant_id)) ticketMap.set(t.participant_id, t.qr_token);
+      }
+    }
+
+    const baseUrl = process.env.PUBLIC_SITE_URL ?? PUBLIC_SITE_URL_FALLBACK;
+
+    let queued = 0;
+    let skipped_no_email = 0;
+    let skipped_no_template = 0;
+    const errors: Array<{ participant_id: string; reason: string }> = [];
+
+    for (const p of participants) {
+      const person = p.people;
+      const email = person?.email ?? null;
+      if (!email) {
+        skipped_no_email++;
+        continue;
+      }
+
+      const templateId = overrideTemplate?.id ?? templateIdByParticipant.get(p.id);
+      const template = templateId ? templatesById.get(templateId) : undefined;
+      if (!template) {
+        skipped_no_template++;
+        errors.push({ participant_id: p.id, reason: "Sin plantilla previa" });
+        continue;
+      }
+
+      const sess = p.event_sessions;
+      const sessionStart = sess?.starts_at;
+      const sessionDateStr = sessionStart
+        ? new Date(sessionStart).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" })
+        : "";
+      const sessionTimeStr = sessionStart
+        ? new Date(sessionStart).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
+        : "";
+      const doors = sess?.doors_open_at;
+      const accessTimeStr = doors
+        ? new Date(doors).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
+        : sessionTimeStr;
+      const ubicacion =
+        sess?.location_name ??
+        p.events?.location_name ??
+        sess?.location_address ??
+        p.events?.location_address ??
+        "";
+
+      const ticketToken = ticketMap.get(p.id);
+      const linkToken = p.confirmation_token;
+      const enlace = linkToken ? `${baseUrl}/c/${linkToken}/entrada` : "";
+      const ctx: RenderContext = {
+        nombre: person?.first_name ?? "",
+        apellidos: person?.last_name ?? "",
+        evento: p.events?.name ?? "",
+        sesion: sess?.name ?? "",
+        fecha: sessionDateStr,
+        hora_acceso: accessTimeStr,
+        ubicacion,
+        enlace_entrada: enlace,
+        enlace_confirmacion: enlace,
+        qr: ticketToken ?? "",
+        qr_image: enlace ? buildQrImageUrl(enlace) : "",
+        telefono: person?.phone ?? "",
+      };
+
+      const subject = template.subject ? renderTemplate(template.subject, ctx) : null;
+      const body = renderTemplate(template.body, ctx);
+
+      try {
+        const { error: insErr } = await supabase.from("communication_logs").insert({
+          channel: "email",
+          status: "pendiente",
+          to_address: email,
+          subject,
+          body,
+          template_id: template.id,
+          participant_id: p.id,
+          person_id: p.person_id,
+          event_id: p.event_id,
+          session_id: p.session_id,
+          error_message: null,
+          metadata: { resend: true, ...(data.from ? { from: data.from } : {}) },
+          created_by: userId,
+        });
+        if (insErr) throw new Error(insErr.message);
+        queued++;
+      } catch (err) {
+        errors.push({ participant_id: p.id, reason: err instanceof Error ? err.message : "error" });
+      }
+    }
+
+    return { queued, skipped_no_email, skipped_no_template, errors };
+  });
