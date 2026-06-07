@@ -26,6 +26,29 @@ function randomToken(bytes = 24) {
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+async function resolveTicketDesign(eventId: string, sessionId: string): Promise<Json | null> {
+  // Hierarchy: session > event > global default
+  const { data: sessionDesign } = await supabaseAdmin
+    .from("ticket_designs")
+    .select("design")
+    .eq("scope_session_id", sessionId)
+    .maybeSingle();
+  if (sessionDesign?.design) return sessionDesign.design as Json;
+  const { data: eventDesign } = await supabaseAdmin
+    .from("ticket_designs")
+    .select("design")
+    .eq("scope_event_id", eventId)
+    .maybeSingle();
+  if (eventDesign?.design) return eventDesign.design as Json;
+  const { data: globalDesign } = await supabaseAdmin
+    .from("ticket_designs")
+    .select("design")
+    .eq("is_global_default", true)
+    .maybeSingle();
+  if (globalDesign?.design) return globalDesign.design as Json;
+  return null;
+}
+
 async function loadByToken(token: string) {
   const { data: participant, error } = await supabaseAdmin
     .from("event_participants")
