@@ -12,7 +12,6 @@ const isVercel = process.env.VERCEL === "1";
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
 export default defineConfig({
-  cloudflare: isVercel ? false : undefined,
   plugins: isVercel ? [nitro({ preset: "vercel" })] : [],
   tanstackStart: {
     server: { entry: "server" },
