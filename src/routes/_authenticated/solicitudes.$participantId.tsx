@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
-  ArrowLeft, CheckCircle2, XCircle, Clock, ArrowRightLeft, Ban, Mail,
+  ArrowLeft, CheckCircle2, XCircle, Clock, ArrowRightLeft, Ban, Mail, Send,
   Save, AlertCircle, Image as ImageIcon, Shield, UserCheck, Users as UsersIcon,
 } from "lucide-react";
 
@@ -33,6 +33,8 @@ import {
 } from "@/lib/participant-constants";
 import type { Database } from "@/integrations/supabase/types";
 import { SendCommunicationDialog, type CommRecipient } from "@/components/send-communication-dialog";
+import { useServerFn } from "@tanstack/react-start";
+import { resendInvitations } from "@/lib/bulk-send.functions";
 
 type Status = Database["public"]["Enums"]["participant_status"];
 type Attendee = Database["public"]["Enums"]["attendee_type"];
@@ -63,6 +65,8 @@ function Page() {
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockReason, setBlockReason] = useState("");
   const [commOpen, setCommOpen] = useState(false);
+  const [resending, setResending] = useState(false);
+  const resendFn = useServerFn(resendInvitations);
 
   if (isLoading || !p) {
     return (
@@ -209,6 +213,27 @@ function Page() {
           </Dialog>
           <Button variant="outline" onClick={() => setCommOpen(true)}>
             <Mail className="h-4 w-4 mr-1" />Enviar comunicación
+          </Button>
+          <Button
+            variant="outline"
+            disabled={resending || !person?.email}
+            title={!person?.email ? "Esta persona no tiene email" : "Reenviar la última invitación con datos actualizados"}
+            onClick={async () => {
+              setResending(true);
+              try {
+                const res = await resendFn({ data: { participant_ids: [p.id] } });
+                if (res.queued > 0) toast.success("Invitación reencolada");
+                else if (res.skipped_no_template > 0) toast.error("No hay invitación previa de la que tomar la plantilla. Usa 'Enviar comunicación'.");
+                else if (res.skipped_no_email > 0) toast.error("La persona no tiene email");
+                else toast.error("No se pudo reenviar");
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Error al reenviar");
+              } finally {
+                setResending(false);
+              }
+            }}
+          >
+            <Send className="h-4 w-4 mr-1" />Reenviar invitación
           </Button>
           <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
             <DialogTrigger asChild>
