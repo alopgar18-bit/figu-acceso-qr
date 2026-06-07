@@ -161,6 +161,8 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       }
       const person = p.people as { first_name: string; last_name: string | null; email: string | null; phone: string | null } | null;
       const email = person?.email ?? null;
+      const phone = person?.phone ?? null;
+      const isWhatsapp = template.channel === "whatsapp_business" || template.channel === "whatsapp_asistido";
       const ticketToken = ticketMap.get(p.id);
       const linkToken = p.confirmation_token ?? null;
 
@@ -168,8 +170,12 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         skipped_no_ticket++;
         continue;
       }
-      if (data.only_with_email && !email) {
+      if (data.only_with_email && !isWhatsapp && !email) {
         skipped_no_email++;
+        continue;
+      }
+      if (isWhatsapp && !phone) {
+        skipped_no_email++; // reused counter for "sin destinatario"
         continue;
       }
 
@@ -192,14 +198,15 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       const subject = template.subject ? renderTemplate(template.subject, ctx) : null;
       const body = renderTemplate(template.body, ctx);
 
-      const status: "pendiente" | "cancelado" = email ? "pendiente" : "cancelado";
-      const errorMessage = email ? null : "Sin email";
+      const recipient = isWhatsapp ? phone : email;
+      const status: "pendiente" | "cancelado" = recipient ? "pendiente" : "cancelado";
+      const errorMessage = recipient ? null : isWhatsapp ? "Sin teléfono" : "Sin email";
 
       try {
         const { error: insErr } = await supabase.from("communication_logs").insert({
           channel: template.channel,
           status,
-          to_address: email,
+          to_address: recipient,
           subject,
           body,
           template_id: template.id,
@@ -213,7 +220,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
           created_by: userId,
         });
         if (insErr) throw new Error(insErr.message);
-        if (email) queued++;
+        if (recipient) queued++;
         else skipped_no_email++;
       } catch (err) {
         errors.push({ participant_id: p.id, reason: err instanceof Error ? err.message : "error" });

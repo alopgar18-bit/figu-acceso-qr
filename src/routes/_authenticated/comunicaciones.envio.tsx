@@ -16,7 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { generateMissingTickets } from "@/lib/tickets.functions";
 import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
-import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
+import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel } from "@/lib/communication-constants";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 
 const searchSchema = z.object({
@@ -54,6 +54,7 @@ function BulkSendPage() {
   const [sessionId, setSessionId] = useState<string | undefined>(search.session_id);
   const [templateId, setTemplateId] = useState<string | undefined>();
   const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
+  const [channel, setChannel] = useState<CommChannel>("email");
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
@@ -191,8 +192,19 @@ function BulkSendPage() {
   }, [participants, ticketSet, sentQ.data]);
 
   const { data: templates = [] } = useTemplates();
-  const emailTemplates = templates.filter((t) => t.channel === "email" && t.is_active);
+  const channelTemplates = templates.filter((t) => t.channel === channel && t.is_active);
   const selectedTemplate = templates.find((t) => t.id === templateId);
+  const isWhatsapp = channel === "whatsapp_business" || channel === "whatsapp_asistido";
+  const availableChannels = COMM_CHANNEL_OPTIONS.filter(
+    (c) => c.value === "email" || c.value === "whatsapp_business" || c.value === "whatsapp_asistido",
+  );
+
+  // Reset selected template when channel changes if it doesn't belong to the channel.
+  useEffect(() => {
+    if (templateId && !channelTemplates.some((t) => t.id === templateId)) {
+      setTemplateId(undefined);
+    }
+  }, [channel, templateId, channelTemplates]);
 
   // Server fn handles
   const genTickets = useServerFn(generateMissingTickets);
@@ -261,10 +273,10 @@ FIGURARTE Casting & Producción`,
           batch_id: batchId,
           template_id: templateId,
           participant_ids: participants.map((p) => p.id),
-          only_with_email: true,
+          only_with_email: !isWhatsapp,
           only_with_ticket: true,
           skip_already_queued: true,
-          from: senderValue,
+          from: isWhatsapp ? undefined : senderValue,
         },
       });
       toast.success(
@@ -279,7 +291,9 @@ FIGURARTE Casting & Producción`,
   // Preview render with first valid recipient
   const previewSample = useMemo(() => {
     if (!selectedTemplate) return null;
-    const sample = participants.find((p) => p.people?.email) ?? participants[0];
+    const sample = isWhatsapp
+      ? (participants.find((p) => p.people?.phone) ?? participants[0])
+      : (participants.find((p) => p.people?.email) ?? participants[0]);
     if (!sample) return null;
     const ctx: RenderContext = {
       nombre: sample.people?.first_name ?? "",
@@ -292,11 +306,13 @@ FIGURARTE Casting & Producción`,
       enlace_entrada: "https://…/c/<token>/entrada",
     };
     return {
-      to: sample.people?.email ?? "(sin email)",
+      to: isWhatsapp
+        ? (sample.people?.phone ?? "(sin teléfono)")
+        : (sample.people?.email ?? "(sin email)"),
       subject: selectedTemplate.subject ? renderTemplate(selectedTemplate.subject, ctx) : "(sin asunto)",
       body: renderTemplate(selectedTemplate.body, ctx),
     };
-  }, [selectedTemplate, participants]);
+  }, [selectedTemplate, participants, isWhatsapp]);
 
   return (
     <div className="space-y-6">
@@ -394,36 +410,51 @@ FIGURARTE Casting & Producción`,
       {eventId && sessionId && (
         <Card>
           <CardHeader>
-            <CardTitle>3 · Plantilla de email</CardTitle>
-            <CardDescription>Elige remitente y plantilla. El envío real se procesa desde la cola.</CardDescription>
+            <CardTitle>3 · Canal y plantilla</CardTitle>
+            <CardDescription>Elige canal, remitente (si email) y plantilla. El envío real se procesa desde la cola.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Remitente</label>
-              <Select value={senderValue} onValueChange={setSenderValue}>
-                <SelectTrigger className="w-96"><SelectValue placeholder="Selecciona remitente" /></SelectTrigger>
+              <label className="text-xs font-medium text-muted-foreground">Canal</label>
+              <Select value={channel} onValueChange={(v) => setChannel(v as CommChannel)}>
+                <SelectTrigger className="w-96"><SelectValue placeholder="Selecciona canal" /></SelectTrigger>
                 <SelectContent>
-                  {SENDER_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  {availableChannels.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            {!isWhatsapp && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Remitente</label>
+                <Select value={senderValue} onValueChange={setSenderValue}>
+                  <SelectTrigger className="w-96"><SelectValue placeholder="Selecciona remitente" /></SelectTrigger>
+                  <SelectContent>
+                    {SENDER_OPTIONS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <Select value={templateId} onValueChange={setTemplateId}>
                 <SelectTrigger className="w-96"><SelectValue placeholder="Selecciona plantilla" /></SelectTrigger>
                 <SelectContent>
-                  {emailTemplates.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas email activas.</div>
+                  {channelTemplates.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas activas para este canal.</div>
                   )}
-                  {emailTemplates.map((t) => (
+                  {channelTemplates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={handleCreateSuggestedTemplate}>
-                Crear plantilla sugerida
-              </Button>
+              {channel === "email" && (
+                <Button variant="outline" onClick={handleCreateSuggestedTemplate}>
+                  Crear plantilla sugerida
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -435,12 +466,18 @@ FIGURARTE Casting & Producción`,
           <CardHeader>
             <CardTitle>4 · Previsualización</CardTitle>
             <CardDescription>
-              Se enviarán <strong>{stats.withEmail}</strong> emails. Se omitirán <strong>{stats.withoutEmail}</strong> sin email.
+              {isWhatsapp ? (
+                <>Se encolarán mensajes de WhatsApp para los destinatarios con teléfono.</>
+              ) : (
+                <>Se enviarán <strong>{stats.withEmail}</strong> emails. Se omitirán <strong>{stats.withoutEmail}</strong> sin email.</>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div><span className="text-muted-foreground">Para:</span> {previewSample.to}</div>
-            <div><span className="text-muted-foreground">Asunto:</span> <strong>{previewSample.subject}</strong></div>
+            <div><span className="text-muted-foreground">{isWhatsapp ? "Teléfono:" : "Para:"}</span> {previewSample.to}</div>
+            {!isWhatsapp && (
+              <div><span className="text-muted-foreground">Asunto:</span> <strong>{previewSample.subject}</strong></div>
+            )}
             <Separator className="my-2" />
             <pre className="whitespace-pre-wrap font-sans bg-muted/40 p-3 rounded text-xs">{previewSample.body}</pre>
           </CardContent>
@@ -456,14 +493,18 @@ FIGURARTE Casting & Producción`,
           <CardContent className="space-y-3">
             <Alert>
               <Mail className="h-4 w-4" />
-              <AlertTitle>Envío mediante Resend</AlertTitle>
+              <AlertTitle>{isWhatsapp ? "Envío mediante Wassenger" : "Envío mediante Resend"}</AlertTitle>
               <AlertDescription>
-                Se creará la cola con cada email renderizado en estado "pendiente". Remitente: <strong>{senderValue}</strong>. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.
+                {isWhatsapp ? (
+                  <>Se creará la cola con cada mensaje renderizado en estado "pendiente". Pulsa "Enviar WhatsApps pendientes" en la cola para procesar el envío.</>
+                ) : (
+                  <>Se creará la cola con cada email renderizado en estado "pendiente". Remitente: <strong>{senderValue}</strong>. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.</>
+                )}
               </AlertDescription>
             </Alert>
             <div className="flex gap-2">
-              <Button onClick={handleQueue} disabled={stats.withEmail === 0}>
-                <Send className="h-4 w-4 mr-2" />Crear cola ({stats.withEmail} destinatarios)
+              <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : stats.withEmail === 0}>
+                <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : stats.withEmail} destinatarios)
               </Button>
               <Button variant="outline" asChild>
                 <Link to="/comunicaciones/cola"><CheckCircle2 className="h-4 w-4 mr-2" />Ver cola</Link>
