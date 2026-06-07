@@ -13,15 +13,53 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getConfirmation } from "@/lib/confirmation.functions";
 import { parseTicketDesign, DEFAULT_TICKET_NOTICES, NOTICE_ICON_MAP, type TicketNoticeIcon } from "@/lib/ticket-design";
 
+const FALLBACK_OG_IMAGE = "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/4bcdb372-0e17-41c3-bfed-2e3aa64605e7";
+
 export const Route = createFileRoute("/c/$token/entrada")({
   component: Page,
-  head: () => ({
-    meta: [
-      { title: "Tu entrada" },
-      { name: "robots", content: "noindex" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-    ],
-  }),
+  loader: async ({ params }) => {
+    try {
+      const res = await getConfirmation({ data: { token: params.token } });
+      if (!res.ok) return { meta: null };
+      const { event, session } = res;
+      const startsAt = new Date(session.starts_at);
+      const dateStr = startsAt.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+      const location = session.location_name ?? event.location_name ?? null;
+      return {
+        meta: {
+          title: event.name,
+          description: `Tu invitación para ${session.name} · ${dateStr}${location ? ` · ${location}` : ""}`,
+          image: event.cover_image_url || FALLBACK_OG_IMAGE,
+        },
+      };
+    } catch {
+      return { meta: null };
+    }
+  },
+  head: ({ loaderData, params }) => {
+    const m = loaderData?.meta;
+    const url = `https://figurarte.app/c/${params.token}/entrada`;
+    const title = m?.title ? `${m.title} — Tu entrada` : "Tu entrada";
+    const description = m?.description ?? "Tu invitación de FIGURARTE";
+    const image = m?.image ?? FALLBACK_OG_IMAGE;
+    return {
+      meta: [
+        { title },
+        { name: "robots", content: "noindex" },
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:image", content: image },
+        { property: "og:url", content: url },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+        { name: "twitter:image", content: image },
+      ],
+    };
+  },
 });
 
 function Page() {

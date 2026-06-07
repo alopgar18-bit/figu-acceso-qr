@@ -15,6 +15,7 @@ type PublicEventSummary = {
   requires_image_consent: boolean;
   requires_recording: boolean;
   ticket_design: Json | null;
+  cover_image_url: string | null;
 };
 type PublicSessionSummary = Database["public"]["Tables"]["event_sessions"]["Row"];
 
@@ -52,8 +53,8 @@ async function resolveTicketDesign(eventId: string, sessionId: string): Promise<
 async function loadByToken(token: string) {
   const { data: participant, error } = await supabaseAdmin
     .from("event_participants")
-    .select(
-      "*, people(*), event_sessions(*), events(id,name,slug,location_name,location_address,general_instructions,brand_color,status,requires_image_consent,requires_recording,ticket_design)",
+      .select(
+      "*, people(*), event_sessions(*), events(id,name,slug,location_name,location_address,general_instructions,brand_color,status,requires_image_consent,requires_recording,ticket_design,cover_image_url)",
     )
     .eq("confirmation_token", token)
     .maybeSingle();
