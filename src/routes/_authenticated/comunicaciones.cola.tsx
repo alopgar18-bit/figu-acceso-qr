@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCommunicationLogs } from "@/lib/use-communications";
-import { COMM_STATUS_OPTIONS, type CommStatus } from "@/lib/communication-constants";
+import { COMM_STATUS_OPTIONS, type CommStatus, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
 import { retryCommunication } from "@/lib/bulk-send.functions";
 import { useArchiveCommunicationLogs, useDeleteCommunicationLogs } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
@@ -37,13 +37,14 @@ function QueuePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sending, setSending] = useState(false);
+  const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
 
   const sendPendingEmails = async () => {
     setSending(true);
     try {
       const ids = selectedIds.length > 0 ? selectedIds : undefined;
       const { data, error } = await supabase.functions.invoke("send-email", {
-        body: ids ? { ids } : {},
+        body: ids ? { ids, from: senderValue } : { from: senderValue },
       });
       if (error) throw error;
       if (data?.configured === false) {
@@ -172,6 +173,14 @@ function QueuePage() {
         description="Comunicaciones renderizadas pendientes de envío. Exporta como .eml para abrir y enviar desde Gmail (casting@figurarte.es)."
         actions={
           <div className="flex gap-2">
+            <Select value={senderValue} onValueChange={setSenderValue}>
+              <SelectTrigger className="w-72"><SelectValue placeholder="Remitente" /></SelectTrigger>
+              <SelectContent>
+                {SENDER_OPTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button onClick={sendPendingEmails} disabled={sending}>
               <Send className="h-4 w-4 mr-2" />
               {sending ? "Enviando…" : selectedIds.length > 0 ? `Enviar ${selectedIds.length} seleccionados` : "Enviar emails pendientes"}

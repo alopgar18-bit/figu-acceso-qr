@@ -14,6 +14,7 @@ const inputSchema = z.object({
   only_with_email: z.boolean().default(true),
   only_with_ticket: z.boolean().default(true),
   skip_already_queued: z.boolean().default(true),
+  from: z.string().max(200).optional(),
 });
 
 /**
@@ -208,6 +209,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
           session_id: data.session_id ?? null,
           batch_id: data.batch_id ?? null,
           error_message: errorMessage,
+          metadata: data.from ? { from: data.from } : {},
           created_by: userId,
         });
         if (insErr) throw new Error(insErr.message);

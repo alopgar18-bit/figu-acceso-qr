@@ -51,6 +51,21 @@ export const COMM_VARIABLES = [
 export const SENDER_EMAIL = "casting@figurarte.es";
 export const PUBLIC_SITE_URL_FALLBACK = "https://figu-acceso-qr.lovable.app";
 
+export interface SenderOption {
+  value: string; // full "Name <email>" used as Resend `from`
+  email: string;
+  label: string;
+  verified: boolean;
+}
+
+export const SENDER_OPTIONS: SenderOption[] = [
+  { value: "FIGURARTE Casting & Producción <casting@figurarte.app>", email: "casting@figurarte.app", label: "FIGURARTE · casting@figurarte.app", verified: true },
+  { value: "FIGURARTE Casting & Producción <casting@figurarte.es>", email: "casting@figurarte.es", label: "FIGURARTE · casting@figurarte.es (dominio sin verificar)", verified: false },
+  { value: "16 Escalones Producciones <publico@16escalones.es>", email: "publico@16escalones.es", label: "16 Escalones · publico@16escalones.es (dominio sin verificar)", verified: false },
+];
+
+export const DEFAULT_SENDER = SENDER_OPTIONS[0];
+
 export function buildQrImageUrl(data: string, size = 320): string {
   if (!data) return "";
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(data)}`;

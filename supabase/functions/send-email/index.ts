@@ -9,8 +9,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Remitente verificado en Resend para el dominio figurarte.app
-const FROM_ADDRESS = "Figurarte Casting <casting@figurarte.app>";
+// Remitente por defecto (dominio verificado en Resend)
+const DEFAULT_FROM_ADDRESS = "FIGURARTE Casting & Producción <casting@figurarte.app>";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -34,11 +34,14 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number } = {};
+    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; from?: string } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
     const limit = Math.min(Math.max(body.limit ?? 100, 1), 1000);
     const batchSize = Math.min(Math.max(body.batch_size ?? 100, 1), 200);
     const delayMs = Math.min(Math.max(body.delay_ms ?? 500, 0), 10000);
+    const fromAddress = (body.from && typeof body.from === "string" && body.from.trim().length > 0)
+      ? body.from.trim()
+      : DEFAULT_FROM_ADDRESS;
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     let query = supabase
@@ -80,8 +83,12 @@ Deno.serve(async (req) => {
 
       try {
         const isHtml = (log.body ?? "").trim().startsWith("<");
+        const perLogFrom = (log.metadata as Record<string, unknown> | null)?.from;
+        const effectiveFrom = typeof perLogFrom === "string" && perLogFrom.trim().length > 0
+          ? perLogFrom.trim()
+          : fromAddress;
         const payload: Record<string, unknown> = {
-          from: FROM_ADDRESS,
+          from: effectiveFrom,
           to: [log.to_address],
           subject: log.subject ?? "(sin asunto)",
         };
@@ -137,7 +144,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ configured: true, processed: allLogs.length, sent, failed, batch_size: batchSize, delay_ms: delayMs, errors }),
+      JSON.stringify({ configured: true, processed: allLogs.length, sent, failed, from: fromAddress, batch_size: batchSize, delay_ms: delayMs, errors }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {

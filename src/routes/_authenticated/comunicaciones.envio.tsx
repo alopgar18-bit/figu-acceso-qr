@@ -16,7 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { generateMissingTickets } from "@/lib/tickets.functions";
 import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
-import { renderTemplate, type RenderContext, SENDER_EMAIL } from "@/lib/communication-constants";
+import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 
 const searchSchema = z.object({
@@ -53,6 +53,7 @@ function BulkSendPage() {
   const [eventId, setEventId] = useState<string | undefined>(search.event_id);
   const [sessionId, setSessionId] = useState<string | undefined>(search.session_id);
   const [templateId, setTemplateId] = useState<string | undefined>();
+  const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
@@ -263,6 +264,7 @@ FIGURARTE Casting & Producción`,
           only_with_email: true,
           only_with_ticket: true,
           skip_already_queued: true,
+          from: senderValue,
         },
       });
       toast.success(
@@ -393,9 +395,20 @@ FIGURARTE Casting & Producción`,
         <Card>
           <CardHeader>
             <CardTitle>3 · Plantilla de email</CardTitle>
-            <CardDescription>Se enviará desde {SENDER_EMAIL} mediante Resend. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.</CardDescription>
+            <CardDescription>Elige remitente y plantilla. El envío real se procesa desde la cola.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Remitente</label>
+              <Select value={senderValue} onValueChange={setSenderValue}>
+                <SelectTrigger className="w-96"><SelectValue placeholder="Selecciona remitente" /></SelectTrigger>
+                <SelectContent>
+                  {SENDER_OPTIONS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <Select value={templateId} onValueChange={setTemplateId}>
                 <SelectTrigger className="w-96"><SelectValue placeholder="Selecciona plantilla" /></SelectTrigger>
@@ -445,7 +458,7 @@ FIGURARTE Casting & Producción`,
               <Mail className="h-4 w-4" />
               <AlertTitle>Envío mediante Resend</AlertTitle>
               <AlertDescription>
-                Se creará la cola con cada email renderizado en estado "pendiente". Se enviarán desde {SENDER_EMAIL} mediante Resend. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.
+                Se creará la cola con cada email renderizado en estado "pendiente". Remitente: <strong>{senderValue}</strong>. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.
               </AlertDescription>
             </Alert>
             <div className="flex gap-2">
