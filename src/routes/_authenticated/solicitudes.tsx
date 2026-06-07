@@ -4,7 +4,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import {
   Inbox, Search, Filter, X, AlertCircle, Image as ImageIcon,
-  CheckCircle2, XCircle, Clock, ArrowRightLeft, Mail, Download, Ban,
+  CheckCircle2, XCircle, Clock, ArrowRightLeft, Mail, Send, Download, Ban,
   Users as UsersIcon, QrCode, Trash2,
 } from "lucide-react";
 
@@ -37,6 +37,7 @@ import {
 } from "@/lib/participant-constants";
 import { useServerFn } from "@tanstack/react-start";
 import { generateMissingTickets } from "@/lib/tickets.functions";
+import { resendInvitations } from "@/lib/bulk-send.functions";
 import { useDeleteParticipants } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 import { useAuth } from "@/hooks/use-auth";
@@ -488,6 +489,8 @@ function BulkActionsBar({
   const { data: sessions = [] } = useEventSessions(singleEventId ?? undefined);
   const bulk = useBulkUpdateParticipants();
   const genTickets = useServerFn(generateMissingTickets);
+  const resendFn = useServerFn(resendInvitations);
+  const [resendLoading, setResendLoading] = useState(false);
   const deleteParticipants = useDeleteParticipants();
   const { isAdmin } = useAuth();
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
@@ -567,6 +570,26 @@ function BulkActionsBar({
       toast.error(e instanceof Error ? e.message : "Error generando QR");
     } finally {
       setGenLoading(false);
+    }
+  };
+
+  const resendBulk = async (useAllFiltered: boolean) => {
+    const ids = useAllFiltered ? rows.map((r) => r.id) : selectedIds;
+    if (ids.length === 0) {
+      toast.error("Selecciona destinatarios.");
+      return;
+    }
+    setResendLoading(true);
+    try {
+      const res = await resendFn({ data: { participant_ids: ids } });
+      const parts: string[] = [`${res.queued} reencoladas`];
+      if (res.skipped_no_template) parts.push(`${res.skipped_no_template} sin plantilla previa`);
+      if (res.skipped_no_email) parts.push(`${res.skipped_no_email} sin email`);
+      toast.success(parts.join(" · "));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al reenviar");
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -671,6 +694,15 @@ function BulkActionsBar({
           onClick={() => generateQrBulk(!hasSelection)}
         >
           <QrCode className="h-4 w-4 mr-1" />Generar QR
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={resendLoading || effectiveIds.length === 0}
+          onClick={() => resendBulk(!hasSelection)}
+          title="Reencolar invitación usando la última plantilla enviada a cada persona"
+        >
+          <Send className="h-4 w-4 mr-1" />Reenviar invitación
         </Button>
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="h-4 w-4 mr-1" />Exportar
