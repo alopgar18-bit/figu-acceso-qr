@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Palette, Plus, Trash2, IdCard, Clock, AlertCircle } from "lucide-react";
+import { Plus, Trash2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -70,7 +70,7 @@ function Page() {
       };
       const { error } = await supabase
         .from("events")
-        .update({ ticket_design: payload as unknown as Record<string, unknown> })
+        .update({ ticket_design: payload as unknown as never })
         .eq("id", event.id);
       if (error) throw error;
     },
@@ -92,9 +92,9 @@ function Page() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Administración"
         title="Diseño de entradas"
         description="Personaliza textos, avisos y colores de la entrada QR que ven los asistentes."
-        icon={Palette}
       />
 
       <Card>
