@@ -139,14 +139,14 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
 
     const sessionStart = (session as { starts_at?: string } | null)?.starts_at;
     const sessionDateStr = sessionStart
-      ? new Date(sessionStart).toLocaleDateString("es-ES")
+      ? new Date(sessionStart).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" })
       : "";
     const sessionTimeStr = sessionStart
-      ? new Date(sessionStart).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
+      ? new Date(sessionStart).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
       : "";
     const doors = (session as { doors_open_at?: string } | null)?.doors_open_at;
     const accessTimeStr = doors
-      ? new Date(doors).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
+      ? new Date(doors).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
       : sessionTimeStr;
     const sessLoc = (session as { location_name?: string; location_address?: string } | null);
     const ubicacion =
