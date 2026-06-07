@@ -1704,7 +1704,12 @@ export type Database = {
         | "cancelado"
         | "fuera_de_horario"
         | "incidencia"
-      communication_channel: "email" | "whatsapp_asistido" | "sms" | "manual"
+      communication_channel:
+        | "email"
+        | "whatsapp_asistido"
+        | "sms"
+        | "manual"
+        | "whatsapp_business"
       communication_status:
         | "pendiente"
         | "enviado"
@@ -1933,7 +1938,13 @@ export const Constants = {
         "fuera_de_horario",
         "incidencia",
       ],
-      communication_channel: ["email", "whatsapp_asistido", "sms", "manual"],
+      communication_channel: [
+        "email",
+        "whatsapp_asistido",
+        "sms",
+        "manual",
+        "whatsapp_business",
+      ],
       communication_status: [
         "pendiente",
         "enviado",
