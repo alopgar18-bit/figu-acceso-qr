@@ -38,6 +38,7 @@ import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticat
 import { Route as PortalEventosIndexRouteImport } from './routes/portal.eventos.index'
 import { Route as AuthenticatedEventosIndexRouteImport } from './routes/_authenticated/eventos.index'
 import { Route as PortalEventosEventIdRouteImport } from './routes/portal.eventos.$eventId'
+import { Route as OgCTokenRouteImport } from './routes/og.c.$token'
 import { Route as ESlugInscripcionRouteImport } from './routes/e.$slug.inscripcion'
 import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
 import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
@@ -208,6 +209,11 @@ const PortalEventosEventIdRoute = PortalEventosEventIdRouteImport.update({
   path: '/$eventId',
   getParentRoute: () => PortalEventosRoute,
 } as any)
+const OgCTokenRoute = OgCTokenRouteImport.update({
+  id: '/og/c/$token',
+  path: '/og/c/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ESlugInscripcionRoute = ESlugInscripcionRouteImport.update({
   id: '/inscripcion',
   path: '/inscripcion',
@@ -352,6 +358,7 @@ export interface FileRoutesByFullPath {
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
+  '/og/c/$token': typeof OgCTokenRoute
   '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/eventos/': typeof AuthenticatedEventosIndexRoute
   '/portal/eventos/': typeof PortalEventosIndexRoute
@@ -398,6 +405,7 @@ export interface FileRoutesByTo {
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
+  '/og/c/$token': typeof OgCTokenRoute
   '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/eventos': typeof AuthenticatedEventosIndexRoute
   '/portal/eventos': typeof PortalEventosIndexRoute
@@ -448,6 +456,7 @@ export interface FileRoutesById {
   '/e/$slug/completo': typeof ESlugCompletoRoute
   '/e/$slug/gracias': typeof ESlugGraciasRoute
   '/e/$slug/inscripcion': typeof ESlugInscripcionRoute
+  '/og/c/$token': typeof OgCTokenRoute
   '/portal/eventos/$eventId': typeof PortalEventosEventIdRoute
   '/_authenticated/eventos/': typeof AuthenticatedEventosIndexRoute
   '/portal/eventos/': typeof PortalEventosIndexRoute
@@ -498,6 +507,7 @@ export interface FileRouteTypes {
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
     | '/e/$slug/inscripcion'
+    | '/og/c/$token'
     | '/portal/eventos/$eventId'
     | '/eventos/'
     | '/portal/eventos/'
@@ -544,6 +554,7 @@ export interface FileRouteTypes {
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
     | '/e/$slug/inscripcion'
+    | '/og/c/$token'
     | '/portal/eventos/$eventId'
     | '/eventos'
     | '/portal/eventos'
@@ -593,6 +604,7 @@ export interface FileRouteTypes {
     | '/e/$slug/completo'
     | '/e/$slug/gracias'
     | '/e/$slug/inscripcion'
+    | '/og/c/$token'
     | '/portal/eventos/$eventId'
     | '/_authenticated/eventos/'
     | '/portal/eventos/'
@@ -609,6 +621,7 @@ export interface RootRouteChildren {
   PrivacidadRoute: typeof PrivacidadRoute
   CTokenRoute: typeof CTokenRouteWithChildren
   ESlugRoute: typeof ESlugRouteWithChildren
+  OgCTokenRoute: typeof OgCTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -815,6 +828,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/eventos/$eventId'
       preLoaderRoute: typeof PortalEventosEventIdRouteImport
       parentRoute: typeof PortalEventosRoute
+    }
+    '/og/c/$token': {
+      id: '/og/c/$token'
+      path: '/og/c/$token'
+      fullPath: '/og/c/$token'
+      preLoaderRoute: typeof OgCTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/e/$slug/inscripcion': {
       id: '/e/$slug/inscripcion'
@@ -1159,6 +1179,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadRoute: PrivacidadRoute,
   CTokenRoute: CTokenRouteWithChildren,
   ESlugRoute: ESlugRouteWithChildren,
+  OgCTokenRoute: OgCTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
