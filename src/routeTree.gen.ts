@@ -29,6 +29,7 @@ import { Route as AuthenticatedLegalRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedInformesRouteImport } from './routes/_authenticated/informes'
 import { Route as AuthenticatedIncidenciasRouteImport } from './routes/_authenticated/incidencias'
 import { Route as AuthenticatedImportacionesRouteImport } from './routes/_authenticated/importaciones'
+import { Route as AuthenticatedDisenoEntradasRouteImport } from './routes/_authenticated/diseno-entradas'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authenticated/control-acceso'
 import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
@@ -156,6 +157,12 @@ const AuthenticatedImportacionesRoute =
   AuthenticatedImportacionesRouteImport.update({
     id: '/importaciones',
     path: '/importaciones',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedDisenoEntradasRoute =
+  AuthenticatedDisenoEntradasRouteImport.update({
+    id: '/diseno-entradas',
+    path: '/diseno-entradas',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -314,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/comunicaciones': typeof AuthenticatedComunicacionesRouteWithChildren
   '/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/diseno-entradas': typeof AuthenticatedDisenoEntradasRoute
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/incidencias': typeof AuthenticatedIncidenciasRoute
   '/informes': typeof AuthenticatedInformesRouteWithChildren
@@ -360,6 +368,7 @@ export interface FileRoutesByTo {
   '/comunicaciones': typeof AuthenticatedComunicacionesRouteWithChildren
   '/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/diseno-entradas': typeof AuthenticatedDisenoEntradasRoute
   '/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/incidencias': typeof AuthenticatedIncidenciasRoute
   '/informes': typeof AuthenticatedInformesRouteWithChildren
@@ -408,6 +417,7 @@ export interface FileRoutesById {
   '/_authenticated/comunicaciones': typeof AuthenticatedComunicacionesRouteWithChildren
   '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/diseno-entradas': typeof AuthenticatedDisenoEntradasRoute
   '/_authenticated/importaciones': typeof AuthenticatedImportacionesRouteWithChildren
   '/_authenticated/incidencias': typeof AuthenticatedIncidenciasRoute
   '/_authenticated/informes': typeof AuthenticatedInformesRouteWithChildren
@@ -457,6 +467,7 @@ export interface FileRouteTypes {
     | '/comunicaciones'
     | '/control-acceso'
     | '/dashboard'
+    | '/diseno-entradas'
     | '/importaciones'
     | '/incidencias'
     | '/informes'
@@ -503,6 +514,7 @@ export interface FileRouteTypes {
     | '/comunicaciones'
     | '/control-acceso'
     | '/dashboard'
+    | '/diseno-entradas'
     | '/importaciones'
     | '/incidencias'
     | '/informes'
@@ -550,6 +562,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comunicaciones'
     | '/_authenticated/control-acceso'
     | '/_authenticated/dashboard'
+    | '/_authenticated/diseno-entradas'
     | '/_authenticated/importaciones'
     | '/_authenticated/incidencias'
     | '/_authenticated/informes'
@@ -738,6 +751,13 @@ declare module '@tanstack/react-router' {
       path: '/importaciones'
       fullPath: '/importaciones'
       preLoaderRoute: typeof AuthenticatedImportacionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/diseno-entradas': {
+      id: '/_authenticated/diseno-entradas'
+      path: '/diseno-entradas'
+      fullPath: '/diseno-entradas'
+      preLoaderRoute: typeof AuthenticatedDisenoEntradasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/dashboard': {
@@ -1029,6 +1049,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedComunicacionesRoute: typeof AuthenticatedComunicacionesRouteWithChildren
   AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDisenoEntradasRoute: typeof AuthenticatedDisenoEntradasRoute
   AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRouteWithChildren
   AuthenticatedIncidenciasRoute: typeof AuthenticatedIncidenciasRoute
   AuthenticatedInformesRoute: typeof AuthenticatedInformesRouteWithChildren
@@ -1050,6 +1071,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedComunicacionesRouteWithChildren,
   AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDisenoEntradasRoute: AuthenticatedDisenoEntradasRoute,
   AuthenticatedImportacionesRoute: AuthenticatedImportacionesRouteWithChildren,
   AuthenticatedIncidenciasRoute: AuthenticatedIncidenciasRoute,
   AuthenticatedInformesRoute: AuthenticatedInformesRouteWithChildren,
@@ -1141,3 +1163,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
