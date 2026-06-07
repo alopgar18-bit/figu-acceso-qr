@@ -93,6 +93,13 @@ export const getConfirmation = createServerFn({ method: "GET" })
       .select("*")
       .eq("participant_id", p.id);
 
+    // Resolve ticket design from new library; fall back to legacy event.ticket_design jsonb
+    const resolved = await resolveTicketDesign(event.id, session.id);
+    const eventWithDesign: PublicEventSummary = {
+      ...event,
+      ticket_design: resolved ?? event.ticket_design ?? null,
+    };
+
     return {
       ok: true as const,
       participant: {
@@ -103,7 +110,7 @@ export const getConfirmation = createServerFn({ method: "GET" })
         attendee_type: p.attendee_type,
       },
       person: p.people,
-      event,
+      event: eventWithDesign,
       session,
       tickets: tickets ?? [],
       companions: companions ?? [],
