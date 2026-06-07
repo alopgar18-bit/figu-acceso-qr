@@ -84,6 +84,7 @@ export interface RenderContext {
   fecha?: string | null;
   hora_acceso?: string | null;
   ubicacion?: string | null;
+  direccion?: string | null;
   enlace_confirmacion?: string | null;
   enlace_entrada?: string | null;
   qr?: string | null;
