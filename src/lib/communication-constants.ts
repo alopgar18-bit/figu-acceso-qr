@@ -49,7 +49,7 @@ export const COMM_VARIABLES = [
 ] as const;
 
 export const SENDER_EMAIL = "casting@figurarte.es";
-export const PUBLIC_SITE_URL_FALLBACK = "https://figu-acceso-qr.lovable.app";
+export const PUBLIC_SITE_URL_FALLBACK = "https://figurarte.app";
 
 export interface SenderOption {
   value: string; // full "Name <email>" used as Resend `from`
