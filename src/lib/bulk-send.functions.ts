@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
-import { renderTemplate, buildQrImageUrl, PUBLIC_SITE_URL_FALLBACK, type RenderContext } from "./communication-constants";
+import { renderTemplate, buildQrImageUrl, buildEntryUrl, type RenderContext } from "./communication-constants";
 
 const inputSchema = z.object({
   event_id: z.string().uuid(),
@@ -154,8 +154,6 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     const direccion =
       sessLoc?.location_address ?? event?.location_address ?? "";
 
-    const baseUrl = process.env.PUBLIC_SITE_URL ?? PUBLIC_SITE_URL_FALLBACK;
-
     for (const p of participants) {
       if (data.skip_already_queued && alreadyKeys.has(p.id)) {
         skipped_already++;
@@ -181,7 +179,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         continue;
       }
 
-      const enlace = linkToken ? `${baseUrl}/c/${linkToken}/entrada` : "";
+      const enlace = buildEntryUrl(linkToken);
       const ctx: RenderContext = {
         nombre: person?.first_name ?? "",
         apellidos: person?.last_name ?? "",
@@ -434,8 +432,6 @@ export const resendInvitations = createServerFn({ method: "POST" })
       }
     }
 
-    const baseUrl = process.env.PUBLIC_SITE_URL ?? PUBLIC_SITE_URL_FALLBACK;
-
     let queued = 0;
     let skipped_no_email = 0;
     let skipped_no_template = 0;
@@ -480,7 +476,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
 
       const ticketToken = ticketMap.get(p.id);
       const linkToken = p.confirmation_token;
-      const enlace = linkToken ? `${baseUrl}/c/${linkToken}/entrada` : "";
+      const enlace = buildEntryUrl(linkToken);
       const ctx: RenderContext = {
         nombre: person?.first_name ?? "",
         apellidos: person?.last_name ?? "",
