@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getConfirmation } from "@/lib/confirmation.functions";
-import { parseTicketDesign, DEFAULT_TICKET_NOTICES, NOTICE_ICON_MAP } from "@/lib/ticket-design";
+import { parseTicketDesign, DEFAULT_TICKET_NOTICES, NOTICE_ICON_MAP, type TicketNoticeIcon } from "@/lib/ticket-design";
 
 export const Route = createFileRoute("/c/$token/entrada")({
   component: Page,
@@ -154,8 +154,8 @@ function Page() {
             <Separator />
 
             <div className="space-y-3 text-xs">
-              {notices.map((n: { icon: string; text: string }, i: number) => {
-                const Icon = NOTICE_ICON_MAP[n.icon] ?? AlertCircle;
+              {notices.map((n, i) => {
+                const Icon = NOTICE_ICON_MAP[n.icon as TicketNoticeIcon] ?? AlertCircle;
                 return (
                   <Notice key={i} icon={<Icon className="h-3.5 w-3.5" />}>
                     <span dangerouslySetInnerHTML={{ __html: n.text }} />
