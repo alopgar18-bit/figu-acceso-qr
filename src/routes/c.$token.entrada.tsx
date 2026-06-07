@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getConfirmation } from "@/lib/confirmation.functions";
+import { parseTicketDesign, DEFAULT_TICKET_NOTICES, NOTICE_ICON_MAP } from "@/lib/ticket-design";
 
 export const Route = createFileRoute("/c/$token/entrada")({
   component: Page,
@@ -55,7 +56,12 @@ function Page() {
   }
 
   const { event, session, person, tickets, participant, companions } = data;
-  const brandColor = event.brand_color ?? null;
+  const design = parseTicketDesign(event.ticket_design);
+  const headerBg = design.header_bg || event.brand_color || null;
+  const headerColor = design.header_text_color || "#ffffff";
+  const notices = design.notices && design.notices.length > 0 ? design.notices : DEFAULT_TICKET_NOTICES;
+  const footerNote = design.footer_note ?? "Conserva este enlace para volver a ver tu entrada.";
+  const instructionsText = design.instructions_override ?? session.specific_instructions ?? event.general_instructions ?? null;
   const startsAt = new Date(session.starts_at);
   const doorsAt = session.doors_open_at ? new Date(session.doors_open_at) : null;
   const main = tickets[0];
@@ -63,11 +69,11 @@ function Page() {
   return (
     <div className="min-h-screen bg-muted/30 px-4 py-6 sm:py-10">
       <div className="max-w-md mx-auto">
-        <Card className="overflow-hidden shadow-xl border-2" style={brandColor ? { borderColor: brandColor } : undefined}>
+        <Card className="overflow-hidden shadow-xl border-2" style={headerBg ? { borderColor: headerBg } : undefined}>
           {/* Header */}
           <div
             className="px-6 py-6 text-center"
-            style={{ background: brandColor ?? "hsl(var(--primary))", color: "white" }}
+            style={{ background: headerBg ?? "hsl(var(--primary))", color: headerColor }}
           >
             <h1 className="text-xl font-black uppercase tracking-tight leading-tight">{event.name}</h1>
             <div className="mt-1 text-sm opacity-90">{session.name}</div>
@@ -148,18 +154,17 @@ function Page() {
             <Separator />
 
             <div className="space-y-3 text-xs">
-              <Notice icon={<IdCard className="h-3.5 w-3.5" />}>
-                <strong>DNI obligatorio</strong> en el acceso para verificar tu identidad.
-              </Notice>
-              <Notice icon={<Clock className="h-3.5 w-3.5" />}>
-                <strong>Puntualidad:</strong> llega con al menos 30 minutos de antelación. No se garantiza el acceso fuera del horario indicado.
-              </Notice>
-              <Notice icon={<AlertCircle className="h-3.5 w-3.5" />}>
-                Este QR es <strong>personal e intransferible</strong> y de un solo uso. No lo compartas.
-              </Notice>
-              {(session.specific_instructions || event.general_instructions) && (
+              {notices.map((n, i) => {
+                const Icon = NOTICE_ICON_MAP[n.icon] ?? AlertCircle;
+                return (
+                  <Notice key={i} icon={<Icon className="h-3.5 w-3.5" />}>
+                    <span dangerouslySetInnerHTML={{ __html: n.text }} />
+                  </Notice>
+                );
+              })}
+              {instructionsText && (
                 <div className="text-muted-foreground whitespace-pre-line bg-muted/50 p-3 rounded-md">
-                  {session.specific_instructions ?? event.general_instructions}
+                  {instructionsText}
                 </div>
               )}
             </div>
@@ -176,7 +181,7 @@ function Page() {
         </div>
 
         <p className="mt-4 text-[10px] text-center text-muted-foreground">
-          Conserva este enlace para volver a ver tu entrada.
+          {footerNote}
         </p>
       </div>
     </div>
