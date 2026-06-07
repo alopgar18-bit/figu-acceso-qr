@@ -5,7 +5,12 @@ import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 function isPublicConfirmationPath(request: Request): boolean {
   const { pathname } = new URL(request.url);
-  return pathname === "/c" || pathname.startsWith("/c/");
+  return (
+    pathname === "/c" ||
+    pathname.startsWith("/c/") ||
+    pathname === "/og" ||
+    pathname.startsWith("/og/")
+  );
 }
 
 const publicConfirmationRouteMiddleware = createMiddleware().server(async ({ next, request }) => {
