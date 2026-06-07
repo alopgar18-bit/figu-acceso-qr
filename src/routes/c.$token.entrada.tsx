@@ -154,7 +154,7 @@ function Page() {
             <Separator />
 
             <div className="space-y-3 text-xs">
-              {notices.map((n, i) => {
+              {notices.map((n: { icon: string; text: string }, i: number) => {
                 const Icon = NOTICE_ICON_MAP[n.icon] ?? AlertCircle;
                 return (
                   <Notice key={i} icon={<Icon className="h-3.5 w-3.5" />}>
