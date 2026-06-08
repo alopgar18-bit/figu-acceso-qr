@@ -21,6 +21,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TemplateEditorDialog } from "@/components/template-editor-dialog";
+import { CommSummaryPanel } from "@/components/comm-summary-panel";
+import { CommLogDetailDialog, type CommLogDetail } from "@/components/comm-log-detail-dialog";
 import {
   useTemplates,
   useDeleteTemplate,
@@ -90,6 +92,7 @@ function Page() {
       <Tabs defaultValue="templates">
         <TabsList>
           <TabsTrigger value="templates">Plantillas</TabsTrigger>
+          <TabsTrigger value="summary">Resumen de envíos</TabsTrigger>
           <TabsTrigger value="queue">Cola y log</TabsTrigger>
           <TabsTrigger value="errors">Errores</TabsTrigger>
         </TabsList>
@@ -145,6 +148,10 @@ function Page() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="summary" className="mt-4">
+          <CommSummaryPanel />
+        </TabsContent>
+
         <TabsContent value="queue" className="mt-4">
           <LogsTable />
         </TabsContent>
@@ -193,6 +200,7 @@ function LogsTable({ defaultStatus }: { defaultStatus?: CommStatus }) {
   const [status, setStatus] = useState<CommStatus | "all">(defaultStatus ?? "all");
   const [channel, setChannel] = useState<CommChannel | "all">("all");
   const [search, setSearch] = useState("");
+  const [detailLog, setDetailLog] = useState<CommLogDetail | null>(null);
   const { data: logs = [], isLoading } = useCommunicationLogs({
     status: status === "all" ? undefined : status,
     channel: channel === "all" ? undefined : channel,
@@ -264,10 +272,18 @@ function LogsTable({ defaultStatus }: { defaultStatus?: CommStatus }) {
               const tone = COMM_STATUS_OPTIONS.find((o) => o.value === l.status)?.tone ?? "outline";
               const name = l.people ? `${l.people.first_name} ${l.people.last_name ?? ""}`.trim() : "—";
               const subject = l.subject?.trim() || "Sin asunto";
+              const hasWassenger = (l.metadata as Record<string, unknown> | null)?.wassenger_id != null;
               return (
-                <TableRow key={l.id}>
+                <TableRow
+                  key={l.id}
+                  className="cursor-pointer hover:bg-muted/40"
+                  onClick={() => setDetailLog(l as unknown as CommLogDetail)}
+                >
                   <TableCell className="text-xs">{new Date(l.created_at).toLocaleString("es-ES")}</TableCell>
-                  <TableCell><Badge variant="outline">{labelFor(l.channel as CommChannel, COMM_CHANNEL_OPTIONS)}</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{labelFor(l.channel as CommChannel, COMM_CHANNEL_OPTIONS)}</Badge>
+                    {hasWassenger && <div className="text-[10px] text-muted-foreground mt-1">Wassenger ✓</div>}
+                  </TableCell>
                   <TableCell className="text-sm">
                     <div className="font-medium">{name}</div>
                     <div className="text-xs text-muted-foreground">{l.to_address ?? "—"}</div>
@@ -276,7 +292,7 @@ function LogsTable({ defaultStatus }: { defaultStatus?: CommStatus }) {
                     {subject}
                   </TableCell>
                   <TableCell><Badge variant={tone}>{labelFor(l.status as CommStatus, COMM_STATUS_OPTIONS)}</Badge></TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     {l.channel === "whatsapp_asistido" && l.to_address && l.body && (
                       <Button
                         variant="ghost"
@@ -340,6 +356,11 @@ function LogsTable({ defaultStatus }: { defaultStatus?: CommStatus }) {
             })}
           </TableBody>
         </Table>
+        <CommLogDetailDialog
+          log={detailLog}
+          open={!!detailLog}
+          onOpenChange={(o) => !o && setDetailLog(null)}
+        />
       </CardContent>
     </Card>
   );
