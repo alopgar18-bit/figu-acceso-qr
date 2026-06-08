@@ -20,7 +20,10 @@ export function CommSummaryPanel() {
     () => [
       { label: "Total destinatarios", value: data?.total ?? 0, tone: "default" as const },
       { label: "Enviados · Email", value: data?.enviados_email ?? 0, tone: "secondary" as const },
+      { label: "Email · Confirmados Resend", value: data?.email_confirmados_resend ?? 0, tone: "secondary" as const },
+      { label: "Email · Sin confirmación", value: data?.email_sin_confirmacion ?? 0, tone: "outline" as const },
       { label: "Enviados · WhatsApp", value: data?.enviados_whatsapp ?? 0, tone: "secondary" as const },
+      { label: "WhatsApp · Confirmados Wassenger", value: data?.whatsapp_confirmados_wassenger ?? 0, tone: "secondary" as const },
       { label: "Fallidos · Email", value: data?.fallidos_email ?? 0, tone: "destructive" as const },
       { label: "Fallidos · WhatsApp", value: data?.fallidos_whatsapp ?? 0, tone: "destructive" as const },
       { label: "Sin email", value: data?.sin_email ?? 0, tone: "outline" as const },
@@ -29,6 +32,12 @@ export function CommSummaryPanel() {
     ],
     [data],
   );
+
+  const senderRows = useMemo(() => {
+    const entries = Object.entries(data?.email_por_remitente ?? {});
+    entries.sort((a, b) => b[1] - a[1]);
+    return entries;
+  }, [data]);
 
   return (
     <div className="space-y-4">
@@ -68,6 +77,24 @@ export function CommSummaryPanel() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="text-sm font-medium">Emails enviados por remitente</div>
+          {senderRows.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Sin envíos de email en el filtro seleccionado.</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {senderRows.map(([from, count]) => (
+                <Badge key={from} variant="outline" className="text-sm">
+                  <span className="font-mono mr-2">{from}</span>
+                  <span className="font-semibold">{count}</span>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-0">
