@@ -22,6 +22,10 @@ export interface CommSummaryRow {
   sin_email: number;
   sin_telefono: number;
   pendientes: number;
+  email_confirmados_resend: number;
+  email_sin_confirmacion: number;
+  whatsapp_confirmados_wassenger: number;
+  email_por_remitente: Record<string, number>;
 }
 
 export interface CommSummaryAggregate extends Omit<CommSummaryRow, "batch_id" | "batch_label" | "event_name" | "session_name" | "created_at"> {
@@ -35,6 +39,7 @@ type Log = {
   status: CommStatus;
   to_address: string | null;
   created_at: string;
+  metadata: Record<string, unknown> | null;
   events: { name: string | null } | null;
   event_sessions: { name: string | null } | null;
   import_batches: { id: string; filename: string | null; created_at: string | null } | null;
@@ -50,7 +55,7 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
       let q = supabase
         .from("communication_logs")
         .select(
-          "id, batch_id, channel, status, to_address, created_at, events(name), event_sessions(name), import_batches(id, filename, created_at)",
+          "id, batch_id, channel, status, to_address, created_at, metadata, events(name), event_sessions(name), import_batches(id, filename, created_at)",
         )
         .order("created_at", { ascending: false })
         .limit(5000);
@@ -92,6 +97,8 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
   });
 }
 
+const DEFAULT_EMAIL_FROM = "casting@figurarte.app";
+
 function computeStats(items: Log[]) {
   let enviados_email = 0,
     enviados_whatsapp = 0,
@@ -99,14 +106,30 @@ function computeStats(items: Log[]) {
     fallidos_whatsapp = 0,
     sin_email = 0,
     sin_telefono = 0,
-    pendientes = 0;
+    pendientes = 0,
+    email_confirmados_resend = 0,
+    email_sin_confirmacion = 0,
+    whatsapp_confirmados_wassenger = 0;
+  const email_por_remitente: Record<string, number> = {};
   for (const l of items) {
     const wa = isWhatsapp(l.channel);
     const email = l.channel === "email";
     const missing = !l.to_address || !l.to_address.trim();
+    const meta = (l.metadata ?? {}) as Record<string, unknown>;
     if (l.status === "enviado") {
-      if (email) enviados_email++;
-      else if (wa) enviados_whatsapp++;
+      if (email) {
+        enviados_email++;
+        const resendId = typeof meta.resend_id === "string" ? meta.resend_id : null;
+        if (resendId) email_confirmados_resend++;
+        else email_sin_confirmacion++;
+        const fromRaw = typeof meta.from === "string" && meta.from.trim().length > 0 ? meta.from.trim() : DEFAULT_EMAIL_FROM;
+        const match = fromRaw.match(/<([^>]+)>/);
+        const fromAddr = (match ? match[1] : fromRaw).toLowerCase();
+        email_por_remitente[fromAddr] = (email_por_remitente[fromAddr] ?? 0) + 1;
+      } else if (wa) {
+        enviados_whatsapp++;
+        if (typeof meta.wassenger_id === "string" && meta.wassenger_id) whatsapp_confirmados_wassenger++;
+      }
     } else if (l.status === "fallido") {
       if (email) fallidos_email++;
       else if (wa) fallidos_whatsapp++;
@@ -127,5 +150,9 @@ function computeStats(items: Log[]) {
     sin_email,
     sin_telefono,
     pendientes,
+    email_confirmados_resend,
+    email_sin_confirmacion,
+    whatsapp_confirmados_wassenger,
+    email_por_remitente,
   };
 }
