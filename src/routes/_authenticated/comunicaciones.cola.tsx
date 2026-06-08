@@ -14,10 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCommunicationLogs } from "@/lib/use-communications";
-import { COMM_STATUS_OPTIONS, type CommStatus, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
+import { COMM_STATUS_OPTIONS, COMM_CHANNEL_OPTIONS, type CommStatus, type CommChannel, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
 import { retryCommunication } from "@/lib/bulk-send.functions";
 import { useArchiveCommunicationLogs, useDeleteCommunicationLogs } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
+import { CommLogDetailDialog, type CommLogDetail } from "@/components/comm-log-detail-dialog";
 
 export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
   component: QueuePage,
@@ -39,6 +40,7 @@ function QueuePage() {
   const [sending, setSending] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
   const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
+  const [detailLog, setDetailLog] = useState<CommLogDetail | null>(null);
 
   const sendPendingEmails = async () => {
     setSending(true);
@@ -282,6 +284,7 @@ function QueuePage() {
                   <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAll} aria-label="Seleccionar todo" />
                 </TableHead>
                 <TableHead>Fecha</TableHead>
+                <TableHead>Canal</TableHead>
                 <TableHead>Destinatario</TableHead>
                 <TableHead>Asunto</TableHead>
                 <TableHead>Estado</TableHead>
@@ -291,18 +294,25 @@ function QueuePage() {
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Cargando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">Cargando…</TableCell></TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Sin registros</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">Sin registros</TableCell></TableRow>
               )}
               {filtered.map((l) => {
                 const tone = COMM_STATUS_OPTIONS.find((o) => o.value === l.status)?.tone ?? "outline";
                 const name = l.people ? `${l.people.first_name} ${l.people.last_name ?? ""}`.trim() : "—";
                 const subject = l.subject?.trim() || "Sin asunto";
+                const channelLabel = COMM_CHANNEL_OPTIONS.find((o) => o.value === l.channel)?.label ?? l.channel;
+                const statusLabel = COMM_STATUS_OPTIONS.find((o) => o.value === l.status)?.label ?? l.status;
+                const hasWassenger = (l.metadata as Record<string, unknown> | null)?.wassenger_id != null;
                 return (
-                  <TableRow key={l.id}>
-                    <TableCell>
+                  <TableRow
+                    key={l.id}
+                    className="cursor-pointer hover:bg-muted/40"
+                    onClick={() => setDetailLog(l as unknown as CommLogDetail)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selected.has(l.id)}
                         onCheckedChange={() => toggleOne(l.id)}
@@ -310,14 +320,20 @@ function QueuePage() {
                       />
                     </TableCell>
                     <TableCell className="text-xs">{new Date(l.created_at).toLocaleString("es-ES")}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="whitespace-nowrap">{channelLabel}</Badge>
+                      {hasWassenger && (
+                        <div className="text-[10px] text-muted-foreground mt-1">Wassenger ✓</div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">
                       <div className="font-medium">{name}</div>
                       <div className="text-xs text-muted-foreground">{l.to_address ?? "—"}</div>
                     </TableCell>
                     <TableCell className="text-sm max-w-md truncate" title={subject}>{subject}</TableCell>
-                    <TableCell><Badge variant={tone}>{l.status}</Badge></TableCell>
+                    <TableCell><Badge variant={tone}>{statusLabel}</Badge></TableCell>
                     <TableCell className="text-xs text-destructive">{l.error_message ?? ""}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {(l.status === "fallido" || l.status === "cancelado") && (
                         <Button
                           variant="ghost"
@@ -343,6 +359,12 @@ function QueuePage() {
           </Table>
         </CardContent>
       </Card>
+
+      <CommLogDetailDialog
+        log={detailLog}
+        open={!!detailLog}
+        onOpenChange={(o) => !o && setDetailLog(null)}
+      />
 
       <DangerousActionDialog
         open={confirmDelete}
