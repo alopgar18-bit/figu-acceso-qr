@@ -5,10 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 import { useCommSummary, type CommSummaryRow } from "@/lib/use-comm-summary";
+import { CommBatchDetailDialog } from "./comm-batch-detail-dialog";
 
 export function CommSummaryPanel() {
   const [eventId, setEventId] = useState<string>("all");
   const [sessionId, setSessionId] = useState<string>("all");
+  const [activeRow, setActiveRow] = useState<CommSummaryRow | null>(null);
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId === "all" ? undefined : eventId);
   const { data, isLoading } = useCommSummary({
@@ -122,7 +124,7 @@ export function CommSummaryPanel() {
                 <TableRow><TableCell colSpan={11} className="text-center text-sm text-muted-foreground py-8">Sin envíos en el filtro seleccionado</TableCell></TableRow>
               )}
               {data?.rows.map((r: CommSummaryRow) => (
-                <TableRow key={r.batch_id ?? "none"}>
+                <TableRow key={r.batch_id ?? "none"} className="cursor-pointer" onClick={() => setActiveRow(r)}>
                   <TableCell className="text-sm">
                     <div className="font-medium">{r.batch_label}</div>
                     <div className="text-xs text-muted-foreground">
@@ -145,6 +147,7 @@ export function CommSummaryPanel() {
           </Table>
         </CardContent>
       </Card>
+      <CommBatchDetailDialog row={activeRow} open={!!activeRow} onOpenChange={(o) => !o && setActiveRow(null)} />
     </div>
   );
 }
