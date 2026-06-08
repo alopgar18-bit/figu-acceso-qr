@@ -22,6 +22,10 @@ export interface CommSummaryRow {
   sin_email: number;
   sin_telefono: number;
   pendientes: number;
+  email_confirmados_resend: number;
+  email_sin_confirmacion: number;
+  whatsapp_confirmados_wassenger: number;
+  email_por_remitente: Record<string, number>;
 }
 
 export interface CommSummaryAggregate extends Omit<CommSummaryRow, "batch_id" | "batch_label" | "event_name" | "session_name" | "created_at"> {
@@ -35,6 +39,7 @@ type Log = {
   status: CommStatus;
   to_address: string | null;
   created_at: string;
+  metadata: Record<string, unknown> | null;
   events: { name: string | null } | null;
   event_sessions: { name: string | null } | null;
   import_batches: { id: string; filename: string | null; created_at: string | null } | null;
@@ -50,7 +55,7 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
       let q = supabase
         .from("communication_logs")
         .select(
-          "id, batch_id, channel, status, to_address, created_at, events(name), event_sessions(name), import_batches(id, filename, created_at)",
+          "id, batch_id, channel, status, to_address, created_at, metadata, events(name), event_sessions(name), import_batches(id, filename, created_at)",
         )
         .order("created_at", { ascending: false })
         .limit(5000);
