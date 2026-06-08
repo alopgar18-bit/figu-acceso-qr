@@ -26,6 +26,23 @@ export interface CommSummaryRow {
   email_sin_confirmacion: number;
   whatsapp_confirmados_wassenger: number;
   email_por_remitente: Record<string, number>;
+  details: PersonDetail[];
+}
+
+export interface PersonDetail {
+  key: string;
+  person_id: string | null;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  email_status: CommStatus | null;
+  email_confirmed_resend: boolean;
+  email_error: string | null;
+  whatsapp_status: CommStatus | null;
+  whatsapp_confirmed_wassenger: boolean;
+  whatsapp_error: string | null;
+  has_failure: boolean;
 }
 
 export interface CommSummaryAggregate extends Omit<CommSummaryRow, "batch_id" | "batch_label" | "event_name" | "session_name" | "created_at"> {
@@ -40,6 +57,9 @@ type Log = {
   to_address: string | null;
   created_at: string;
   metadata: Record<string, unknown> | null;
+  error_message: string | null;
+  person_id: string | null;
+  people: { first_name: string; last_name: string | null; email: string | null; phone: string | null } | null;
   events: { name: string | null } | null;
   event_sessions: { name: string | null } | null;
   import_batches: { id: string; filename: string | null; created_at: string | null } | null;
@@ -55,7 +75,7 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
       let q = supabase
         .from("communication_logs")
         .select(
-          "id, batch_id, channel, status, to_address, created_at, metadata, events(name), event_sessions(name), import_batches(id, filename, created_at)",
+          "id, batch_id, channel, status, to_address, created_at, metadata, error_message, person_id, people(first_name, last_name, email, phone), events(name), event_sessions(name), import_batches(id, filename, created_at)",
         )
         .order("created_at", { ascending: false })
         .limit(5000);
@@ -88,13 +108,63 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
           session_name: first.event_sessions?.name ?? null,
           created_at: batchInfo?.created_at ?? first.created_at,
           ...computeStats(items),
+          details: buildPersonDetails(items),
         });
       }
       rows.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 
-      return { rows, ...computeStats(logs) };
+      return { rows, ...computeStats(logs), details: [] };
     },
   });
+}
+
+function buildPersonDetails(items: Log[]): PersonDetail[] {
+  const byPerson = new Map<string, PersonDetail>();
+  for (const l of items) {
+    const key = l.person_id ?? `addr:${l.to_address ?? l.id}`;
+    const meta = (l.metadata ?? {}) as Record<string, unknown>;
+    const person = l.people;
+    let d = byPerson.get(key);
+    if (!d) {
+      d = {
+        key,
+        person_id: l.person_id,
+        first_name: person?.first_name ?? "",
+        last_name: person?.last_name ?? "",
+        email: person?.email ?? "",
+        phone: person?.phone ?? "",
+        email_status: null,
+        email_confirmed_resend: false,
+        email_error: null,
+        whatsapp_status: null,
+        whatsapp_confirmed_wassenger: false,
+        whatsapp_error: null,
+        has_failure: false,
+      };
+      byPerson.set(key, d);
+    }
+    const isWa = isWhatsapp(l.channel);
+    if (l.channel === "email") {
+      d.email_status = l.status;
+      if (typeof meta.resend_id === "string" && meta.resend_id) d.email_confirmed_resend = true;
+      if (l.status === "fallido") {
+        d.email_error = l.error_message ?? d.email_error ?? "Error desconocido";
+        d.has_failure = true;
+      }
+      if (!d.email && l.to_address) d.email = l.to_address;
+    } else if (isWa) {
+      d.whatsapp_status = l.status;
+      if (typeof meta.wassenger_id === "string" && meta.wassenger_id) d.whatsapp_confirmed_wassenger = true;
+      if (l.status === "fallido") {
+        d.whatsapp_error = l.error_message ?? d.whatsapp_error ?? "Error desconocido";
+        d.has_failure = true;
+      }
+      if (!d.phone && l.to_address) d.phone = l.to_address;
+    }
+  }
+  return Array.from(byPerson.values()).sort((a, b) =>
+    `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, "es"),
+  );
 }
 
 const DEFAULT_EMAIL_FROM = "casting@figurarte.app";
