@@ -45,6 +45,7 @@ import { useAuth } from "@/hooks/use-auth";
 const searchSchema = z.object({
   eventId: z.string().optional(),
   sessionId: z.string().optional(),
+  importBatchId: z.string().optional(),
   status: z.string().optional(),
   type: z.string().optional(),
   waitlist: z.boolean().optional(),
@@ -81,6 +82,7 @@ function Page() {
   const filters: ParticipantFilters = useMemo(() => ({
     eventId: search.eventId,
     sessionId: search.sessionId,
+    importBatchId: search.importBatchId,
     statuses: search.waitlist
       ? ["lista_espera"]
       : search.status
@@ -148,7 +150,7 @@ function Page() {
   };
 
   const activeCount = [
-    search.eventId, search.sessionId, search.status, search.type, search.waitlist,
+    search.eventId, search.sessionId, search.importBatchId, search.status, search.type, search.waitlist,
     searchText, extraFilters.city, extraFilters.province, extraFilters.gender,
     extraFilters.minAge, extraFilters.maxAge, extraFilters.fromDate, extraFilters.toDate,
     extraFilters.hasPhoto, extraFilters.duplicates, extraFilters.blocked,
