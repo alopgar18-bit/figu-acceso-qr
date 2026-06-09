@@ -1,0 +1,1 @@
+ALTER VIEW public.event_sessions_public SET (security_invoker = on);
