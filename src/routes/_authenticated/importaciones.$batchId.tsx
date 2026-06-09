@@ -57,6 +57,14 @@ function BatchDetailPage() {
                 <Send className="h-4 w-4 mr-2" />Enviar invitaciones a esta importación
               </Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link
+                to="/solicitudes"
+                search={{ eventId: batch.event_id ?? undefined, sessionId: batch.session_id ?? undefined }}
+              >
+                <Inbox className="h-4 w-4 mr-2" />Ver solicitudes
+              </Link>
+            </Button>
             <Button
               variant="outline"
               className="text-destructive hover:text-destructive"
