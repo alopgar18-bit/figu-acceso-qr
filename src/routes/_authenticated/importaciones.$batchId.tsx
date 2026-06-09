@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2 } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
