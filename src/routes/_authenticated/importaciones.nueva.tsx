@@ -324,6 +324,8 @@ function ImportWizardPage() {
       {step === 4 && result && (
         <ResultStep
           result={result}
+          eventId={eventId}
+          sessionId={sessionId}
           onNew={() => {
             setParsed(null);
             setResult(null);
