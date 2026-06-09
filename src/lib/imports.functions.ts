@@ -160,6 +160,13 @@ export const commitImport = createServerFn({ method: "POST" })
               phone: row.phone ?? null,
             })
             .eq("id", existingPersonId);
+          // Re-tag the existing participation with the current batch so it
+          // appears when filtering "Ver solicitudes" by this import.
+          await supabase
+            .from("event_participants")
+            .update({ import_batch_id: batch.id })
+            .eq("session_id", data.sessionId)
+            .eq("person_id", existingPersonId);
           updated++;
           continue;
         }
