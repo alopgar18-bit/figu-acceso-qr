@@ -324,6 +324,8 @@ function ImportWizardPage() {
       {step === 4 && result && (
         <ResultStep
           result={result}
+          eventId={eventId}
+          sessionId={sessionId}
           onNew={() => {
             setParsed(null);
             setResult(null);
@@ -741,10 +743,14 @@ function ValidationStep({
 
 function ResultStep({
   result,
+  eventId,
+  sessionId,
   onNew,
   onViewBatch,
 }: {
   result: { batchId: string; total: number; imported: number; skipped: number; updated: number; errored: number; qrGenerated?: number; noContactChannel?: number; finalStatus: string };
+  eventId: string;
+  sessionId: string;
   onNew: () => void;
   onViewBatch: () => void;
 }) {
@@ -766,6 +772,9 @@ function ResultStep({
         </div>
         <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={onNew}>Nueva importación</Button>
+          <Button asChild variant="outline">
+            <Link to="/solicitudes" search={{ eventId, sessionId }}>Ver solicitudes</Link>
+          </Button>
           <Button onClick={onViewBatch}>Ver detalle del lote</Button>
         </div>
       </CardContent>

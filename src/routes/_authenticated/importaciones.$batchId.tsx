@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2 } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,14 @@ function BatchDetailPage() {
                 search={{ batch_id: batchId, event_id: batch.event_id ?? undefined, session_id: batch.session_id ?? undefined }}
               >
                 <Send className="h-4 w-4 mr-2" />Enviar invitaciones a esta importación
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link
+                to="/solicitudes"
+                search={{ eventId: batch.event_id ?? undefined, sessionId: batch.session_id ?? undefined }}
+              >
+                <Inbox className="h-4 w-4 mr-2" />Ver solicitudes
               </Link>
             </Button>
             <Button
