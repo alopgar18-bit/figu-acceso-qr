@@ -57,10 +57,16 @@ export const Route = createFileRoute("/_authenticated/solicitudes")({
 });
 
 function Page() {
+  const location = useLocation();
+  if (location.pathname !== "/solicitudes") {
+    return <Outlet />;
+  }
+  return <ListPage />;
+}
+
+function ListPage() {
   const search = useSearch({ from: Route.id });
   const navigate = useNavigate({ from: Route.fullPath });
-  const location = useLocation();
-  const isChildRoute = location.pathname !== "/solicitudes";
 
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(search.eventId);
@@ -109,10 +115,6 @@ function Page() {
     hasNextPage,
     fetchNextPage,
   } = useParticipants(filters);
-
-  if (isChildRoute) {
-    return <Outlet />;
-  }
 
   const duplicateIds = useMemo(() => findDuplicateIds(rows), [rows]);
 
