@@ -119,61 +119,54 @@ export const commitImport = createServerFn({ method: "POST" })
     let errored = 0;
     const errors: Array<{ row: number; reason: string }> = [];
 
+    // Duplicate detection rule: a row is a duplicate ONLY when first_name +
+    // last_name (normalized) match an existing participation in the SAME
+    // session. Email / phone collisions are ignored on purpose — it is common
+    // for several people in a group to share contact details.
+    const normalize = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+    const nameKey = (first: string | null | undefined, last: string | null | undefined) =>
+      `${normalize(first)}|${normalize(last)}`;
+
+    const { data: sessionRoster } = await supabase
+      .from("event_participants")
+      .select("id, person_id, people:person_id(first_name, last_name)")
+      .eq("session_id", data.sessionId);
+    const nameToPersonId = new Map<string, string>();
+    for (const ep of sessionRoster ?? []) {
+      const ppl = ep.people as { first_name?: string | null; last_name?: string | null } | null;
+      if (!ppl) continue;
+      nameToPersonId.set(nameKey(ppl.first_name, ppl.last_name), ep.person_id as string);
+    }
+
     for (const row of data.rows) {
       try {
-        // Find existing person by available identifiers (DNI/email/phone).
-        const orParts: string[] = [];
-        if (row.dni) orParts.push(`dni.eq.${row.dni}`);
-        if (row.email) orParts.push(`email.eq.${row.email}`);
-        if (row.phone) orParts.push(`phone.eq.${row.phone}`);
-        let existing: { id: string } | null = null;
-        if (orParts.length > 0) {
-          const { data: matches } = await supabase
+        const key = nameKey(row.first_name, row.last_name);
+        const existingPersonId = nameToPersonId.get(key);
+
+        if (existingPersonId) {
+          // Duplicate (same name in same session): keep ticket/QR/status,
+          // only refresh contact details on the people row.
+          if (data.duplicateStrategy === "skip") {
+            skipped++;
+            continue;
+          }
+          await supabase
             .from("people")
-            .select("id")
-            .or(orParts.join(","))
-            .limit(1);
-          existing = matches?.[0] ?? null;
+            .update({
+              first_name: row.first_name,
+              last_name: row.last_name ?? null,
+              email: row.email ?? null,
+              phone: row.phone ?? null,
+            })
+            .eq("id", existingPersonId);
+          updated++;
+          continue;
         }
 
-        let personId: string;
-        if (existing) {
-          if (data.duplicateStrategy === "skip") {
-            // Skip unless they have no participation in this session
-            const { data: alreadyHere } = await supabase
-              .from("event_participants")
-              .select("id")
-              .eq("person_id", existing.id)
-              .eq("session_id", data.sessionId)
-              .maybeSingle();
-            if (alreadyHere) {
-              skipped++;
-              continue;
-            }
-            personId = existing.id;
-          } else if (data.duplicateStrategy === "update_person") {
-            await supabase
-              .from("people")
-              .update({
-                first_name: row.first_name,
-                last_name: row.last_name ?? null,
-                dni: row.dni ?? null,
-                email: row.email ?? null,
-                phone: row.phone ?? null,
-                birth_date: row.birth_date ?? null,
-                city: row.city ?? null,
-                province: row.province ?? null,
-                gender: row.gender ?? null,
-                notes: row.notes ?? null,
-              })
-              .eq("id", existing.id);
-            personId = existing.id;
-            updated++;
-          } else {
-            personId = existing.id;
-          }
-        } else {
-          const { data: created, error: pErr } = await supabase
+        // Not a duplicate → always create a brand-new person. Email or phone
+        // collisions with other people are allowed on purpose.
+        const { data: created, error: pErr } = await supabase
             .from("people")
             .insert({
               first_name: row.first_name,
@@ -191,42 +184,8 @@ export const commitImport = createServerFn({ method: "POST" })
             })
             .select("id")
             .single();
-          if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
-          personId = created.id;
-        }
-
-        // Skip duplicate participation in same session unless strategy allows
-        const { data: dupPart } = await supabase
-          .from("event_participants")
-          .select("id")
-          .eq("person_id", personId)
-          .eq("session_id", data.sessionId)
-          .maybeSingle();
-        if (dupPart) {
-          // The unique constraint on (session_id, person_id) prevents creating
-          // a second participation for the same person in the same session,
-          // so even "new_participation" falls back to updating the person's
-          // contact fields and keeping the existing participation, ticket/QR
-          // and current status intact.
-          if (
-            data.duplicateStrategy === "update_person" ||
-            data.duplicateStrategy === "new_participation"
-          ) {
-            await supabase
-              .from("people")
-              .update({
-                first_name: row.first_name,
-                last_name: row.last_name ?? null,
-                email: row.email ?? null,
-                phone: row.phone ?? null,
-              })
-              .eq("id", personId);
-            updated++;
-          } else {
-            skipped++;
-          }
-          continue;
-        }
+        if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
+        const personId = created.id;
 
         const status = row.initial_status ?? data.defaultStatus;
         const approvedLike = status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
@@ -249,37 +208,11 @@ export const commitImport = createServerFn({ method: "POST" })
           .select("id")
           .single();
         if (partErr) {
-          // Handle race / missed pre-check on the unique
-          // (session_id, person_id) constraint. When the strategy allows it,
-          // update the person's contact fields and keep the existing
-          // participation (with its current status and ticket/QR) intact.
-          const isUniqueViolation =
-            (partErr as { code?: string }).code === "23505" ||
-            /duplicate key/i.test(partErr.message) ||
-            /event_participants_session_id_person_id_key/i.test(partErr.message);
-          if (
-            isUniqueViolation &&
-            (data.duplicateStrategy === "update_person" ||
-              data.duplicateStrategy === "new_participation")
-          ) {
-            await supabase
-              .from("people")
-              .update({
-                first_name: row.first_name,
-                last_name: row.last_name ?? null,
-                email: row.email ?? null,
-                phone: row.phone ?? null,
-              })
-              .eq("id", personId);
-            updated++;
-            continue;
-          }
-          if (isUniqueViolation) {
-            skipped++;
-            continue;
-          }
           throw new Error(`No se pudo crear la participación (${partErr.message})`);
         }
+        // Register so subsequent rows in the same file with the same name
+        // are treated as duplicates instead of creating another person.
+        nameToPersonId.set(key, personId);
 
         // Generate ticket/QR only for statuses that need one ready to send.
         if (QR_STATES.has(status)) {
