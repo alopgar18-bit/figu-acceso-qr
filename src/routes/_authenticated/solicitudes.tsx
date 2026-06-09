@@ -100,7 +100,15 @@ function Page() {
     blockedOnly: extraFilters.blocked || undefined,
   }), [search, searchText, extraFilters]);
 
-  const { data: rows = [], isLoading } = useParticipants(filters);
+  const {
+    data: rows,
+    loadedCount,
+    totalCount,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useParticipants(filters);
 
   if (isChildRoute) {
     return <Outlet />;
@@ -349,6 +357,9 @@ function Page() {
             <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
               <Filter className="h-3 w-3" />
               {filteredRows.length} resultado{filteredRows.length === 1 ? "" : "s"}
+              {totalCount > loadedCount && (
+                <span className="ml-1">· {loadedCount.toLocaleString("es-ES")} de {totalCount.toLocaleString("es-ES")} cargados</span>
+              )}
             </div>
           </div>
         </CardContent>
@@ -453,6 +464,20 @@ function Page() {
           )}
         </CardContent>
       </Card>
+
+      {hasNextPage && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage
+              ? "Cargando..."
+              : `Cargar más (${(totalCount - loadedCount).toLocaleString("es-ES")} restantes)`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

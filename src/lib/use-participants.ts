@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { ParticipantStatus, AttendeeType } from "./participant-constants";
@@ -30,17 +30,23 @@ export interface ParticipantFilters {
   toDate?: string;
 }
 
+const PAGE_SIZE = 500;
+
 export function useParticipants(filters: ParticipantFilters) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["participants", filters],
-    queryFn: async () => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const from = (pageParam as number) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
       let q = supabase
         .from("event_participants")
         .select(
           "*, people(*), event_sessions(id, name, starts_at, capacity), events(id, name), form_submissions(id, payload)",
+          { count: "exact" },
         )
         .order("created_at", { ascending: false })
-        .limit(5000);
+        .range(from, to);
 
       if (filters.eventId) q = q.eq("event_id", filters.eventId);
       if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
@@ -50,38 +56,60 @@ export function useParticipants(filters: ParticipantFilters) {
       if (filters.fromDate) q = q.gte("created_at", filters.fromDate);
       if (filters.toDate) q = q.lte("created_at", filters.toDate);
 
-      const { data, error } = await q;
+      const { data, error, count } = await q;
       if (error) throw error;
-      let rows = (data ?? []) as unknown as ParticipantWithRelations[];
-
-      // Client-side filters on related person data
-      if (filters.search) {
-        const s = filters.search.toLowerCase();
-        rows = rows.filter((r) => {
-          const p = r.people;
-          if (!p) return false;
-          return [p.first_name, p.last_name, p.email, p.phone, p.dni]
-            .filter(Boolean)
-            .some((v) => String(v).toLowerCase().includes(s));
-        });
-      }
-      if (filters.city) rows = rows.filter((r) => r.people?.city?.toLowerCase() === filters.city!.toLowerCase());
-      if (filters.province) rows = rows.filter((r) => r.people?.province?.toLowerCase() === filters.province!.toLowerCase());
-      if (filters.gender) rows = rows.filter((r) => r.people?.gender === filters.gender);
-      if (filters.blockedOnly) rows = rows.filter((r) => r.people?.is_blocked);
-      if (filters.minAge != null || filters.maxAge != null) {
-        rows = rows.filter((r) => {
-          const birth = r.people?.birth_date;
-          if (!birth) return false;
-          const age = Math.floor((Date.now() - new Date(birth).getTime()) / (365.25 * 86400000));
-          if (filters.minAge != null && age < filters.minAge) return false;
-          if (filters.maxAge != null && age > filters.maxAge) return false;
-          return true;
-        });
-      }
-      return rows;
+      return {
+        rows: (data ?? []) as unknown as ParticipantWithRelations[],
+        totalCount: count ?? 0,
+        nextPage: (data?.length ?? 0) === PAGE_SIZE ? (pageParam as number) + 1 : undefined,
+      };
     },
+    getNextPageParam: (lastPage) => lastPage.nextPage,
   });
+
+  const allRows = (query.data?.pages ?? []).flatMap((p) => p.rows);
+  const totalCount = query.data?.pages[0]?.totalCount ?? 0;
+
+  // Apply client-side filters that depend on related person fields.
+  let rows = allRows;
+  {
+    if (filters.search) {
+      const s = filters.search.toLowerCase();
+      rows = rows.filter((r) => {
+        const p = r.people;
+        if (!p) return false;
+        return [p.first_name, p.last_name, p.email, p.phone, p.dni]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(s));
+      });
+    }
+    if (filters.city) rows = rows.filter((r) => r.people?.city?.toLowerCase() === filters.city!.toLowerCase());
+    if (filters.province) rows = rows.filter((r) => r.people?.province?.toLowerCase() === filters.province!.toLowerCase());
+    if (filters.gender) rows = rows.filter((r) => r.people?.gender === filters.gender);
+    if (filters.blockedOnly) rows = rows.filter((r) => r.people?.is_blocked);
+    if (filters.minAge != null || filters.maxAge != null) {
+      rows = rows.filter((r) => {
+        const birth = r.people?.birth_date;
+        if (!birth) return false;
+        const age = Math.floor((Date.now() - new Date(birth).getTime()) / (365.25 * 86400000));
+        if (filters.minAge != null && age < filters.minAge) return false;
+        if (filters.maxAge != null && age > filters.maxAge) return false;
+        return true;
+      });
+    }
+  }
+
+  return {
+    data: rows,
+    loadedCount: allRows.length,
+    totalCount,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: !!query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
+    error: query.error,
+  };
 }
 
 export function useParticipant(id: string | undefined) {
