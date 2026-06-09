@@ -16,6 +16,7 @@ export interface ParticipantWithRelations extends ParticipantRow {
 export interface ParticipantFilters {
   eventId?: string;
   sessionId?: string;
+  importBatchId?: string;
   statuses?: ParticipantStatus[];
   attendeeTypes?: AttendeeType[];
   search?: string;
@@ -43,6 +44,7 @@ export function useParticipants(filters: ParticipantFilters) {
 
       if (filters.eventId) q = q.eq("event_id", filters.eventId);
       if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
+      if (filters.importBatchId) q = q.eq("import_batch_id", filters.importBatchId);
       if (filters.statuses?.length) q = q.in("status", filters.statuses);
       if (filters.attendeeTypes?.length) q = q.in("attendee_type", filters.attendeeTypes);
       if (filters.fromDate) q = q.gte("created_at", filters.fromDate);
