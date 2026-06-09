@@ -202,11 +202,16 @@ export const commitImport = createServerFn({ method: "POST" })
           .eq("person_id", personId)
           .eq("session_id", data.sessionId)
           .maybeSingle();
-        if (dupPart && data.duplicateStrategy !== "new_participation") {
-          // Update person's contact data (name, last_name, email, phone) when
-          // strategy allows it, keeping the existing participation, ticket/QR
+        if (dupPart) {
+          // The unique constraint on (session_id, person_id) prevents creating
+          // a second participation for the same person in the same session,
+          // so even "new_participation" falls back to updating the person's
+          // contact fields and keeping the existing participation, ticket/QR
           // and current status intact.
-          if (data.duplicateStrategy === "update_person") {
+          if (
+            data.duplicateStrategy === "update_person" ||
+            data.duplicateStrategy === "new_participation"
+          ) {
             await supabase
               .from("people")
               .update({
@@ -252,7 +257,11 @@ export const commitImport = createServerFn({ method: "POST" })
             (partErr as { code?: string }).code === "23505" ||
             /duplicate key/i.test(partErr.message) ||
             /event_participants_session_id_person_id_key/i.test(partErr.message);
-          if (isUniqueViolation && data.duplicateStrategy === "update_person") {
+          if (
+            isUniqueViolation &&
+            (data.duplicateStrategy === "update_person" ||
+              data.duplicateStrategy === "new_participation")
+          ) {
             await supabase
               .from("people")
               .update({
