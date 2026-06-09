@@ -380,7 +380,15 @@ export const searchSessionParticipants = createServerFn({ method: "POST" })
       .from("event_participants")
       .select(`id, status, companions_count, attendee_type, event_id, session_id, people(${personFields})`)
       .eq("session_id", data.sessionId)
-      .in("status", ["aprobado", "confirmado", "acceso_validado"])
+      .in("status", [
+        "aprobado",
+        "aceptado_pendiente_envio",
+        "invitacion_enviada",
+        "pendiente_confirmacion",
+        "confirmado",
+        "qr_generado",
+        "acceso_validado",
+      ])
       .limit(200);
     if (error) throw error;
     const q = data.query.toLowerCase();
