@@ -40,7 +40,7 @@ export function useParticipants(filters: ParticipantFilters) {
           "*, people(*), event_sessions(id, name, starts_at, capacity), events(id, name), form_submissions(id, payload)",
         )
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(5000);
 
       if (filters.eventId) q = q.eq("event_id", filters.eventId);
       if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
