@@ -376,25 +376,40 @@ export const searchSessionParticipants = createServerFn({ method: "POST" })
     const personFields = canSeePII
       ? "id, first_name, last_name, dni, email, phone, is_blocked"
       : "id, first_name, last_name, is_blocked";
-    const { data: rows, error } = await supabase
-      .from("event_participants")
-      .select(`id, status, companions_count, attendee_type, event_id, session_id, people(${personFields})`)
-      .eq("session_id", data.sessionId)
-      .in("status", [
-        "aprobado",
-        "aceptado_pendiente_envio",
-        "invitacion_enviada",
-        "pendiente_confirmacion",
-        "confirmado",
-        "qr_generado",
-        "acceso_validado",
-      ])
-      .limit(200);
-    if (error) throw error;
+    const rows: Array<{
+      id: string;
+      status: string;
+      companions_count: number;
+      attendee_type: string;
+      event_id: string;
+      session_id: string;
+      people: { first_name?: string; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
+    }> = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data: page, error } = await supabase
+        .from("event_participants")
+        .select(`id, status, companions_count, attendee_type, event_id, session_id, people(${personFields})`)
+        .eq("session_id", data.sessionId)
+        .in("status", [
+          "aprobado",
+          "aceptado_pendiente_envio",
+          "invitacion_enviada",
+          "pendiente_confirmacion",
+          "confirmado",
+          "qr_generado",
+          "acceso_validado",
+        ])
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      rows.push(...((page ?? []) as typeof rows));
+      if (!page || page.length < pageSize) break;
+    }
     const q = data.query.toLowerCase();
-    return (rows ?? []).filter((r) => {
-      const p = r.people as { first_name?: string; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
+    return rows.filter((r) => {
+      const p = r.people;
       if (!p) return false;
       return [p.first_name, p.last_name, p.dni, p.email, p.phone].filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
-    }).slice(0, 30);
+    });
   });
