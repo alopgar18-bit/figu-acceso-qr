@@ -203,7 +203,23 @@ export const commitImport = createServerFn({ method: "POST" })
           .eq("session_id", data.sessionId)
           .maybeSingle();
         if (dupPart && data.duplicateStrategy !== "new_participation") {
-          skipped++;
+          // Update person's contact data (name, last_name, email, phone) when
+          // strategy allows it, keeping the existing participation, ticket/QR
+          // and current status intact.
+          if (data.duplicateStrategy === "update_person") {
+            await supabase
+              .from("people")
+              .update({
+                first_name: row.first_name,
+                last_name: row.last_name ?? null,
+                email: row.email ?? null,
+                phone: row.phone ?? null,
+              })
+              .eq("id", personId);
+            updated++;
+          } else {
+            skipped++;
+          }
           continue;
         }
 

@@ -61,7 +61,7 @@ function ImportWizardPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [defaultStatus, setDefaultStatus] = useState<ParticipantStatus>("pendiente_revision");
   const [defaultAttendeeType, setDefaultAttendeeType] = useState<AttendeeType>("publico");
-  const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>("skip");
+  const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>("update_person");
   const [mapping, setMapping] = useState<Record<string, TargetField | "">>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Awaited<ReturnType<typeof commitImport>> | null>(null);
