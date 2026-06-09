@@ -60,7 +60,7 @@ function BatchDetailPage() {
             <Button asChild variant="outline">
               <Link
                 to="/solicitudes"
-                search={{ eventId: batch.event_id ?? undefined, sessionId: batch.session_id ?? undefined }}
+                search={{ eventId: batch.event_id ?? undefined, sessionId: batch.session_id ?? undefined, importBatchId: batchId }}
               >
                 <Inbox className="h-4 w-4 mr-2" />Ver solicitudes
               </Link>
