@@ -150,7 +150,7 @@ function Page() {
   };
 
   const activeCount = [
-    search.eventId, search.sessionId, search.status, search.type, search.waitlist,
+    search.eventId, search.sessionId, search.importBatchId, search.status, search.type, search.waitlist,
     searchText, extraFilters.city, extraFilters.province, extraFilters.gender,
     extraFilters.minAge, extraFilters.maxAge, extraFilters.fromDate, extraFilters.toDate,
     extraFilters.hasPhoto, extraFilters.duplicates, extraFilters.blocked,
