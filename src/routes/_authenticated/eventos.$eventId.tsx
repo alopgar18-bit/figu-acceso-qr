@@ -20,6 +20,7 @@ import {
 import {
   EVENT_STATUS_OPTIONS, EVENT_TYPE_OPTIONS, SESSION_STATUS_OPTIONS, labelOf,
 } from "@/lib/event-constants";
+import { EventTeamPanel } from "@/components/event-team-panel";
 
 export const Route = createFileRoute("/_authenticated/eventos/$eventId")({
   component: Page,
@@ -237,6 +238,8 @@ function Page() {
           )}
         </CardContent>
       </Card>
+
+      <EventTeamPanel eventId={event.id} />
     </div>
   );
 }
