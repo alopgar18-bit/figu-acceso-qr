@@ -243,7 +243,34 @@ export const commitImport = createServerFn({ method: "POST" })
           })
           .select("id")
           .single();
-        if (partErr) throw new Error(`No se pudo crear la participación (${partErr.message})`);
+        if (partErr) {
+          // Handle race / missed pre-check on the unique
+          // (session_id, person_id) constraint. When the strategy allows it,
+          // update the person's contact fields and keep the existing
+          // participation (with its current status and ticket/QR) intact.
+          const isUniqueViolation =
+            (partErr as { code?: string }).code === "23505" ||
+            /duplicate key/i.test(partErr.message) ||
+            /event_participants_session_id_person_id_key/i.test(partErr.message);
+          if (isUniqueViolation && data.duplicateStrategy === "update_person") {
+            await supabase
+              .from("people")
+              .update({
+                first_name: row.first_name,
+                last_name: row.last_name ?? null,
+                email: row.email ?? null,
+                phone: row.phone ?? null,
+              })
+              .eq("id", personId);
+            updated++;
+            continue;
+          }
+          if (isUniqueViolation) {
+            skipped++;
+            continue;
+          }
+          throw new Error(`No se pudo crear la participación (${partErr.message})`);
+        }
 
         // Generate ticket/QR only for statuses that need one ready to send.
         if (QR_STATES.has(status)) {
