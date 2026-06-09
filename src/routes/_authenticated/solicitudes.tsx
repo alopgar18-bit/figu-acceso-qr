@@ -464,6 +464,20 @@ function Page() {
           )}
         </CardContent>
       </Card>
+
+      {hasNextPage && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage
+              ? "Cargando..."
+              : `Cargar más (${(totalCount - loadedCount).toLocaleString("es-ES")} restantes)`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
