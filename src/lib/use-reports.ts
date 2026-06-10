@@ -136,7 +136,6 @@ export function useEventReport(scope: ReportScope | null) {
         session_id: string;
         device_info: string | null;
         result: string | null;
-        profiles: { full_name?: string | null; email?: string | null } | null;
       };
       type CommRow = { id: string; status: string; session_id: string | null };
       type IncidentRow = {
@@ -160,7 +159,7 @@ export function useEventReport(scope: ReportScope | null) {
         ),
         fetchAllPaged<CheckinRow>((from, to) =>
           supabase.from("checkins")
-            .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result, profiles:validator_id(full_name, email)")
+            .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result")
             .eq("event_id", eventId)
             .order("checked_in_at", { ascending: false })
             .range(from, to) as unknown as PromiseLike<{ data: CheckinRow[] | null; error: { message: string } | null }>,
@@ -290,9 +289,15 @@ export function useEventReport(scope: ReportScope | null) {
       totals.ocupacion = totals.capacidad ? Math.round((totals.personasConfirmadas / totals.capacidad) * 100) : 0;
 
       const validatorById = new Map<string, string>();
-      for (const c of allCheckins) {
-        const prof = c.profiles as { full_name?: string | null; email?: string | null } | null;
-        if (c.validator_id && prof) validatorById.set(c.validator_id, prof.full_name ?? prof.email ?? "—");
+      const validatorIds = Array.from(new Set(allCheckins.map((c) => c.validator_id).filter((v): v is string => !!v)));
+      if (validatorIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", validatorIds);
+        for (const p of profs ?? []) {
+          validatorById.set(p.id, p.full_name ?? p.email ?? "—");
+        }
       }
 
       const exportRows: ParticipantExportRow[] = parts.map((p) => {
