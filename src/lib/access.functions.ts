@@ -268,8 +268,21 @@ const incidentSchema = z.object({
       "persona_bloqueada",
       "problema_tecnico",
       "manual",
+      "no_recibio_qr",
+      "sin_movil",
+      "invitado_extra",
+      "perdida_objeto",
+      "problema_salud",
+      "conflicto_personal",
+      "queja",
+      "otro",
     ])
     .default("manual"),
+  category: z.enum(["entrada", "otra"]).default("entrada"),
+  walkInFirstName: z.string().trim().max(100).optional().nullable(),
+  walkInLastName: z.string().trim().max(100).optional().nullable(),
+  walkInDni: z.string().trim().max(40).optional().nullable(),
+  walkInCompanions: z.number().int().min(0).max(50).optional().default(0),
 });
 
 export const createIncident = createServerFn({ method: "POST" })
@@ -295,6 +308,11 @@ export const createIncident = createServerFn({ method: "POST" })
         incident_type: data.incidentType,
         status: "abierta",
         reported_by: userId,
+        category: data.category,
+        walk_in_first_name: data.walkInFirstName ?? null,
+        walk_in_last_name: data.walkInLastName ?? null,
+        walk_in_dni: data.walkInDni ?? null,
+        walk_in_companions: data.walkInCompanions ?? 0,
       })
       .select("id")
       .single();

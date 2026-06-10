@@ -38,9 +38,12 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   INCIDENT_TYPE_LABELS,
   INCIDENT_TYPES,
+  INCIDENT_TYPES_BY_CATEGORY,
+  INCIDENT_CATEGORY_LABELS,
   INCIDENT_STATUS_LABELS,
   INCIDENT_SEVERITY_LABELS,
   type IncidentType,
+  type IncidentCategory,
   type IncidentStatus,
   type IncidentSeverity,
 } from "@/lib/incident-constants";
@@ -74,6 +77,7 @@ function Page() {
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [sessionFilter, setSessionFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
 
@@ -109,6 +113,7 @@ function Page() {
       if (eventFilter !== "all" && ev?.id !== eventFilter) return false;
       if (sessionFilter !== "all" && ss?.id !== sessionFilter) return false;
       if (typeFilter !== "all" && r.incident_type !== typeFilter) return false;
+      if (categoryFilter !== "all" && (r as { category?: string }).category !== categoryFilter) return false;
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (query) {
         const q = query.toLowerCase();
@@ -118,7 +123,7 @@ function Page() {
       }
       return true;
     });
-  }, [incidents, eventFilter, sessionFilter, typeFilter, statusFilter, query]);
+  }, [incidents, eventFilter, sessionFilter, typeFilter, categoryFilter, statusFilter, query]);
 
   const stats = useMemo(() => {
     let open = 0, inProg = 0, resolved = 0, rejected = 0;
@@ -159,7 +164,16 @@ function Page() {
         <div className="flex items-center gap-2 mb-3 text-sm font-medium">
           <Filter className="h-4 w-4" /> Filtros
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {(Object.keys(INCIDENT_CATEGORY_LABELS) as IncidentCategory[]).map((c) => (
+                <SelectItem key={c} value={c}>{INCIDENT_CATEGORY_LABELS[c]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={eventFilter} onValueChange={(v) => { setEventFilter(v); setSessionFilter("all"); }}>
             <SelectTrigger><SelectValue placeholder="Evento" /></SelectTrigger>
             <SelectContent>
@@ -279,7 +293,9 @@ function CreateIncidentDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [eventId, setEventId] = useState("");
   const { data: sessions = [] } = useEventSessions(eventId || undefined);
   const [sessionId, setSessionId] = useState<string>("");
-  const [incidentType, setIncidentType] = useState<IncidentType>("manual");
+  const [category, setCategory] = useState<IncidentCategory>("entrada");
+  const typeOptions = INCIDENT_TYPES_BY_CATEGORY[category];
+  const [incidentType, setIncidentType] = useState<IncidentType>(typeOptions[0]);
   const [severity, setSeverity] = useState<IncidentSeverity>("media");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -294,13 +310,14 @@ function CreateIncidentDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           description: description || null,
           severity,
           incidentType,
+          category,
         },
       }),
     onSuccess: () => {
       toast.success("Incidencia creada");
       qc.invalidateQueries({ queryKey: ["incidents"] });
       onOpenChange(false);
-      setTitle(""); setDescription(""); setEventId(""); setSessionId(""); setIncidentType("manual"); setSeverity("media");
+      setTitle(""); setDescription(""); setEventId(""); setSessionId(""); setCategory("entrada"); setIncidentType("no_recibio_qr"); setSeverity("media");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -338,27 +355,42 @@ function CreateIncidentDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Tipo</Label>
-                <Select value={incidentType} onValueChange={(v) => setIncidentType(v as IncidentType)}>
+                <Label>Categoría</Label>
+                <Select value={category} onValueChange={(v) => {
+                  const c = v as IncidentCategory;
+                  setCategory(c);
+                  setIncidentType(INCIDENT_TYPES_BY_CATEGORY[c][0]);
+                }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {INCIDENT_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{INCIDENT_TYPE_LABELS[t]}</SelectItem>
+                    {(Object.keys(INCIDENT_CATEGORY_LABELS) as IncidentCategory[]).map((c) => (
+                      <SelectItem key={c} value={c}>{INCIDENT_CATEGORY_LABELS[c]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Severidad</Label>
-                <Select value={severity} onValueChange={(v) => setSeverity(v as IncidentSeverity)}>
+                <Label>Tipo</Label>
+                <Select value={incidentType} onValueChange={(v) => setIncidentType(v as IncidentType)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(INCIDENT_SEVERITY_LABELS) as IncidentSeverity[]).map((s) => (
-                      <SelectItem key={s} value={s}>{INCIDENT_SEVERITY_LABELS[s]}</SelectItem>
+                    {typeOptions.map((t) => (
+                      <SelectItem key={t} value={t}>{INCIDENT_TYPE_LABELS[t]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <Label>Severidad</Label>
+              <Select value={severity} onValueChange={(v) => setSeverity(v as IncidentSeverity)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(INCIDENT_SEVERITY_LABELS) as IncidentSeverity[]).map((s) => (
+                    <SelectItem key={s} value={s}>{INCIDENT_SEVERITY_LABELS[s]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Título</Label>

@@ -139,7 +139,14 @@ export function useEventReport(scope: ReportScope | null) {
         profiles: { full_name?: string | null; email?: string | null } | null;
       };
       type CommRow = { id: string; status: string; session_id: string | null };
-      type IncidentRow = { id: string; participant_id: string | null; session_id: string | null; incident_type: string | null };
+      type IncidentRow = {
+        id: string;
+        participant_id: string | null;
+        session_id: string | null;
+        incident_type: string | null;
+        category: "entrada" | "otra" | null;
+        walk_in_companions: number | null;
+      };
       type ConsentRow = { participant_id: string | null; consent_kind: string; accepted: boolean };
 
       const [evt, sessions, participants, checkins, comms, incidents, consents] = await Promise.all([
@@ -162,7 +169,7 @@ export function useEventReport(scope: ReportScope | null) {
           supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: CommRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<IncidentRow>((from, to) =>
-          supabase.from("incidents").select("id, participant_id, session_id, incident_type").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
+          supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<ConsentRow>((from, to) =>
           supabase.from("consent_records").select("participant_id, consent_kind, accepted").range(from, to) as unknown as PromiseLike<{ data: ConsentRow[] | null; error: { message: string } | null }>,
@@ -237,8 +244,10 @@ export function useEventReport(scope: ReportScope | null) {
         if (!i.session_id) continue;
         const s = statsBySession.get(i.session_id);
         if (!s) continue;
+        // Solo cuentan las incidencias de categoría "entrada" como accesos.
+        if (i.category && i.category !== "entrada") continue;
         if (!i.participant_id || !checkinParticipantIds.has(i.participant_id)) {
-          s.checkinsViaIncidencia += 1;
+          s.checkinsViaIncidencia += 1 + (i.walk_in_companions ?? 0);
         }
       }
       for (const s of statsBySession.values()) {

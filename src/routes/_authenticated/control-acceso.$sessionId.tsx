@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { QrScanner, extractQrToken } from "@/components/qr-scanner";
 import { validateQr, manualCheckin, createIncident, searchSessionParticipants, type ValidationResult } from "@/lib/access.functions";
 import { useSessionDashboard, useSessionIncidents } from "@/lib/use-access";
-import { INCIDENT_TYPE_LABELS, INCIDENT_TYPES, type IncidentType } from "@/lib/incident-constants";
+import { INCIDENT_TYPE_LABELS, INCIDENT_TYPES_BY_CATEGORY, type IncidentType, type IncidentCategory } from "@/lib/incident-constants";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -168,11 +168,7 @@ function ScannerTab({ sessionId, eventId, isCoord }: { sessionId: string; eventI
         eventId={eventId}
         participantId={result?.participant?.id ?? null}
         defaultTitle={result ? `Incidencia: ${result.message}` : ""}
-        defaultType={
-          result && (["qr_ya_usado","qr_no_valido","no_confirmado","persona_bloqueada"] as const).includes(result.code as never)
-            ? (result.code as IncidentType)
-            : undefined
-        }
+        category="entrada"
       />
     </div>
   );
@@ -405,6 +401,7 @@ function ParticipantDetail({
         sessionId={sessionId}
         eventId={eventId}
         participantId={participant.id}
+        category="entrada"
       />
     </Card>
   );
@@ -472,11 +469,16 @@ function DashboardTab({ sessionId }: { sessionId: string }) {
 // ─────── Incidents ───────
 function IncidentsTab({ sessionId, eventId }: { sessionId: string; eventId: string }) {
   const { data, isLoading } = useSessionIncidents(sessionId);
-  const [open, setOpen] = useState(false);
+  const [openCategory, setOpenCategory] = useState<IncidentCategory | null>(null);
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setOpen(true)}><AlertTriangle className="h-4 w-4 mr-2" />Nueva incidencia</Button>
+      <div className="flex justify-end gap-2 flex-wrap">
+        <Button onClick={() => setOpenCategory("entrada")}>
+          <UserCheck className="h-4 w-4 mr-2" />Incidencia con entrada
+        </Button>
+        <Button variant="outline" onClick={() => setOpenCategory("otra")}>
+          <AlertTriangle className="h-4 w-4 mr-2" />Otra incidencia
+        </Button>
       </div>
       {isLoading ? (
         <div className="text-sm text-muted-foreground">Cargando…</div>
@@ -504,7 +506,13 @@ function IncidentsTab({ sessionId, eventId }: { sessionId: string; eventId: stri
           })}
         </Card>
       )}
-      <IncidentDialog open={open} onOpenChange={setOpen} sessionId={sessionId} eventId={eventId} />
+      <IncidentDialog
+        open={openCategory !== null}
+        onOpenChange={(v) => !v && setOpenCategory(null)}
+        sessionId={sessionId}
+        eventId={eventId}
+        category={openCategory ?? "entrada"}
+      />
     </div>
   );
 }
@@ -516,7 +524,7 @@ function IncidentDialog({
   eventId,
   participantId,
   defaultTitle,
-  defaultType,
+  category,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -524,14 +532,19 @@ function IncidentDialog({
   eventId: string;
   participantId?: string | null;
   defaultTitle?: string;
-  defaultType?: IncidentType;
+  category: IncidentCategory;
 }) {
   const create = useServerFn(createIncident);
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [severity, setSeverity] = useState<"baja" | "media" | "alta" | "critica">("media");
-  const [incidentType, setIncidentType] = useState<IncidentType>("manual");
+  const typeOptions = INCIDENT_TYPES_BY_CATEGORY[category];
+  const [incidentType, setIncidentType] = useState<IncidentType>(typeOptions[0]);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [dni, setDni] = useState("");
+  const [companions, setCompanions] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -539,15 +552,43 @@ function IncidentDialog({
       setTitle(defaultTitle ?? "");
       setDesc("");
       setSeverity("media");
-      setIncidentType(defaultType ?? "manual");
+      setIncidentType(typeOptions[0]);
+      setFirstName("");
+      setLastName("");
+      setDni("");
+      setCompanions(0);
     }
-  }, [open, defaultTitle, defaultType]);
+  }, [open, defaultTitle, category]);
 
   const submit = async () => {
-    if (title.trim().length < 2) { toast.error("Indica un título"); return; }
+    const isEntrada = category === "entrada";
+    const hasWalkInName = firstName.trim().length >= 2 && lastName.trim().length >= 1;
+    if (isEntrada && !participantId && !hasWalkInName) {
+      toast.error("Indica al menos nombre y apellido");
+      return;
+    }
+    const finalTitle = title.trim().length >= 2
+      ? title.trim()
+      : isEntrada && hasWalkInName
+        ? `${firstName.trim()} ${lastName.trim()}`
+        : "";
+    if (finalTitle.length < 2) { toast.error("Indica un título"); return; }
     setSubmitting(true);
     try {
-      await create({ data: { eventId, sessionId, participantId: participantId ?? null, title: title.trim(), description: desc.trim() || null, severity, incidentType } });
+      await create({ data: {
+        eventId,
+        sessionId,
+        participantId: participantId ?? null,
+        title: finalTitle,
+        description: desc.trim() || null,
+        severity,
+        incidentType,
+        category,
+        walkInFirstName: isEntrada && !participantId ? firstName.trim() || null : null,
+        walkInLastName: isEntrada && !participantId ? lastName.trim() || null : null,
+        walkInDni: isEntrada && !participantId ? dni.trim() || null : null,
+        walkInCompanions: isEntrada && !participantId ? companions : 0,
+      } });
       toast.success("Incidencia creada");
       qc.invalidateQueries({ queryKey: ["access", "incidents", sessionId] });
       qc.invalidateQueries({ queryKey: ["access", "dashboard", sessionId] });
@@ -564,8 +605,14 @@ function IncidentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nueva incidencia</DialogTitle>
-          <DialogDescription>Queda registrada con el validador, la sesión y, si procede, el asistente.</DialogDescription>
+          <DialogTitle>
+            {category === "entrada" ? "Incidencia con entrada" : "Otra incidencia"}
+          </DialogTitle>
+          <DialogDescription>
+            {category === "entrada"
+              ? "La persona accede al evento. Registra el tipo y, si no aparece en la lista, su nombre."
+              : "Incidencia durante el evento que no afecta al control de acceso (objeto perdido, salud, queja…)."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
@@ -573,15 +620,40 @@ function IncidentDialog({
             <Select value={incidentType} onValueChange={(v) => setIncidentType(v as IncidentType)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {INCIDENT_TYPES.map((t) => (
+                {typeOptions.map((t) => (
                   <SelectItem key={t} value={t}>{INCIDENT_TYPE_LABELS[t]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+          {category === "entrada" && !participantId && (
+            <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Datos del asistente</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="wi-fn">Nombre *</Label>
+                  <Input id="wi-fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={100} />
+                </div>
+                <div>
+                  <Label htmlFor="wi-ln">Apellido *</Label>
+                  <Input id="wi-ln" value={lastName} onChange={(e) => setLastName(e.target.value)} maxLength={100} />
+                </div>
+                <div>
+                  <Label htmlFor="wi-dni">DNI</Label>
+                  <Input id="wi-dni" value={dni} onChange={(e) => setDni(e.target.value)} maxLength={40} />
+                </div>
+                <div>
+                  <Label htmlFor="wi-c">Acompañantes</Label>
+                  <Input id="wi-c" type="number" min={0} max={50} value={companions}
+                    onChange={(e) => setCompanions(Math.max(0, Math.min(50, Number(e.target.value) || 0)))} />
+                </div>
+              </div>
+            </div>
+          )}
           <div>
-            <Label htmlFor="i-title">Título</Label>
-            <Input id="i-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Label htmlFor="i-title">Título {category === "entrada" && !participantId ? "(opcional)" : ""}</Label>
+            <Input id="i-title" value={title} onChange={(e) => setTitle(e.target.value)}
+              placeholder={category === "entrada" && !participantId ? "Por defecto: nombre y apellido" : ""} />
           </div>
           <div>
             <Label htmlFor="i-desc">Descripción</Label>
