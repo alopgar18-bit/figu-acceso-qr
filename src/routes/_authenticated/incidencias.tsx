@@ -392,18 +392,6 @@ function CreateIncidentDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                 </SelectContent>
               </Select>
             </div>
-              <div>
-                <Label>Severidad</Label>
-                <Select value={severity} onValueChange={(v) => setSeverity(v as IncidentSeverity)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(INCIDENT_SEVERITY_LABELS) as IncidentSeverity[]).map((s) => (
-                      <SelectItem key={s} value={s}>{INCIDENT_SEVERITY_LABELS[s]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
             <div>
               <Label>Título</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} placeholder="Resumen breve" />
