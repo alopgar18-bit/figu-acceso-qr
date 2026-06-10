@@ -1084,6 +1084,7 @@ export type Database = {
       incidents: {
         Row: {
           assigned_to: string | null
+          category: Database["public"]["Enums"]["incident_category"]
           created_at: string
           description: string | null
           event_id: string | null
@@ -1099,9 +1100,14 @@ export type Database = {
           status: Database["public"]["Enums"]["incident_status"]
           title: string
           updated_at: string
+          walk_in_companions: number
+          walk_in_dni: string | null
+          walk_in_first_name: string | null
+          walk_in_last_name: string | null
         }
         Insert: {
           assigned_to?: string | null
+          category?: Database["public"]["Enums"]["incident_category"]
           created_at?: string
           description?: string | null
           event_id?: string | null
@@ -1117,9 +1123,14 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"]
           title: string
           updated_at?: string
+          walk_in_companions?: number
+          walk_in_dni?: string | null
+          walk_in_first_name?: string | null
+          walk_in_last_name?: string | null
         }
         Update: {
           assigned_to?: string | null
+          category?: Database["public"]["Enums"]["incident_category"]
           created_at?: string
           description?: string | null
           event_id?: string | null
@@ -1135,6 +1146,10 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"]
           title?: string
           updated_at?: string
+          walk_in_companions?: number
+          walk_in_dni?: string | null
+          walk_in_first_name?: string | null
+          walk_in_last_name?: string | null
         }
         Relationships: [
           {
@@ -1739,6 +1754,7 @@ export type Database = {
         | "completada"
         | "completada_con_errores"
         | "fallida"
+      incident_category: "entrada" | "otra"
       incident_severity: "baja" | "media" | "alta" | "critica"
       incident_status: "abierta" | "en_proceso" | "resuelta" | "descartada"
       incident_type:
@@ -1756,6 +1772,14 @@ export type Database = {
         | "persona_bloqueada"
         | "problema_tecnico"
         | "manual"
+        | "no_recibio_qr"
+        | "sin_movil"
+        | "invitado_extra"
+        | "perdida_objeto"
+        | "problema_salud"
+        | "conflicto_personal"
+        | "queja"
+        | "otro"
       legal_text_kind:
         | "privacidad"
         | "imagen"
@@ -1978,6 +2002,7 @@ export const Constants = {
         "completada_con_errores",
         "fallida",
       ],
+      incident_category: ["entrada", "otra"],
       incident_severity: ["baja", "media", "alta", "critica"],
       incident_status: ["abierta", "en_proceso", "resuelta", "descartada"],
       incident_type: [
@@ -1995,6 +2020,14 @@ export const Constants = {
         "persona_bloqueada",
         "problema_tecnico",
         "manual",
+        "no_recibio_qr",
+        "sin_movil",
+        "invitado_extra",
+        "perdida_objeto",
+        "problema_salud",
+        "conflicto_personal",
+        "queja",
+        "otro",
       ],
       legal_text_kind: [
         "privacidad",
