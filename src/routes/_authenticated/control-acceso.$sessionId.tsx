@@ -469,11 +469,16 @@ function DashboardTab({ sessionId }: { sessionId: string }) {
 // ─────── Incidents ───────
 function IncidentsTab({ sessionId, eventId }: { sessionId: string; eventId: string }) {
   const { data, isLoading } = useSessionIncidents(sessionId);
-  const [open, setOpen] = useState(false);
+  const [openCategory, setOpenCategory] = useState<IncidentCategory | null>(null);
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setOpen(true)}><AlertTriangle className="h-4 w-4 mr-2" />Nueva incidencia</Button>
+      <div className="flex justify-end gap-2 flex-wrap">
+        <Button onClick={() => setOpenCategory("entrada")}>
+          <UserCheck className="h-4 w-4 mr-2" />Incidencia con entrada
+        </Button>
+        <Button variant="outline" onClick={() => setOpenCategory("otra")}>
+          <AlertTriangle className="h-4 w-4 mr-2" />Otra incidencia
+        </Button>
       </div>
       {isLoading ? (
         <div className="text-sm text-muted-foreground">Cargando…</div>
@@ -501,7 +506,13 @@ function IncidentsTab({ sessionId, eventId }: { sessionId: string; eventId: stri
           })}
         </Card>
       )}
-      <IncidentDialog open={open} onOpenChange={setOpen} sessionId={sessionId} eventId={eventId} />
+      <IncidentDialog
+        open={openCategory !== null}
+        onOpenChange={(v) => !v && setOpenCategory(null)}
+        sessionId={sessionId}
+        eventId={eventId}
+        category={openCategory ?? "entrada"}
+      />
     </div>
   );
 }
