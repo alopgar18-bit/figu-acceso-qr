@@ -120,28 +120,40 @@ export function useEventReport(scope: ReportScope | null) {
       const [evt, sessions, participants, checkins, comms, incidents, consents] = await Promise.all([
         supabase.from("events").select("id, name, status, starts_at, ends_at, location_name, city").eq("id", eventId).single(),
         supabase.from("event_sessions").select("id, name, starts_at, capacity").eq("event_id", eventId).order("starts_at"),
-        supabase.from("event_participants")
-          .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
-          .eq("event_id", eventId),
-        supabase.from("checkins")
-          .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result, profiles:validator_id(full_name, email)")
-          .eq("event_id", eventId)
-          .order("checked_in_at", { ascending: false }),
-        supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId),
-        supabase.from("incidents").select("id, participant_id, session_id, incident_type").eq("event_id", eventId),
-        supabase.from("consent_records").select("participant_id, consent_kind, accepted"),
+        fetchAllPaged((from, to) =>
+          supabase.from("event_participants")
+            .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
+            .eq("event_id", eventId)
+            .range(from, to),
+        ),
+        fetchAllPaged((from, to) =>
+          supabase.from("checkins")
+            .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result, profiles:validator_id(full_name, email)")
+            .eq("event_id", eventId)
+            .order("checked_in_at", { ascending: false })
+            .range(from, to),
+        ),
+        fetchAllPaged((from, to) =>
+          supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId).range(from, to),
+        ),
+        fetchAllPaged((from, to) =>
+          supabase.from("incidents").select("id, participant_id, session_id, incident_type").eq("event_id", eventId).range(from, to),
+        ),
+        fetchAllPaged((from, to) =>
+          supabase.from("consent_records").select("participant_id, consent_kind, accepted").range(from, to),
+        ),
       ]);
 
       if (evt.error) throw evt.error;
 
       const allSessions = (sessions.data ?? []).filter((s) => !sessionId || s.id === sessionId);
       const sessionIds = new Set(allSessions.map((s) => s.id));
-      const parts = (participants.data ?? []).filter((p) => !sessionId || sessionIds.has(p.session_id));
-      const allCheckins = (checkins.data ?? [])
+      const parts = (participants as Array<{ session_id: string }> & typeof participants).filter((p) => !sessionId || sessionIds.has(p.session_id));
+      const allCheckins = checkins
         .filter((c) => (c.result ?? "ok") === "ok")
         .filter((c) => !sessionId || sessionIds.has(c.session_id));
-      const allComms = (comms.data ?? []).filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
-      const allIncidents = (incidents.data ?? []).filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
+      const allComms = comms.filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
+      const allIncidents = incidents.filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
 
       const checkinByParticipant = new Map<string, typeof allCheckins[number]>();
       for (const c of allCheckins) {
