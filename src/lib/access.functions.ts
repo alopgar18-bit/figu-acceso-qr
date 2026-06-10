@@ -268,6 +268,14 @@ const incidentSchema = z.object({
       "persona_bloqueada",
       "problema_tecnico",
       "manual",
+      "no_recibio_qr",
+      "sin_movil",
+      "invitado_extra",
+      "perdida_objeto",
+      "problema_salud",
+      "conflicto_personal",
+      "queja",
+      "otro",
     ])
     .default("manual"),
 });
