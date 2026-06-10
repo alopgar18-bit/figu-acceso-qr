@@ -120,6 +120,25 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(partAoa), "Asistentes");
 
+  // Sheet 4: Incidencias (manuales y de entrada con nombre/apellidos)
+  const incAoa = [
+    ["Fecha", "Sesión", "Categoría", "Tipo", "Título", "Descripción", "Participante", "Nombre (walk-in)", "Apellidos (walk-in)", "DNI (walk-in)", "Acompañantes"],
+    ...data.incidentRows.map((i) => [
+      i.created_at ? new Date(i.created_at).toLocaleString("es-ES") : "",
+      i.session_name,
+      i.category,
+      i.type,
+      i.title,
+      i.description,
+      i.participant_name,
+      i.walk_in_first_name,
+      i.walk_in_last_name,
+      i.walk_in_dni,
+      i.walk_in_companions,
+    ]),
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(incAoa), "Incidencias");
+
   const filename = `informe-${slug(data.event.name)}-${Date.now()}.xlsx`;
   XLSX.writeFile(wb, filename);
 
