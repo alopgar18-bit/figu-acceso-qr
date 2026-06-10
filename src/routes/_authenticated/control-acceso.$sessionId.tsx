@@ -401,6 +401,7 @@ function ParticipantDetail({
         sessionId={sessionId}
         eventId={eventId}
         participantId={participant.id}
+        category="entrada"
       />
     </Card>
   );
