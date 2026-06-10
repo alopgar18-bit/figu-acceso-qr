@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ParticipantStatus } from "./participant-constants";
 import { APPROVED_LIKE } from "./participant-constants";
+import { INCIDENT_TYPE_LABELS, INCIDENT_CATEGORY_LABELS, type IncidentType, type IncidentCategory } from "./incident-constants";
 
 export type ReportScope = { eventId: string; sessionId?: string };
 
@@ -59,6 +60,7 @@ export interface ReportData {
     duplicateAttempts: number;
   };
   participants: ParticipantExportRow[];
+  incidentRows: IncidentExportRow[];
 }
 
 export interface SessionStats {
@@ -99,6 +101,20 @@ export interface ParticipantExportRow {
   consent_privacy: string;
   consent_image: string;
   consent_future: string;
+}
+
+export interface IncidentExportRow {
+  created_at: string;
+  session_name: string;
+  category: string;
+  type: string;
+  title: string;
+  description: string;
+  participant_name: string;
+  walk_in_first_name: string;
+  walk_in_last_name: string;
+  walk_in_dni: string;
+  walk_in_companions: number;
 }
 
 function emptyStats(): SessionStats {
@@ -145,6 +161,12 @@ export function useEventReport(scope: ReportScope | null) {
         incident_type: string | null;
         category: "entrada" | "otra" | null;
         walk_in_companions: number | null;
+        walk_in_first_name: string | null;
+        walk_in_last_name: string | null;
+        walk_in_dni: string | null;
+        title: string | null;
+        description: string | null;
+        created_at: string;
       };
       type ConsentRow = { participant_id: string | null; consent_kind: string; accepted: boolean };
 
@@ -168,7 +190,7 @@ export function useEventReport(scope: ReportScope | null) {
           supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: CommRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<IncidentRow>((from, to) =>
-          supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
+          supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions, walk_in_first_name, walk_in_last_name, walk_in_dni, title, description, created_at").eq("event_id", eventId).order("created_at", { ascending: false }).range(from, to) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<ConsentRow>((from, to) =>
           supabase.from("consent_records").select("participant_id, consent_kind, accepted").range(from, to) as unknown as PromiseLike<{ data: ConsentRow[] | null; error: { message: string } | null }>,
