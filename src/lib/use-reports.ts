@@ -5,8 +5,39 @@ import { APPROVED_LIKE } from "./participant-constants";
 
 export type ReportScope = { eventId: string; sessionId?: string };
 
-const CONFIRMED_LIKE: ParticipantStatus[] = ["confirmado", "qr_generado", "acceso_validado"];
+// "Confirmado" en el informe = tiene plaza asegurada (aprobado y aceptado).
+// Incluye los estados intermedios del flujo de envío de QR porque en la práctica
+// muchos asistentes nunca cambian de "aceptado_pendiente_envio" antes de la sesión.
+const CONFIRMED_LIKE: ParticipantStatus[] = [
+  "aceptado_pendiente_envio",
+  "invitacion_enviada",
+  "pendiente_confirmacion",
+  "confirmado",
+  "qr_generado",
+  "acceso_validado",
+];
 const CANCELLED_LIKE: ParticipantStatus[] = ["cancelado_asistente", "cancelado_figurarte"];
+
+// Supabase devuelve como máximo 1000 filas por petición. Paginamos para no
+// truncar eventos grandes (participantes / check-ins / incidencias / comunicaciones).
+const PAGE_SIZE = 1000;
+async function fetchAllPaged<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  let from = 0;
+  // hard cap defensivo para evitar bucles infinitos
+  for (let i = 0; i < 200; i++) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await build(from, to);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return out;
+}
 
 export interface ReportData {
   event: { id: string; name: string; status: string; starts_at: string | null; ends_at: string | null; location_name: string | null; city: string | null };
