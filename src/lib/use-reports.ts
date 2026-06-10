@@ -42,6 +42,9 @@ export interface SessionStats {
   noPresentados: number;
   incidencias: number;
   personasConfirmadas: number;
+  checkinsQr: number;
+  checkinsManual: number;
+  checkinsViaIncidencia: number;
 }
 
 export interface ParticipantExportRow {
@@ -72,6 +75,7 @@ function emptyStats(): SessionStats {
     solicitudes: 0, pendientes: 0, aprobados: 0, rechazados: 0,
     listaEspera: 0, confirmados: 0, cancelados: 0, checkins: 0,
     noPresentados: 0, incidencias: 0, personasConfirmadas: 0,
+    checkinsQr: 0, checkinsManual: 0, checkinsViaIncidencia: 0,
   };
 }
 
@@ -89,7 +93,7 @@ export function useEventReport(scope: ReportScope | null) {
           .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
           .eq("event_id", eventId),
         supabase.from("checkins")
-          .select("id, participant_id, validator_id, checked_in_at, session_id, profiles:validator_id(full_name, email)")
+          .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result, profiles:validator_id(full_name, email)")
           .eq("event_id", eventId)
           .order("checked_in_at", { ascending: false }),
         supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId),
@@ -102,7 +106,9 @@ export function useEventReport(scope: ReportScope | null) {
       const allSessions = (sessions.data ?? []).filter((s) => !sessionId || s.id === sessionId);
       const sessionIds = new Set(allSessions.map((s) => s.id));
       const parts = (participants.data ?? []).filter((p) => !sessionId || sessionIds.has(p.session_id));
-      const allCheckins = (checkins.data ?? []).filter((c) => !sessionId || sessionIds.has(c.session_id));
+      const allCheckins = (checkins.data ?? [])
+        .filter((c) => (c.result ?? "ok") === "ok")
+        .filter((c) => !sessionId || sessionIds.has(c.session_id));
       const allComms = (comms.data ?? []).filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
       const allIncidents = (incidents.data ?? []).filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
 
@@ -144,9 +150,31 @@ export function useEventReport(scope: ReportScope | null) {
           s.personasConfirmadas += 1 + (p.companions_count ?? 0);
         }
         if (CANCELLED_LIKE.includes(p.status)) s.cancelados += 1;
-        if (p.status === "acceso_validado") s.checkins += 1;
         if (p.status === "no_presentado") s.noPresentados += 1;
         s.incidencias += incidentsByParticipant.get(p.id) ?? 0;
+      }
+
+      // Real attendance from checkins table (source of truth): split QR vs manual
+      const checkinParticipantIds = new Set<string>();
+      for (const c of allCheckins) {
+        const s = statsBySession.get(c.session_id);
+        if (!s) continue;
+        const isManual = (c.device_info ?? "") === "manual_override";
+        if (isManual) s.checkinsManual += 1;
+        else s.checkinsQr += 1;
+        if (c.participant_id) checkinParticipantIds.add(c.participant_id);
+      }
+      // Walk-ins admitted only via incident (no associated check-in row)
+      for (const i of allIncidents) {
+        if (!i.session_id) continue;
+        const s = statsBySession.get(i.session_id);
+        if (!s) continue;
+        if (!i.participant_id || !checkinParticipantIds.has(i.participant_id)) {
+          s.checkinsViaIncidencia += 1;
+        }
+      }
+      for (const s of statsBySession.values()) {
+        s.checkins = s.checkinsQr + s.checkinsManual + s.checkinsViaIncidencia;
       }
 
       const totals: ReportData["totals"] = {
@@ -177,6 +205,9 @@ export function useEventReport(scope: ReportScope | null) {
         totals.noPresentados += st.noPresentados;
         totals.incidencias += st.incidencias;
         totals.personasConfirmadas += st.personasConfirmadas;
+        totals.checkinsQr += st.checkinsQr;
+        totals.checkinsManual += st.checkinsManual;
+        totals.checkinsViaIncidencia += st.checkinsViaIncidencia;
         totals.capacidad += s.capacity ?? 0;
       }
       totals.ocupacion = totals.capacidad ? Math.round((totals.personasConfirmadas / totals.capacidad) * 100) : 0;
