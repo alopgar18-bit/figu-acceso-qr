@@ -168,11 +168,7 @@ function ScannerTab({ sessionId, eventId, isCoord }: { sessionId: string; eventI
         eventId={eventId}
         participantId={result?.participant?.id ?? null}
         defaultTitle={result ? `Incidencia: ${result.message}` : ""}
-        defaultType={
-          result && (["qr_ya_usado","qr_no_valido","no_confirmado","persona_bloqueada"] as const).includes(result.code as never)
-            ? (result.code as IncidentType)
-            : undefined
-        }
+        category="entrada"
       />
     </div>
   );
