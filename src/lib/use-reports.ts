@@ -355,6 +355,27 @@ export function useEventReport(scope: ReportScope | null) {
         sessions: allSessions.map((s) => ({ ...s, stats: statsBySession.get(s.id)! })),
         totals,
         participants: exportRows,
+        incidentRows: allIncidents.map((i) => {
+          const part = i.participant_id ? parts.find((p) => p.id === i.participant_id) : null;
+          const person = part?.people as { first_name?: string; last_name?: string } | null;
+          const partName = person ? `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() : "";
+          const sess = i.session_id ? allSessions.find((s) => s.id === i.session_id) : null;
+          const cat = (i.category ?? "entrada") as IncidentCategory;
+          const t = (i.incident_type ?? "manual") as IncidentType;
+          return {
+            created_at: i.created_at,
+            session_name: sess?.name ?? "",
+            category: INCIDENT_CATEGORY_LABELS[cat] ?? cat,
+            type: INCIDENT_TYPE_LABELS[t] ?? (i.incident_type ?? ""),
+            title: i.title ?? "",
+            description: i.description ?? "",
+            participant_name: partName,
+            walk_in_first_name: i.walk_in_first_name ?? "",
+            walk_in_last_name: i.walk_in_last_name ?? "",
+            walk_in_dni: i.walk_in_dni ?? "",
+            walk_in_companions: i.walk_in_companions ?? 0,
+          };
+        }),
       };
     },
   });
