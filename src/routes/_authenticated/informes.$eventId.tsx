@@ -122,6 +122,9 @@ function EventReportPage() {
           <Stat label="Total aprobados" value={data.totals.aprobados} />
           <Stat label="Total confirmados" value={data.totals.confirmados} />
           <Stat label="Asistentes reales" value={data.totals.checkins} />
+          <Stat label="Entradas con QR" value={data.totals.checkinsQr} />
+          <Stat label="Entradas manuales" value={data.totals.checkinsManual} />
+          <Stat label="Entradas vía incidencia" value={data.totals.checkinsViaIncidencia} />
           <Stat label="No presentados" value={data.totals.noPresentados} />
           <Stat label="Cancelaciones" value={data.totals.cancelados} />
           <Stat label="Lista de espera" value={data.totals.listaEspera} />
@@ -147,7 +150,10 @@ function EventReportPage() {
                   <th className="text-right p-3">Solic.</th>
                   <th className="text-right p-3">Aprob.</th>
                   <th className="text-right p-3">Conf.</th>
-                  <th className="text-right p-3">Check-in</th>
+                  <th className="text-right p-3">Asist.</th>
+                  <th className="text-right p-3">QR</th>
+                  <th className="text-right p-3">Manual</th>
+                  <th className="text-right p-3">Incid.</th>
                   <th className="text-right p-3">No-show</th>
                   <th className="text-right p-3">Inc.</th>
                   <th className="text-right p-3">Ocup.</th>
@@ -165,6 +171,9 @@ function EventReportPage() {
                       <td className="p-3 text-right">{s.stats.aprobados}</td>
                       <td className="p-3 text-right">{s.stats.confirmados}</td>
                       <td className="p-3 text-right">{s.stats.checkins}</td>
+                      <td className="p-3 text-right">{s.stats.checkinsQr}</td>
+                      <td className="p-3 text-right">{s.stats.checkinsManual}</td>
+                      <td className="p-3 text-right">{s.stats.checkinsViaIncidencia}</td>
                       <td className="p-3 text-right">{s.stats.noPresentados}</td>
                       <td className="p-3 text-right">{s.stats.incidencias}</td>
                       <td className="p-3 text-right">

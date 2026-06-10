@@ -72,7 +72,10 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
     ["Lista de espera", data.totals.listaEspera],
     ["Confirmados", data.totals.confirmados],
     ["Cancelados", data.totals.cancelados],
-    ["Check-ins", data.totals.checkins],
+    ["Asistentes reales", data.totals.checkins],
+    ["  · Entradas con QR", data.totals.checkinsQr],
+    ["  · Entradas manuales", data.totals.checkinsManual],
+    ["  · Entradas vía incidencia", data.totals.checkinsViaIncidencia],
     ["No presentados", data.totals.noPresentados],
     ["Aforo total", data.totals.capacidad],
     ["Ocupación %", data.totals.ocupacion],
@@ -84,7 +87,7 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
 
   // Sheet 2: Por sesión
   const sessionAoa = [
-    ["Sesión", "Inicio", "Aforo", "Solicitudes", "Aprobados", "Confirmados", "Check-ins", "No presentados", "Incidencias", "Ocupación %"],
+    ["Sesión", "Inicio", "Aforo", "Solicitudes", "Aprobados", "Confirmados", "Asistentes", "Entradas QR", "Entradas manuales", "Entradas vía incidencia", "No presentados", "Incidencias", "Ocupación %"],
     ...data.sessions.map((s) => [
       s.name,
       s.starts_at ? new Date(s.starts_at).toLocaleString("es-ES") : "",
@@ -93,6 +96,9 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
       s.stats.aprobados,
       s.stats.confirmados,
       s.stats.checkins,
+      s.stats.checkinsQr,
+      s.stats.checkinsManual,
+      s.stats.checkinsViaIncidencia,
       s.stats.noPresentados,
       s.stats.incidencias,
       s.capacity ? Math.round((s.stats.personasConfirmadas / s.capacity) * 100) : 0,
@@ -163,7 +169,10 @@ export async function exportReportPDF(data: ReportData, opts: { sessionId?: stri
       ["Solicitudes", String(data.totals.solicitudes)],
       ["Aprobados", String(data.totals.aprobados)],
       ["Confirmados", String(data.totals.confirmados)],
-      ["Check-ins (asistentes)", String(data.totals.checkins)],
+      ["Asistentes reales", String(data.totals.checkins)],
+      ["  · Entradas con QR", String(data.totals.checkinsQr)],
+      ["  · Entradas manuales", String(data.totals.checkinsManual)],
+      ["  · Entradas vía incidencia", String(data.totals.checkinsViaIncidencia)],
       ["No presentados", String(data.totals.noPresentados)],
       ["Cancelados", String(data.totals.cancelados)],
       ["Lista de espera", String(data.totals.listaEspera)],

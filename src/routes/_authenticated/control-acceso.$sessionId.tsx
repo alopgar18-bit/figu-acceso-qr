@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { QrScanner, extractQrToken } from "@/components/qr-scanner";
 import { validateQr, manualCheckin, createIncident, searchSessionParticipants, type ValidationResult } from "@/lib/access.functions";
 import { useSessionDashboard, useSessionIncidents } from "@/lib/use-access";
+import { INCIDENT_TYPE_LABELS, INCIDENT_TYPES, type IncidentType } from "@/lib/incident-constants";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -167,6 +168,11 @@ function ScannerTab({ sessionId, eventId, isCoord }: { sessionId: string; eventI
         eventId={eventId}
         participantId={result?.participant?.id ?? null}
         defaultTitle={result ? `Incidencia: ${result.message}` : ""}
+        defaultType={
+          result && (["qr_ya_usado","qr_no_valido","no_confirmado","persona_bloqueada"] as const).includes(result.code as never)
+            ? (result.code as IncidentType)
+            : undefined
+        }
       />
     </div>
   );
@@ -510,6 +516,7 @@ function IncidentDialog({
   eventId,
   participantId,
   defaultTitle,
+  defaultType,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -517,21 +524,30 @@ function IncidentDialog({
   eventId: string;
   participantId?: string | null;
   defaultTitle?: string;
+  defaultType?: IncidentType;
 }) {
   const create = useServerFn(createIncident);
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [severity, setSeverity] = useState<"baja" | "media" | "alta" | "critica">("media");
+  const [incidentType, setIncidentType] = useState<IncidentType>("manual");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { if (open) { setTitle(defaultTitle ?? ""); setDesc(""); setSeverity("media"); } }, [open, defaultTitle]);
+  useEffect(() => {
+    if (open) {
+      setTitle(defaultTitle ?? "");
+      setDesc("");
+      setSeverity("media");
+      setIncidentType(defaultType ?? "manual");
+    }
+  }, [open, defaultTitle, defaultType]);
 
   const submit = async () => {
     if (title.trim().length < 2) { toast.error("Indica un título"); return; }
     setSubmitting(true);
     try {
-      await create({ data: { eventId, sessionId, participantId: participantId ?? null, title: title.trim(), description: desc.trim() || null, severity } });
+      await create({ data: { eventId, sessionId, participantId: participantId ?? null, title: title.trim(), description: desc.trim() || null, severity, incidentType } });
       toast.success("Incidencia creada");
       qc.invalidateQueries({ queryKey: ["access", "incidents", sessionId] });
       qc.invalidateQueries({ queryKey: ["access", "dashboard", sessionId] });
@@ -552,6 +568,17 @@ function IncidentDialog({
           <DialogDescription>Queda registrada con el validador, la sesión y, si procede, el asistente.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          <div>
+            <Label>Tipo de incidencia</Label>
+            <Select value={incidentType} onValueChange={(v) => setIncidentType(v as IncidentType)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INCIDENT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>{INCIDENT_TYPE_LABELS[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Label htmlFor="i-title">Título</Label>
             <Input id="i-title" value={title} onChange={(e) => setTitle(e.target.value)} />
