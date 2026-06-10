@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { QrScanner, extractQrToken } from "@/components/qr-scanner";
 import { validateQr, manualCheckin, createIncident, searchSessionParticipants, type ValidationResult } from "@/lib/access.functions";
 import { useSessionDashboard, useSessionIncidents } from "@/lib/use-access";
-import { INCIDENT_TYPE_LABELS, INCIDENT_TYPES, type IncidentType } from "@/lib/incident-constants";
+import { INCIDENT_TYPE_LABELS, INCIDENT_TYPES_BY_CATEGORY, type IncidentType, type IncidentCategory } from "@/lib/incident-constants";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
