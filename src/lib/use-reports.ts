@@ -5,8 +5,39 @@ import { APPROVED_LIKE } from "./participant-constants";
 
 export type ReportScope = { eventId: string; sessionId?: string };
 
-const CONFIRMED_LIKE: ParticipantStatus[] = ["confirmado", "qr_generado", "acceso_validado"];
+// "Confirmado" en el informe = tiene plaza asegurada (aprobado y aceptado).
+// Incluye los estados intermedios del flujo de envío de QR porque en la práctica
+// muchos asistentes nunca cambian de "aceptado_pendiente_envio" antes de la sesión.
+const CONFIRMED_LIKE: ParticipantStatus[] = [
+  "aceptado_pendiente_envio",
+  "invitacion_enviada",
+  "pendiente_confirmacion",
+  "confirmado",
+  "qr_generado",
+  "acceso_validado",
+];
 const CANCELLED_LIKE: ParticipantStatus[] = ["cancelado_asistente", "cancelado_figurarte"];
+
+// Supabase devuelve como máximo 1000 filas por petición. Paginamos para no
+// truncar eventos grandes (participantes / check-ins / incidencias / comunicaciones).
+const PAGE_SIZE = 1000;
+async function fetchAllPaged<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  let from = 0;
+  // hard cap defensivo para evitar bucles infinitos
+  for (let i = 0; i < 200; i++) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await build(from, to);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return out;
+}
 
 export interface ReportData {
   event: { id: string; name: string; status: string; starts_at: string | null; ends_at: string | null; location_name: string | null; city: string | null };
@@ -86,31 +117,68 @@ export function useEventReport(scope: ReportScope | null) {
     refetchInterval: 10_000,
     queryFn: async (): Promise<ReportData> => {
       const { eventId, sessionId } = scope!;
+      type PartRow = {
+        id: string;
+        status: ParticipantStatus;
+        attendee_type: string;
+        companions_count: number | null;
+        confirmed_at: string | null;
+        session_id: string;
+        person_id: string | null;
+        people: { first_name?: string; last_name?: string; dni?: string; email?: string; phone?: string } | null;
+        event_sessions: { name?: string } | null;
+      };
+      type CheckinRow = {
+        id: string;
+        participant_id: string;
+        validator_id: string | null;
+        checked_in_at: string;
+        session_id: string;
+        device_info: string | null;
+        result: string | null;
+        profiles: { full_name?: string | null; email?: string | null } | null;
+      };
+      type CommRow = { id: string; status: string; session_id: string | null };
+      type IncidentRow = { id: string; participant_id: string | null; session_id: string | null; incident_type: string | null };
+      type ConsentRow = { participant_id: string | null; consent_kind: string; accepted: boolean };
+
       const [evt, sessions, participants, checkins, comms, incidents, consents] = await Promise.all([
         supabase.from("events").select("id, name, status, starts_at, ends_at, location_name, city").eq("id", eventId).single(),
         supabase.from("event_sessions").select("id, name, starts_at, capacity").eq("event_id", eventId).order("starts_at"),
-        supabase.from("event_participants")
-          .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
-          .eq("event_id", eventId),
-        supabase.from("checkins")
-          .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result, profiles:validator_id(full_name, email)")
-          .eq("event_id", eventId)
-          .order("checked_in_at", { ascending: false }),
-        supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId),
-        supabase.from("incidents").select("id, participant_id, session_id, incident_type").eq("event_id", eventId),
-        supabase.from("consent_records").select("participant_id, consent_kind, accepted"),
+        fetchAllPaged<PartRow>((from, to) =>
+          supabase.from("event_participants")
+            .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
+            .eq("event_id", eventId)
+            .range(from, to) as unknown as PromiseLike<{ data: PartRow[] | null; error: { message: string } | null }>,
+        ),
+        fetchAllPaged<CheckinRow>((from, to) =>
+          supabase.from("checkins")
+            .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result, profiles:validator_id(full_name, email)")
+            .eq("event_id", eventId)
+            .order("checked_in_at", { ascending: false })
+            .range(from, to) as unknown as PromiseLike<{ data: CheckinRow[] | null; error: { message: string } | null }>,
+        ),
+        fetchAllPaged<CommRow>((from, to) =>
+          supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: CommRow[] | null; error: { message: string } | null }>,
+        ),
+        fetchAllPaged<IncidentRow>((from, to) =>
+          supabase.from("incidents").select("id, participant_id, session_id, incident_type").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
+        ),
+        fetchAllPaged<ConsentRow>((from, to) =>
+          supabase.from("consent_records").select("participant_id, consent_kind, accepted").range(from, to) as unknown as PromiseLike<{ data: ConsentRow[] | null; error: { message: string } | null }>,
+        ),
       ]);
 
       if (evt.error) throw evt.error;
 
       const allSessions = (sessions.data ?? []).filter((s) => !sessionId || s.id === sessionId);
       const sessionIds = new Set(allSessions.map((s) => s.id));
-      const parts = (participants.data ?? []).filter((p) => !sessionId || sessionIds.has(p.session_id));
-      const allCheckins = (checkins.data ?? [])
+      const parts = participants.filter((p) => !sessionId || sessionIds.has(p.session_id));
+      const allCheckins = checkins
         .filter((c) => (c.result ?? "ok") === "ok")
         .filter((c) => !sessionId || sessionIds.has(c.session_id));
-      const allComms = (comms.data ?? []).filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
-      const allIncidents = (incidents.data ?? []).filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
+      const allComms = comms.filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
+      const allIncidents = incidents.filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
 
       const checkinByParticipant = new Map<string, typeof allCheckins[number]>();
       for (const c of allCheckins) {
@@ -125,7 +193,7 @@ export function useEventReport(scope: ReportScope | null) {
       }
 
       const consentsByPerson = new Map<string, { privacy?: boolean; image?: boolean; future?: boolean }>();
-      for (const c of consents.data ?? []) {
+      for (const c of consents) {
         if (!c.participant_id) continue;
         const cur = consentsByPerson.get(c.participant_id) ?? {};
         if (c.consent_kind === "privacidad") cur.privacy = c.accepted;
