@@ -18,8 +18,6 @@ import {
   ScrollText,
   Eye,
   LogOut,
-  ShoppingCart,
-  ReceiptText,
 } from "lucide-react";
 
 import {
@@ -63,11 +61,6 @@ const operationalItems: NavItem[] = [
   { title: "Control de acceso", url: "/control-acceso", icon: ScanLine, roles: ["superadmin", "admin_figurarte", "coordinador", "validador"] },
   { title: "Incidencias", url: "/incidencias", icon: AlertTriangle, roles: ["superadmin", "admin_figurarte", "coordinador", "validador"] },
   { title: "Informes", url: "/informes", icon: BarChart3, roles: ["superadmin", "admin_figurarte", "coordinador"] },
-];
-
-const tpvItems: NavItem[] = [
-  { title: "TPV — Venta", url: "/tpv/venta", icon: ShoppingCart, roles: ["superadmin", "admin_figurarte", "coordinador"] },
-  { title: "TPV — Ventas del día", url: "/tpv/ventas", icon: ReceiptText, roles: ["superadmin", "admin_figurarte", "coordinador"] },
 ];
 
 const adminItems: NavItem[] = [
@@ -138,7 +131,6 @@ export function AppSidebar() {
 
       <SidebarContent>
         {renderGroup("Operativa", operationalItems)}
-        {renderGroup("TPV", tpvItems)}
         {renderGroup("Administración", adminItems)}
       </SidebarContent>
 
