@@ -19,7 +19,7 @@ const submitSchema = z.object({
   profession: z.string().trim().max(150).optional().nullable(),
   notes: z.string().trim().max(1000).optional().nullable(),
   specialNeeds: z.string().trim().max(1000).optional().nullable(),
-  companionsCount: z.number().int().min(0).max(10).default(0),
+  companionsCount: z.number().int().min(0).max(50).default(0),
   companions: z
     .array(
       z.object({
@@ -29,7 +29,7 @@ const submitSchema = z.object({
         phone: z.string().trim().max(30).optional().nullable().or(z.literal("")),
       }),
     )
-    .max(10)
+    .max(50)
     .optional(),
   acceptPrivacy: z.literal(true),
   acceptAttendance: z.literal(true),
