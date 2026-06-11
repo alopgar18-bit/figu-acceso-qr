@@ -436,6 +436,7 @@ function ListPage() {
                   <TableHead>Evento / Sesión</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Origen</TableHead>
                   <TableHead>Edad</TableHead>
                   <TableHead>Ciudad</TableHead>
                   <TableHead>Acomp.</TableHead>
@@ -485,6 +486,13 @@ function ListPage() {
                         <StatusBadge tone={tone}>{statusLabel(r.status)}</StatusBadge>
                       </TableCell>
                       <TableCell className="text-sm">{ATTENDEE_TYPE_OPTIONS.find((t) => t.value === r.attendee_type)?.label ?? "—"}</TableCell>
+                      <TableCell className="text-xs">
+                        {r.public_forms ? (
+                          <Badge variant="outline" className="text-[10px]">{r.public_forms.title}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">Manual / import</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm tabular-nums">{age ?? "—"}</TableCell>
                       <TableCell className="text-sm">{person?.city ?? "—"}</TableCell>
                       <TableCell className="text-sm tabular-nums">{r.companions_count}</TableCell>
