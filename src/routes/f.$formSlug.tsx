@@ -103,6 +103,9 @@ function Page() {
   }
 
   const { form, event, sessions } = result;
+  const fieldCfg = (form.field_config ?? {}) as Record<string, { visible?: boolean; required?: boolean }>;
+  const showField = (key: string) => fieldCfg[key]?.visible !== false;
+  const reqField = (key: string) => fieldCfg[key]?.required === true;
   const userCanChoose = !form.session_id && event.user_can_choose_session;
   const targetSession = form.session_id
     ? sessions.find((s) => s.id === form.session_id)
