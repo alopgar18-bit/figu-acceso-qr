@@ -18,6 +18,7 @@ import { Route as PortalIndexRouteImport } from './routes/portal.index'
 import { Route as PortalInformesRouteImport } from './routes/portal.informes'
 import { Route as PortalIncidenciasRouteImport } from './routes/portal.incidencias'
 import { Route as PortalEventosRouteImport } from './routes/portal.eventos'
+import { Route as FFormSlugRouteImport } from './routes/f.$formSlug'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as CTokenRouteImport } from './routes/c.$token'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
@@ -101,6 +102,11 @@ const PortalEventosRoute = PortalEventosRouteImport.update({
   id: '/eventos',
   path: '/eventos',
   getParentRoute: () => PortalRoute,
+} as any)
+const FFormSlugRoute = FFormSlugRouteImport.update({
+  id: '/f/$formSlug',
+  path: '/f/$formSlug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ESlugRoute = ESlugRouteImport.update({
   id: '/e/$slug',
@@ -339,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/f/$formSlug': typeof FFormSlugRoute
   '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
@@ -387,6 +394,7 @@ export interface FileRoutesByTo {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/f/$formSlug': typeof FFormSlugRoute
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
   '/portal': typeof PortalIndexRoute
@@ -437,6 +445,7 @@ export interface FileRoutesById {
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
   '/e/$slug': typeof ESlugRouteWithChildren
+  '/f/$formSlug': typeof FFormSlugRoute
   '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
@@ -488,6 +497,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/f/$formSlug'
     | '/portal/eventos'
     | '/portal/incidencias'
     | '/portal/informes'
@@ -536,6 +546,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/f/$formSlug'
     | '/portal/incidencias'
     | '/portal/informes'
     | '/portal'
@@ -585,6 +596,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usuarios'
     | '/c/$token'
     | '/e/$slug'
+    | '/f/$formSlug'
     | '/portal/eventos'
     | '/portal/incidencias'
     | '/portal/informes'
@@ -621,6 +633,7 @@ export interface RootRouteChildren {
   PrivacidadRoute: typeof PrivacidadRoute
   CTokenRoute: typeof CTokenRouteWithChildren
   ESlugRoute: typeof ESlugRouteWithChildren
+  FFormSlugRoute: typeof FFormSlugRoute
   OgCTokenRoute: typeof OgCTokenRoute
 }
 
@@ -688,6 +701,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/eventos'
       preLoaderRoute: typeof PortalEventosRouteImport
       parentRoute: typeof PortalRoute
+    }
+    '/f/$formSlug': {
+      id: '/f/$formSlug'
+      path: '/f/$formSlug'
+      fullPath: '/f/$formSlug'
+      preLoaderRoute: typeof FFormSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/e/$slug': {
       id: '/e/$slug'
@@ -1179,18 +1199,9 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadRoute: PrivacidadRoute,
   CTokenRoute: CTokenRouteWithChildren,
   ESlugRoute: ESlugRouteWithChildren,
+  FFormSlugRoute: FFormSlugRoute,
   OgCTokenRoute: OgCTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

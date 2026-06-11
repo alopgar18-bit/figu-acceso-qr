@@ -605,6 +605,9 @@ export type Database = {
           import_batch_id: string | null
           internal_notes: string | null
           person_id: string
+          seat_number: string | null
+          seat_row: string | null
+          seat_zone: string | null
           session_id: string
           status: Database["public"]["Enums"]["participant_status"]
           submission_id: string | null
@@ -626,6 +629,9 @@ export type Database = {
           import_batch_id?: string | null
           internal_notes?: string | null
           person_id: string
+          seat_number?: string | null
+          seat_row?: string | null
+          seat_zone?: string | null
           session_id: string
           status?: Database["public"]["Enums"]["participant_status"]
           submission_id?: string | null
@@ -647,6 +653,9 @@ export type Database = {
           import_batch_id?: string | null
           internal_notes?: string | null
           person_id?: string
+          seat_number?: string | null
+          seat_row?: string | null
+          seat_zone?: string | null
           session_id?: string
           status?: Database["public"]["Enums"]["participant_status"]
           submission_id?: string | null
@@ -1316,6 +1325,7 @@ export type Database = {
       }
       public_forms: {
         Row: {
+          attendee_type: Database["public"]["Enums"]["attendee_type"]
           closes_at: string | null
           created_at: string
           created_by: string | null
@@ -1335,6 +1345,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attendee_type?: Database["public"]["Enums"]["attendee_type"]
           closes_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -1354,6 +1365,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attendee_type?: Database["public"]["Enums"]["attendee_type"]
           closes_at?: string | null
           created_at?: string
           created_by?: string | null

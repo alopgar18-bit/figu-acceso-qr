@@ -336,6 +336,27 @@ function Page() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="pt-2 border-t space-y-2">
+              <Label className="text-xs uppercase tracking-wider">Fila / Asiento</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Input
+                  placeholder="Zona"
+                  defaultValue={(p as unknown as { seat_zone: string | null }).seat_zone ?? ""}
+                  onBlur={(e) => updateParticipant.mutate({ id: p.id, eventId: p.event_id, patch: { seat_zone: e.target.value || null } as never, action: "participant.seat" })}
+                />
+                <Input
+                  placeholder="Fila"
+                  defaultValue={(p as unknown as { seat_row: string | null }).seat_row ?? ""}
+                  onBlur={(e) => updateParticipant.mutate({ id: p.id, eventId: p.event_id, patch: { seat_row: e.target.value || null } as never, action: "participant.seat" })}
+                />
+                <Input
+                  placeholder="Asiento"
+                  defaultValue={(p as unknown as { seat_number: string | null }).seat_number ?? ""}
+                  onBlur={(e) => updateParticipant.mutate({ id: p.id, eventId: p.event_id, patch: { seat_number: e.target.value || null } as never, action: "participant.seat" })}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Se guarda al salir del campo.</p>
+            </div>
           </CardContent>
         </Card>
 

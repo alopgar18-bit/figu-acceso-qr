@@ -21,6 +21,9 @@ import {
   EVENT_STATUS_OPTIONS, EVENT_TYPE_OPTIONS, SESSION_STATUS_OPTIONS, labelOf,
 } from "@/lib/event-constants";
 import { EventTeamPanel } from "@/components/event-team-panel";
+import { DuplicateSessionDialog } from "@/components/duplicate-session-dialog";
+import { EventFormsPanel } from "@/components/event-forms-panel";
+import { SeatImportDialog } from "@/components/seat-import-dialog";
 
 export const Route = createFileRoute("/_authenticated/eventos/$eventId")({
   component: Page,
@@ -94,11 +97,14 @@ function Page() {
         title={event.name}
         description={event.description ?? undefined}
         actions={
-          <Button asChild variant="outline" className="uppercase tracking-wider">
-            <Link to="/eventos/$eventId/editar" params={{ eventId }}>
-              <Pencil className="h-4 w-4 mr-2" />Editar evento
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <SeatImportDialog eventId={event.id} />
+            <Button asChild variant="outline" className="uppercase tracking-wider">
+              <Link to="/eventos/$eventId/editar" params={{ eventId }}>
+                <Pencil className="h-4 w-4 mr-2" />Editar evento
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -218,6 +224,12 @@ function Page() {
                       <TableCell><Badge variant="outline">{labelOf(SESSION_STATUS_OPTIONS, s.status)}</Badge></TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <DuplicateSessionDialog
+                            sessionId={s.id}
+                            defaultName={s.name}
+                            defaultStartsAt={s.starts_at}
+                            defaultEndsAt={s.ends_at}
+                          />
                           <Button asChild variant="ghost" size="sm">
                             <Link to="/comunicaciones/envio" search={{ event_id: eventId, session_id: s.id }}>
                               <Mail className="h-3.5 w-3.5 mr-1" />Enviar invitaciones
@@ -240,6 +252,8 @@ function Page() {
       </Card>
 
       <EventTeamPanel eventId={event.id} />
+
+      <EventFormsPanel eventId={event.id} />
     </div>
   );
 }
