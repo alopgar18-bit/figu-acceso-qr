@@ -19,7 +19,7 @@ const submitSchema = z.object({
   profession: z.string().trim().max(150).optional().nullable(),
   notes: z.string().trim().max(1000).optional().nullable(),
   specialNeeds: z.string().trim().max(1000).optional().nullable(),
-  companionsCount: z.number().int().min(0).max(10).default(0),
+  companionsCount: z.number().int().min(0).max(50).default(0),
   companions: z
     .array(
       z.object({
@@ -29,7 +29,7 @@ const submitSchema = z.object({
         phone: z.string().trim().max(30).optional().nullable().or(z.literal("")),
       }),
     )
-    .max(10)
+    .max(50)
     .optional(),
   acceptPrivacy: z.literal(true),
   acceptAttendance: z.literal(true),
@@ -173,6 +173,14 @@ export const submitPublicForm = createServerFn({ method: "POST" })
       return { ok: false, code: "consentimiento_imagen_requerido" as const };
     }
 
+    // Clamp companions to session/event allowance
+    const allowComp = (session.allow_companions ?? event.default_allow_companions) ?? false;
+    const maxComp = allowComp
+      ? (session.max_companions_per_participant ?? event.default_max_companions ?? 0)
+      : 0;
+    const companionsCount = Math.min(data.companionsCount ?? 0, maxComp);
+    const companions = (data.companions ?? []).slice(0, companionsCount);
+
     // Person upsert (by email)
     let personId: string;
     const dniValue = data.dni && data.dni.length > 0 ? data.dni : null;
@@ -245,7 +253,7 @@ export const submitPublicForm = createServerFn({ method: "POST" })
           social_media: data.socialMedia || null,
           special_needs: data.specialNeeds ?? null,
           notes: data.notes ?? null,
-          companions_count: data.companionsCount,
+          companions_count: companionsCount,
           photo_path: data.photoPath || null,
         },
         user_agent: data.userAgent ?? null,
@@ -265,7 +273,7 @@ export const submitPublicForm = createServerFn({ method: "POST" })
         submission_id: submission.id,
         status: participantStatus,
         attendee_type: "publico",
-        companions_count: data.companionsCount,
+        companions_count: companionsCount,
         internal_notes: data.specialNeeds ?? null,
       })
       .select("id")
@@ -375,6 +383,14 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
     const imageRequired = event.requires_image_consent || event.requires_recording;
     if (imageRequired && !data.acceptImage) return { ok: false, code: "consentimiento_imagen_requerido" as const };
 
+    // Clamp companions to session/event allowance
+    const allowComp2 = (session.allow_companions ?? event.default_allow_companions) ?? false;
+    const maxComp2 = allowComp2
+      ? (session.max_companions_per_participant ?? event.default_max_companions ?? 0)
+      : 0;
+    const companionsCount = Math.min(data.companionsCount ?? 0, maxComp2);
+    const companionsList = (data.companions ?? []).slice(0, companionsCount);
+
     // Person upsert
     const dniValue = data.dni && data.dni.length > 0 ? data.dni : null;
     const orFilter = dniValue ? `email.eq.${data.email},dni.eq.${dniValue}` : `email.eq.${data.email}`;
@@ -442,7 +458,7 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
           social_media: data.socialMedia || null,
           special_needs: data.specialNeeds ?? null,
           notes: data.notes ?? null,
-          companions_count: data.companionsCount,
+          companions_count: companionsCount,
           photo_path: data.photoPath || null,
         },
         user_agent: data.userAgent ?? null,
@@ -462,15 +478,15 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
         public_form_id: form.id,
         status: participantStatus,
         attendee_type: form.attendee_type,
-        companions_count: data.companionsCount,
+        companions_count: companionsCount,
         internal_notes: data.specialNeeds ?? null,
       })
       .select("id")
       .single();
     if (partErr) throw partErr;
 
-    if (data.companions && data.companions.length > 0) {
-      const rows = data.companions
+    if (companionsList.length > 0) {
+      const rows = companionsList
         .filter((c) => (c.firstName || c.lastName || c.email || c.phone))
         .map((c) => ({
           participant_id: participant.id,
