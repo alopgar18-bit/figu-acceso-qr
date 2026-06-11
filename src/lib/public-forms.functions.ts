@@ -469,12 +469,29 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
       }
     }
 
-    const consents: Array<{ kind: "privacidad" | "imagen" | "futuros_procesos"; accepted: boolean }> = [
-      { kind: "privacidad", accepted: data.acceptPrivacy },
-    ];
-    if (imageRequired) consents.push({ kind: "imagen", accepted: !!data.acceptImage });
-    if (data.acceptFuture !== undefined) consents.push({ kind: "futuros_procesos", accepted: !!data.acceptFuture });
-    for (const c of consents) {
+    // Privacy consents: register one record for every active privacy text
+    const { data: privacyRows } = await supabaseAdmin
+      .from("legal_texts")
+      .select("id")
+      .eq("kind", "privacidad")
+      .eq("is_active", true);
+    const privacyIds = (privacyRows ?? []).map((r) => r.id);
+    if (privacyIds.length === 0) privacyIds.push(await ensureLegalText("privacidad"));
+    for (const legalId of privacyIds) {
+      await supabaseAdmin.from("consent_records").insert({
+        consent_kind: "privacidad",
+        person_id: personId,
+        submission_id: submission.id,
+        participant_id: participant.id,
+        legal_text_id: legalId,
+        accepted: data.acceptPrivacy,
+        user_agent: data.userAgent ?? null,
+      });
+    }
+    const extra: Array<{ kind: "imagen" | "futuros_procesos"; accepted: boolean }> = [];
+    if (imageRequired) extra.push({ kind: "imagen", accepted: !!data.acceptImage });
+    if (data.acceptFuture !== undefined) extra.push({ kind: "futuros_procesos", accepted: !!data.acceptFuture });
+    for (const c of extra) {
       const legalId = await ensureLegalText(c.kind);
       await supabaseAdmin.from("consent_records").insert({
         consent_kind: c.kind,
