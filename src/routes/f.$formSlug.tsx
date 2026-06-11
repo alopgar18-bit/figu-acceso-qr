@@ -160,6 +160,7 @@ function Page() {
           notes: state.notes || null,
           specialNeeds: state.specialNeeds || null,
           companionsCount: state.companionsCount,
+          companions: state.companions.slice(0, state.companionsCount),
           acceptPrivacy: true,
           acceptAttendance: true,
           acceptImage: state.acceptImage,
