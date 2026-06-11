@@ -26,6 +26,7 @@ const ROUTE_ROLES: Array<{ prefix: string; roles: AppRole[] }> = [
   { prefix: "/branding", roles: ["superadmin", "admin_figurarte"] },
   { prefix: "/legal", roles: ["superadmin", "admin_figurarte"] },
   { prefix: "/logs", roles: ["superadmin"] },
+  { prefix: "/tpv", roles: ["superadmin", "admin_figurarte", "coordinador"] },
 ];
 
 function isAllowed(pathname: string, userRoles: AppRole[]): boolean {
