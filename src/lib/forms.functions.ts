@@ -38,7 +38,7 @@ export const listEventForms = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("public_forms")
-      .select("id, slug, title, attendee_type, status, session_id, opens_at, closes_at, created_at, event_sessions(name)")
+      .select("id, slug, title, attendee_type, status, session_id, opens_at, closes_at, created_at, intro_text, header_image_url, field_config, requires_image_consent, offers_future_processes_consent, event_sessions(name)")
       .eq("event_id", data.event_id)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
