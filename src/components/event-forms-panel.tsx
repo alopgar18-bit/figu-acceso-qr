@@ -24,7 +24,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-import { listEventForms, createPublicForm, deletePublicForm, updatePublicForm } from "@/lib/forms.functions";
+import { listEventForms, createPublicForm, deletePublicForm, updatePublicForm, duplicatePublicForm } from "@/lib/forms.functions";
 import { useEventSessions } from "@/lib/use-events";
 import { ATTENDEE_TYPE_OPTIONS, attendeeLabel, type AttendeeType } from "@/lib/participant-constants";
 import { FormEditorDialog } from "@/components/form-editor-dialog";
