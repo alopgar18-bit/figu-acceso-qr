@@ -73,6 +73,8 @@ function Page() {
   const [state, setState] = useState<State>(INITIAL);
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState<Record<string, boolean>>({});
+  const [openPrivacy, setOpenPrivacy] = useState<string | null>(null);
 
   const selectableSessions = useMemo(() => {
     if (!result?.ok) return [];
@@ -103,6 +105,7 @@ function Page() {
   }
 
   const { form, event, sessions } = result;
+  const privacyTexts = result.privacyTexts ?? [];
   const fieldCfg = (form.field_config ?? {}) as Record<string, { visible?: boolean; required?: boolean }>;
   const showField = (key: string) => fieldCfg[key]?.visible !== false;
   const reqField = (key: string) => fieldCfg[key]?.required === true;
@@ -125,7 +128,13 @@ function Page() {
     e.preventDefault();
     if (photo && photo.size > 5 * 1024 * 1024) { toast.error("La foto debe pesar menos de 5 MB."); return; }
     if (userCanChoose && !state.sessionId) { toast.error("Selecciona una sesión."); return; }
-    if (!state.acceptPrivacy || !state.acceptAttendance) { toast.error("Debes aceptar los consentimientos obligatorios."); return; }
+    if (!state.acceptAttendance) { toast.error("Debes aceptar los consentimientos obligatorios."); return; }
+    if (privacyTexts.length > 0) {
+      const allOk = privacyTexts.every((t) => privacyAccepted[t.id]);
+      if (!allOk) { toast.error("Debes aceptar todas las políticas de privacidad."); return; }
+    } else if (!state.acceptPrivacy) {
+      toast.error("Debes aceptar la política de privacidad."); return;
+    }
     if (imageRequired && !state.acceptImage) { toast.error("Este evento requiere consentimiento de imagen."); return; }
     if (ageBlocked) { toast.error(`Edad mínima requerida: ${minAge} años.`); return; }
 
