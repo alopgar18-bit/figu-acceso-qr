@@ -46,8 +46,6 @@ import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
 import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
-import { Route as AuthenticatedTpvVentasRouteImport } from './routes/_authenticated/tpv.ventas'
-import { Route as AuthenticatedTpvVentaRouteImport } from './routes/_authenticated/tpv.venta'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
 import { Route as AuthenticatedInformesEventIdRouteImport } from './routes/_authenticated/informes.$eventId'
 import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
@@ -252,16 +250,6 @@ const CTokenCancelarRoute = CTokenCancelarRouteImport.update({
   path: '/cancelar',
   getParentRoute: () => CTokenRoute,
 } as any)
-const AuthenticatedTpvVentasRoute = AuthenticatedTpvVentasRouteImport.update({
-  id: '/tpv/ventas',
-  path: '/tpv/ventas',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedTpvVentaRoute = AuthenticatedTpvVentaRouteImport.update({
-  id: '/tpv/venta',
-  path: '/tpv/venta',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedSolicitudesParticipantIdRoute =
   AuthenticatedSolicitudesParticipantIdRouteImport.update({
     id: '/$participantId',
@@ -371,8 +359,6 @@ export interface FileRoutesByFullPath {
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
-  '/tpv/venta': typeof AuthenticatedTpvVentaRoute
-  '/tpv/ventas': typeof AuthenticatedTpvVentasRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -421,8 +407,6 @@ export interface FileRoutesByTo {
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
-  '/tpv/venta': typeof AuthenticatedTpvVentaRoute
-  '/tpv/ventas': typeof AuthenticatedTpvVentasRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -475,8 +459,6 @@ export interface FileRoutesById {
   '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/_authenticated/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
-  '/_authenticated/tpv/venta': typeof AuthenticatedTpvVentaRoute
-  '/_authenticated/tpv/ventas': typeof AuthenticatedTpvVentasRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -529,8 +511,6 @@ export interface FileRouteTypes {
     | '/importaciones/nueva'
     | '/informes/$eventId'
     | '/solicitudes/$participantId'
-    | '/tpv/venta'
-    | '/tpv/ventas'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -579,8 +559,6 @@ export interface FileRouteTypes {
     | '/importaciones/nueva'
     | '/informes/$eventId'
     | '/solicitudes/$participantId'
-    | '/tpv/venta'
-    | '/tpv/ventas'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -632,8 +610,6 @@ export interface FileRouteTypes {
     | '/_authenticated/importaciones/nueva'
     | '/_authenticated/informes/$eventId'
     | '/_authenticated/solicitudes/$participantId'
-    | '/_authenticated/tpv/venta'
-    | '/_authenticated/tpv/ventas'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -922,20 +898,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CTokenCancelarRouteImport
       parentRoute: typeof CTokenRoute
     }
-    '/_authenticated/tpv/ventas': {
-      id: '/_authenticated/tpv/ventas'
-      path: '/tpv/ventas'
-      fullPath: '/tpv/ventas'
-      preLoaderRoute: typeof AuthenticatedTpvVentasRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/tpv/venta': {
-      id: '/_authenticated/tpv/venta'
-      path: '/tpv/venta'
-      fullPath: '/tpv/venta'
-      preLoaderRoute: typeof AuthenticatedTpvVentaRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/solicitudes/$participantId': {
       id: '/_authenticated/solicitudes/$participantId'
       path: '/$participantId'
@@ -1139,8 +1101,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
   AuthenticatedEventosEventIdRoute: typeof AuthenticatedEventosEventIdRouteWithChildren
   AuthenticatedEventosNuevoRoute: typeof AuthenticatedEventosNuevoRoute
-  AuthenticatedTpvVentaRoute: typeof AuthenticatedTpvVentaRoute
-  AuthenticatedTpvVentasRoute: typeof AuthenticatedTpvVentasRoute
   AuthenticatedEventosIndexRoute: typeof AuthenticatedEventosIndexRoute
 }
 
@@ -1164,8 +1124,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedEventosEventIdRoute:
     AuthenticatedEventosEventIdRouteWithChildren,
   AuthenticatedEventosNuevoRoute: AuthenticatedEventosNuevoRoute,
-  AuthenticatedTpvVentaRoute: AuthenticatedTpvVentaRoute,
-  AuthenticatedTpvVentasRoute: AuthenticatedTpvVentasRoute,
   AuthenticatedEventosIndexRoute: AuthenticatedEventosIndexRoute,
 }
 
@@ -1247,3 +1205,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
