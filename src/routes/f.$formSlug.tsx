@@ -315,30 +315,38 @@ function Page() {
                   <div key={idx} className="rounded-md border p-3 space-y-3">
                     <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acompañante {idx + 1}</div>
                     <div className="grid gap-3 md:grid-cols-2">
-                      <Field label="Nombre *">
-                        <Input required maxLength={100} value={c.firstName} onChange={(e) => {
+                      {showField("companion_firstName") && (
+                      <Field label={`Nombre${reqField("companion_firstName") ? " *" : ""}`}>
+                        <Input required={reqField("companion_firstName")} maxLength={100} value={c.firstName} onChange={(e) => {
                           const v = e.target.value;
                           setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], firstName: v }; return { ...s, companions: a }; });
                         }} />
                       </Field>
-                      <Field label="Apellidos *">
-                        <Input required maxLength={150} value={c.lastName} onChange={(e) => {
+                      )}
+                      {showField("companion_lastName") && (
+                      <Field label={`Apellidos${reqField("companion_lastName") ? " *" : ""}`}>
+                        <Input required={reqField("companion_lastName")} maxLength={150} value={c.lastName} onChange={(e) => {
                           const v = e.target.value;
                           setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], lastName: v }; return { ...s, companions: a }; });
                         }} />
                       </Field>
-                      <Field label="Email *">
-                        <Input required type="email" maxLength={255} value={c.email} onChange={(e) => {
+                      )}
+                      {showField("companion_email") && (
+                      <Field label={`Email${reqField("companion_email") ? " *" : ""}`}>
+                        <Input required={reqField("companion_email")} type="email" maxLength={255} value={c.email} onChange={(e) => {
                           const v = e.target.value;
                           setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], email: v }; return { ...s, companions: a }; });
                         }} />
                       </Field>
-                      <Field label="Teléfono *">
-                        <Input required type="tel" maxLength={30} value={c.phone} onChange={(e) => {
+                      )}
+                      {showField("companion_phone") && (
+                      <Field label={`Teléfono${reqField("companion_phone") ? " *" : ""}`}>
+                        <Input required={reqField("companion_phone")} type="tel" maxLength={30} value={c.phone} onChange={(e) => {
                           const v = e.target.value;
                           setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], phone: v }; return { ...s, companions: a }; });
                         }} />
                       </Field>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/table";
 
 import { useEvents, useEventSessions } from "@/lib/use-events";
+import { listEventForms } from "@/lib/forms.functions";
+import { useQuery } from "@tanstack/react-query";
 import {
   useParticipants, useBulkUpdateParticipants,
   findDuplicateIds, hasPhoto, type ParticipantFilters,
@@ -46,6 +48,7 @@ const searchSchema = z.object({
   eventId: z.string().optional(),
   sessionId: z.string().optional(),
   importBatchId: z.string().optional(),
+  formId: z.string().optional(),
   status: z.string().optional(),
   type: z.string().optional(),
   waitlist: z.boolean().optional(),
@@ -71,6 +74,13 @@ function ListPage() {
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(search.eventId);
 
+  const listForms = useServerFn(listEventForms);
+  const { data: eventForms = [] } = useQuery({
+    queryKey: ["public-forms", search.eventId],
+    enabled: !!search.eventId,
+    queryFn: () => listForms({ data: { event_id: search.eventId! } }),
+  });
+
   const [searchText, setSearchText] = useState("");
   const [extraFilters, setExtraFilters] = useState({
     city: "",
@@ -89,6 +99,7 @@ function ListPage() {
     eventId: search.eventId,
     sessionId: search.sessionId,
     importBatchId: search.importBatchId,
+    publicFormId: search.formId,
     statuses: search.waitlist
       ? ["lista_espera"]
       : search.status
@@ -230,7 +241,7 @@ function ListPage() {
               <Select
                 value={search.eventId ?? "all"}
                 onValueChange={(v) =>
-                  navigate({ search: { ...search, eventId: v === "all" ? undefined : v, sessionId: undefined } })
+                  navigate({ search: { ...search, eventId: v === "all" ? undefined : v, sessionId: undefined, formId: undefined } })
                 }
               >
                 <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
@@ -298,6 +309,28 @@ function ListPage() {
               <Input value={extraFilters.province} onChange={(e) => setExtraFilters((f) => ({ ...f, province: e.target.value }))} />
             </div>
           </div>
+
+          {search.eventId && eventForms.length > 0 && (
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="md:col-span-2">
+                <Label className="text-xs uppercase tracking-wider">Origen (formulario)</Label>
+                <Select
+                  value={search.formId ?? "all"}
+                  onValueChange={(v) =>
+                    navigate({ search: { ...search, formId: v === "all" ? undefined : v } })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los formularios</SelectItem>
+                    {eventForms.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>{f.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-3 md:grid-cols-6">
             <div>
@@ -403,6 +436,7 @@ function ListPage() {
                   <TableHead>Evento / Sesión</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Origen</TableHead>
                   <TableHead>Edad</TableHead>
                   <TableHead>Ciudad</TableHead>
                   <TableHead>Acomp.</TableHead>
@@ -452,6 +486,13 @@ function ListPage() {
                         <StatusBadge tone={tone}>{statusLabel(r.status)}</StatusBadge>
                       </TableCell>
                       <TableCell className="text-sm">{ATTENDEE_TYPE_OPTIONS.find((t) => t.value === r.attendee_type)?.label ?? "—"}</TableCell>
+                      <TableCell className="text-xs">
+                        {r.public_forms ? (
+                          <Badge variant="outline" className="text-[10px]">{r.public_forms.title}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">Manual / import</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm tabular-nums">{age ?? "—"}</TableCell>
                       <TableCell className="text-sm">{person?.city ?? "—"}</TableCell>
                       <TableCell className="text-sm tabular-nums">{r.companions_count}</TableCell>

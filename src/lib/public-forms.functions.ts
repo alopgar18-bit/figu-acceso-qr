@@ -444,6 +444,7 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
         session_id: sessionId,
         person_id: personId,
         submission_id: submission.id,
+        public_form_id: form.id,
         status: participantStatus,
         attendee_type: form.attendee_type,
         companions_count: data.companionsCount,

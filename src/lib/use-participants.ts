@@ -11,12 +11,14 @@ export interface ParticipantWithRelations extends ParticipantRow {
   event_sessions: { id: string; name: string; starts_at: string; capacity: number } | null;
   events: { id: string; name: string } | null;
   form_submissions: { id: string; payload: unknown } | null;
+  public_forms: { id: string; title: string; slug: string; attendee_type: string } | null;
 }
 
 export interface ParticipantFilters {
   eventId?: string;
   sessionId?: string;
   importBatchId?: string;
+  publicFormId?: string;
   statuses?: ParticipantStatus[];
   attendeeTypes?: AttendeeType[];
   search?: string;
@@ -42,7 +44,7 @@ export function useParticipants(filters: ParticipantFilters) {
       let q = supabase
         .from("event_participants")
         .select(
-          "*, people(*), event_sessions(id, name, starts_at, capacity), events(id, name), form_submissions(id, payload)",
+          "*, people(*), event_sessions(id, name, starts_at, capacity), events(id, name), form_submissions(id, payload), public_forms(id, title, slug, attendee_type)",
           { count: "exact" },
         )
         .order("created_at", { ascending: false })
@@ -51,6 +53,7 @@ export function useParticipants(filters: ParticipantFilters) {
       if (filters.eventId) q = q.eq("event_id", filters.eventId);
       if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
       if (filters.importBatchId) q = q.eq("import_batch_id", filters.importBatchId);
+      if (filters.publicFormId) q = q.eq("public_form_id", filters.publicFormId);
       if (filters.statuses?.length) q = q.in("status", filters.statuses);
       if (filters.attendeeTypes?.length) q = q.in("attendee_type", filters.attendeeTypes);
       if (filters.fromDate) q = q.gte("created_at", filters.fromDate);

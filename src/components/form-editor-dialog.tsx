@@ -34,6 +34,14 @@ const FIELDS: { key: FieldKey; label: string }[] = [
   { key: "notes", label: "Observaciones" },
 ];
 
+type CompanionKey = "firstName" | "lastName" | "email" | "phone";
+const COMPANION_FIELDS: { key: CompanionKey; label: string }[] = [
+  { key: "firstName", label: "Nombre" },
+  { key: "lastName", label: "Apellidos" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Teléfono" },
+];
+
 type FormRow = {
   id: string;
   title: string;
@@ -168,8 +176,29 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
               })}
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Nombre, apellidos y email siempre son obligatorios. Acompañantes piden nombre, apellidos, email y teléfono.
+              Nombre, apellidos y email del titular siempre son obligatorios.
             </p>
+          </div>
+
+          <div>
+            <Label className="mb-2 block">Campos de acompañantes</Label>
+            <div className="border rounded-md divide-y">
+              <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">
+                <div>Campo</div><div>Visible</div><div>Obligatorio</div>
+              </div>
+              {COMPANION_FIELDS.map((f) => {
+                const key = `companion_${f.key}`;
+                const v = cfg[key]?.visible !== false;
+                const r = cfg[key]?.required === true;
+                return (
+                  <div key={f.key} className="grid grid-cols-[1fr_auto_auto] gap-4 px-3 py-2 items-center text-sm">
+                    <div>{f.label}</div>
+                    <Switch checked={v} onCheckedChange={(val) => setCfg((c) => ({ ...c, [key]: { ...c[key], visible: val } }))} />
+                    <Switch checked={r} disabled={!v} onCheckedChange={(val) => setCfg((c) => ({ ...c, [key]: { ...c[key], required: val } }))} />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-2">
