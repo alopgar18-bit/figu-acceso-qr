@@ -310,6 +310,28 @@ function ListPage() {
             </div>
           </div>
 
+          {search.eventId && eventForms.length > 0 && (
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="md:col-span-2">
+                <Label className="text-xs uppercase tracking-wider">Origen (formulario)</Label>
+                <Select
+                  value={search.formId ?? "all"}
+                  onValueChange={(v) =>
+                    navigate({ search: { ...search, formId: v === "all" ? undefined : v } })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los formularios</SelectItem>
+                    {eventForms.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>{f.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-3 md:grid-cols-6">
             <div>
               <Label className="text-xs uppercase tracking-wider">Género</Label>
