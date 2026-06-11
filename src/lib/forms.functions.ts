@@ -264,5 +264,14 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
         .order("starts_at", { ascending: true });
       sessions = (s ?? []) as typeof sessions;
     }
-    return { ok: true as const, form, event, sessions };
+    const { data: privacyRows } = await supabaseAdmin
+      .from("legal_texts")
+      .select("id, title, version, body, effective_from")
+      .eq("kind", "privacidad")
+      .eq("is_active", true)
+      .order("effective_from", { ascending: true });
+    const privacyTexts = (privacyRows ?? []) as Array<{
+      id: string; title: string; version: string; body: string; effective_from: string;
+    }>;
+    return { ok: true as const, form, event, sessions, privacyTexts };
   });
