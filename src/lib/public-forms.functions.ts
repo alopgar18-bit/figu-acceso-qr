@@ -453,6 +453,21 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
       .single();
     if (partErr) throw partErr;
 
+    if (data.companions && data.companions.length > 0) {
+      const rows = data.companions
+        .filter((c) => (c.firstName || c.lastName || c.email || c.phone))
+        .map((c) => ({
+          participant_id: participant.id,
+          first_name: c.firstName || null,
+          last_name: c.lastName || null,
+          email: c.email || null,
+          phone: c.phone || null,
+        }));
+      if (rows.length > 0) {
+        await supabaseAdmin.from("companions").insert(rows);
+      }
+    }
+
     const consents: Array<{ kind: "privacidad" | "imagen" | "futuros_procesos"; accepted: boolean }> = [
       { kind: "privacidad", accepted: data.acceptPrivacy },
     ];
