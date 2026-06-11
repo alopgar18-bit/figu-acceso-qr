@@ -28,6 +28,7 @@ import { listEventForms, createPublicForm, deletePublicForm, updatePublicForm } 
 import { useEventSessions } from "@/lib/use-events";
 import { ATTENDEE_TYPE_OPTIONS, attendeeLabel, type AttendeeType } from "@/lib/participant-constants";
 import { FormEditorDialog } from "@/components/form-editor-dialog";
+import { FormQrDialog } from "@/components/form-qr-dialog";
 
 const STATUS_LABEL: Record<string, string> = {
   borrador: "Borrador", publicado: "Publicado", cerrado: "Cerrado", archivado: "Archivado",
@@ -196,6 +197,7 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
                         <Button variant="ghost" size="sm" onClick={() => copyUrl(f.slug)} title="Copiar URL">
                           <Copy className="h-3.5 w-3.5" />
                         </Button>
+                        <FormQrDialog url={`${baseUrl}${f.slug}`} title={f.title} />
                         <FormEditorDialog form={f as never} eventId={eventId} />
                         <Button asChild variant="ghost" size="sm" title="Abrir">
                           <a href={`/f/${f.slug}`} target="_blank" rel="noreferrer">
