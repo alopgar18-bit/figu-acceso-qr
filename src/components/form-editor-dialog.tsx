@@ -229,8 +229,27 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
 
           <div className="space-y-2">
             <Label>Consentimientos</Label>
+            <div className="border rounded-md divide-y">
+              <div className="grid grid-cols-[1fr_auto] gap-4 px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">
+                <div>Consentimiento</div><div>Visible</div>
+              </div>
+              {([
+                { key: "consent_privacy", label: "Política de privacidad" },
+                { key: "consent_attendance", label: "Compromiso de asistencia" },
+                { key: "consent_image", label: "Consentimiento de imagen" },
+                { key: "consent_future", label: "Suscripción a futuros eventos" },
+              ] as const).map((c) => {
+                const v = cfg[c.key]?.visible !== false;
+                return (
+                  <div key={c.key} className="grid grid-cols-[1fr_auto] gap-4 px-3 py-2 items-center text-sm">
+                    <div>{c.label}</div>
+                    <Switch checked={v} onCheckedChange={(val) => setCfg((cf) => ({ ...cf, [c.key]: { ...cf[c.key], visible: val } }))} />
+                  </div>
+                );
+              })}
+            </div>
             <label className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
-              <span>Pedir consentimiento de imagen</span>
+              <span>Pedir consentimiento de imagen (obligatorio)</span>
               <Switch checked={reqImage} onCheckedChange={setReqImage} />
             </label>
             <label className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
