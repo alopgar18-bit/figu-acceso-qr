@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { createUser, updateUserRoles, updateUserClients } from "@/lib/users.functions";
+import { ClientAssignmentsPanel } from "@/components/client-assignments-panel";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: Page,
@@ -471,6 +472,27 @@ function EditUserDialogBody({
                   {c.name}
                 </label>
               ))}
+            </div>
+          </div>
+        )}
+        {isClient && clientIds.length > 0 && (
+          <div className="space-y-3">
+            <Label>Eventos, sesiones y orígenes por productora</Label>
+            <p className="text-xs text-muted-foreground">
+              Restringe el acceso del cliente a eventos, sesiones o formularios concretos. Si no añades nada para una productora, verá todos sus eventos.
+            </p>
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {clientIds.map((cid) => {
+                const c = clients.find((x) => x.id === cid);
+                return (
+                  <div key={cid} className="space-y-1">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {c?.name ?? cid}
+                    </div>
+                    <ClientAssignmentsPanel clientId={cid} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
