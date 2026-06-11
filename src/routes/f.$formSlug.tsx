@@ -135,14 +135,20 @@ function Page() {
     e.preventDefault();
     if (photo && photo.size > 5 * 1024 * 1024) { toast.error("La foto debe pesar menos de 5 MB."); return; }
     if (userCanChoose && !state.sessionId) { toast.error("Selecciona una sesión."); return; }
-    if (!state.acceptAttendance) { toast.error("Debes aceptar los consentimientos obligatorios."); return; }
-    if (privacyTexts.length > 0) {
-      const allOk = privacyTexts.every((t) => privacyAccepted[t.id]);
-      if (!allOk) { toast.error("Debes aceptar todas las políticas de privacidad."); return; }
-    } else if (!state.acceptPrivacy) {
-      toast.error("Debes aceptar la política de privacidad."); return;
+    if (showField("consent_attendance") && !state.acceptAttendance) {
+      toast.error("Debes aceptar los consentimientos obligatorios."); return;
     }
-    if (imageRequired && !state.acceptImage) { toast.error("Este evento requiere consentimiento de imagen."); return; }
+    if (showField("consent_privacy")) {
+      if (privacyTexts.length > 0) {
+        const allOk = privacyTexts.every((t) => privacyAccepted[t.id]);
+        if (!allOk) { toast.error("Debes aceptar todas las políticas de privacidad."); return; }
+      } else if (!state.acceptPrivacy) {
+        toast.error("Debes aceptar la política de privacidad."); return;
+      }
+    }
+    if (showField("consent_image") && imageRequired && !state.acceptImage) {
+      toast.error("Este evento requiere consentimiento de imagen."); return;
+    }
     if (ageBlocked) { toast.error(`Edad mínima requerida: ${minAge} años.`); return; }
 
     setSubmitting(true);
@@ -384,7 +390,7 @@ function Page() {
         <Card>
           <CardHeader><CardTitle className="text-base uppercase tracking-wider">Consentimientos</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {privacyTexts.length > 0 ? (
+            {showField("consent_privacy") && (privacyTexts.length > 0 ? (
               privacyTexts.map((t) => (
                 <div key={t.id} className="space-y-2">
                   <ConsentRow
@@ -413,19 +419,25 @@ function Page() {
                 {tPrivacyFallback} *{" "}
                 <Link to="/privacidad" target="_blank" className="underline text-primary">(ver política)</Link>
               </ConsentRow>
+            ))}
+            {showField("consent_attendance") && (
+              <ConsentRow checked={state.acceptAttendance} onChange={(v) => update("acceptAttendance", v)}>
+                {tAttendance} *
+              </ConsentRow>
             )}
-            <ConsentRow checked={state.acceptAttendance} onChange={(v) => update("acceptAttendance", v)}>
-              {tAttendance} *
-            </ConsentRow>
-            {imageRequired && (
+            {showField("consent_image") && imageRequired && (
               <ConsentRow checked={state.acceptImage} onChange={(v) => update("acceptImage", v)}>
                 {tImage} *
               </ConsentRow>
             )}
-            <Separator />
-            <ConsentRow checked={state.acceptFuture} onChange={(v) => update("acceptFuture", v)}>
-              {tFuture}
-            </ConsentRow>
+            {showField("consent_future") && (
+              <>
+                <Separator />
+                <ConsentRow checked={state.acceptFuture} onChange={(v) => update("acceptFuture", v)}>
+                  {tFuture}
+                </ConsentRow>
+              </>
+            )}
           </CardContent>
         </Card>
 
