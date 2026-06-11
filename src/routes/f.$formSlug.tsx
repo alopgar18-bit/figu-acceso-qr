@@ -73,6 +73,8 @@ function Page() {
   const [state, setState] = useState<State>(INITIAL);
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState<Record<string, boolean>>({});
+  const [openPrivacy, setOpenPrivacy] = useState<string | null>(null);
 
   const selectableSessions = useMemo(() => {
     if (!result?.ok) return [];
@@ -103,6 +105,7 @@ function Page() {
   }
 
   const { form, event, sessions } = result;
+  const privacyTexts = result.privacyTexts ?? [];
   const fieldCfg = (form.field_config ?? {}) as Record<string, { visible?: boolean; required?: boolean }>;
   const showField = (key: string) => fieldCfg[key]?.visible !== false;
   const reqField = (key: string) => fieldCfg[key]?.required === true;
@@ -125,7 +128,13 @@ function Page() {
     e.preventDefault();
     if (photo && photo.size > 5 * 1024 * 1024) { toast.error("La foto debe pesar menos de 5 MB."); return; }
     if (userCanChoose && !state.sessionId) { toast.error("Selecciona una sesión."); return; }
-    if (!state.acceptPrivacy || !state.acceptAttendance) { toast.error("Debes aceptar los consentimientos obligatorios."); return; }
+    if (!state.acceptAttendance) { toast.error("Debes aceptar los consentimientos obligatorios."); return; }
+    if (privacyTexts.length > 0) {
+      const allOk = privacyTexts.every((t) => privacyAccepted[t.id]);
+      if (!allOk) { toast.error("Debes aceptar todas las políticas de privacidad."); return; }
+    } else if (!state.acceptPrivacy) {
+      toast.error("Debes aceptar la política de privacidad."); return;
+    }
     if (imageRequired && !state.acceptImage) { toast.error("Este evento requiere consentimiento de imagen."); return; }
     if (ageBlocked) { toast.error(`Edad mínima requerida: ${minAge} años.`); return; }
 
@@ -368,11 +377,37 @@ function Page() {
         <Card>
           <CardHeader><CardTitle className="text-base uppercase tracking-wider">Consentimientos</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <ConsentRow checked={state.acceptPrivacy} onChange={(v) => update("acceptPrivacy", v)}>
-              He leído y acepto la{" "}
-              <Link to="/privacidad" target="_blank" className="underline text-primary">política de privacidad</Link>
-              {" "}y el tratamiento de mis datos personales por FIGURARTE. *
-            </ConsentRow>
+            {privacyTexts.length > 0 ? (
+              privacyTexts.map((t) => (
+                <div key={t.id} className="space-y-2">
+                  <ConsentRow
+                    checked={!!privacyAccepted[t.id]}
+                    onChange={(v) => setPrivacyAccepted((p) => ({ ...p, [t.id]: v }))}
+                  >
+                    He leído y acepto la{" "}
+                    <button
+                      type="button"
+                      className="underline text-primary"
+                      onClick={() => setOpenPrivacy(openPrivacy === t.id ? null : t.id)}
+                    >
+                      {t.title}
+                    </button>
+                    {" "}(v{t.version}). *
+                  </ConsentRow>
+                  {openPrivacy === t.id && (
+                    <div className="ml-7 max-h-56 overflow-y-auto rounded-md border bg-muted/40 p-3 text-xs whitespace-pre-line">
+                      {t.body}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <ConsentRow checked={state.acceptPrivacy} onChange={(v) => update("acceptPrivacy", v)}>
+                He leído y acepto la{" "}
+                <Link to="/privacidad" target="_blank" className="underline text-primary">política de privacidad</Link>
+                {" "}y el tratamiento de mis datos personales. *
+              </ConsentRow>
+            )}
             <ConsentRow checked={state.acceptAttendance} onChange={(v) => update("acceptAttendance", v)}>
               Confirmo mi compromiso de asistencia y participación si soy seleccionado/a. *
             </ConsentRow>
