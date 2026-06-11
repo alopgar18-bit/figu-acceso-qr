@@ -109,6 +109,13 @@ function Page() {
   const fieldCfg = (form.field_config ?? {}) as Record<string, { visible?: boolean; required?: boolean }>;
   const showField = (key: string) => fieldCfg[key]?.visible !== false;
   const reqField = (key: string) => fieldCfg[key]?.required === true;
+  const consentTexts = ((form.field_config ?? {}) as Record<string, unknown>)._consent_texts as
+    | { attendance?: string; image?: string; future?: string; privacy?: string }
+    | undefined;
+  const tAttendance = consentTexts?.attendance?.trim() || "Confirmo mi compromiso de asistencia y participación si soy seleccionado/a.";
+  const tImage = consentTexts?.image?.trim() || "Autorizo la captación, grabación y difusión de mi imagen y voz en el contexto de este evento.";
+  const tFuture = consentTexts?.future?.trim() || "Quiero recibir información sobre futuros castings y eventos de FIGURARTE.";
+  const tPrivacyFallback = consentTexts?.privacy?.trim() || "He leído y acepto la política de privacidad y el tratamiento de mis datos personales.";
   const userCanChoose = !form.session_id && event.user_can_choose_session;
   const targetSession = form.session_id
     ? sessions.find((s) => s.id === form.session_id)
@@ -403,22 +410,21 @@ function Page() {
               ))
             ) : (
               <ConsentRow checked={state.acceptPrivacy} onChange={(v) => update("acceptPrivacy", v)}>
-                He leído y acepto la{" "}
-                <Link to="/privacidad" target="_blank" className="underline text-primary">política de privacidad</Link>
-                {" "}y el tratamiento de mis datos personales. *
+                {tPrivacyFallback} *{" "}
+                <Link to="/privacidad" target="_blank" className="underline text-primary">(ver política)</Link>
               </ConsentRow>
             )}
             <ConsentRow checked={state.acceptAttendance} onChange={(v) => update("acceptAttendance", v)}>
-              Confirmo mi compromiso de asistencia y participación si soy seleccionado/a. *
+              {tAttendance} *
             </ConsentRow>
             {imageRequired && (
               <ConsentRow checked={state.acceptImage} onChange={(v) => update("acceptImage", v)}>
-                Autorizo la captación, grabación y difusión de mi imagen y voz en el contexto de este evento. *
+                {tImage} *
               </ConsentRow>
             )}
             <Separator />
             <ConsentRow checked={state.acceptFuture} onChange={(v) => update("acceptFuture", v)}>
-              Quiero recibir información sobre futuros castings y eventos de FIGURARTE.
+              {tFuture}
             </ConsentRow>
           </CardContent>
         </Card>
