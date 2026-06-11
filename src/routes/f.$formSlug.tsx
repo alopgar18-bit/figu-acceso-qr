@@ -377,11 +377,37 @@ function Page() {
         <Card>
           <CardHeader><CardTitle className="text-base uppercase tracking-wider">Consentimientos</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <ConsentRow checked={state.acceptPrivacy} onChange={(v) => update("acceptPrivacy", v)}>
-              He leído y acepto la{" "}
-              <Link to="/privacidad" target="_blank" className="underline text-primary">política de privacidad</Link>
-              {" "}y el tratamiento de mis datos personales por FIGURARTE. *
-            </ConsentRow>
+            {privacyTexts.length > 0 ? (
+              privacyTexts.map((t) => (
+                <div key={t.id} className="space-y-2">
+                  <ConsentRow
+                    checked={!!privacyAccepted[t.id]}
+                    onChange={(v) => setPrivacyAccepted((p) => ({ ...p, [t.id]: v }))}
+                  >
+                    He leído y acepto la{" "}
+                    <button
+                      type="button"
+                      className="underline text-primary"
+                      onClick={() => setOpenPrivacy(openPrivacy === t.id ? null : t.id)}
+                    >
+                      {t.title}
+                    </button>
+                    {" "}(v{t.version}). *
+                  </ConsentRow>
+                  {openPrivacy === t.id && (
+                    <div className="ml-7 max-h-56 overflow-y-auto rounded-md border bg-muted/40 p-3 text-xs whitespace-pre-line">
+                      {t.body}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <ConsentRow checked={state.acceptPrivacy} onChange={(v) => update("acceptPrivacy", v)}>
+                He leído y acepto la{" "}
+                <Link to="/privacidad" target="_blank" className="underline text-primary">política de privacidad</Link>
+                {" "}y el tratamiento de mis datos personales. *
+              </ConsentRow>
+            )}
             <ConsentRow checked={state.acceptAttendance} onChange={(v) => update("acceptAttendance", v)}>
               Confirmo mi compromiso de asistencia y participación si soy seleccionado/a. *
             </ConsentRow>
