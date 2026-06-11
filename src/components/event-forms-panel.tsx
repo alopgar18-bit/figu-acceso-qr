@@ -43,6 +43,7 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
   const create = useServerFn(createPublicForm);
   const remove = useServerFn(deletePublicForm);
   const update = useServerFn(updatePublicForm);
+  const dup = useServerFn(duplicatePublicForm);
   const { data: sessions = [] } = useEventSessions(eventId);
 
   const { data: forms, isLoading } = useQuery({
