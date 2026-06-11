@@ -540,6 +540,7 @@ export type Database = {
           client_id: string | null
           created_at: string
           event_id: string
+          filter_config: Json
           id: string
           role: Database["public"]["Enums"]["assignment_role"]
           session_id: string | null
@@ -549,6 +550,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           event_id: string
+          filter_config?: Json
           id?: string
           role: Database["public"]["Enums"]["assignment_role"]
           session_id?: string | null
@@ -558,6 +560,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           event_id?: string
+          filter_config?: Json
           id?: string
           role?: Database["public"]["Enums"]["assignment_role"]
           session_id?: string | null
@@ -611,6 +614,7 @@ export type Database = {
           import_batch_id: string | null
           internal_notes: string | null
           person_id: string
+          public_form_id: string | null
           seat_number: string | null
           seat_row: string | null
           seat_zone: string | null
@@ -635,6 +639,7 @@ export type Database = {
           import_batch_id?: string | null
           internal_notes?: string | null
           person_id: string
+          public_form_id?: string | null
           seat_number?: string | null
           seat_row?: string | null
           seat_zone?: string | null
@@ -659,6 +664,7 @@ export type Database = {
           import_batch_id?: string | null
           internal_notes?: string | null
           person_id?: string
+          public_form_id?: string | null
           seat_number?: string | null
           seat_row?: string | null
           seat_zone?: string | null
@@ -680,6 +686,13 @@ export type Database = {
             columns: ["person_id"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_public_form_id_fkey"
+            columns: ["public_form_id"]
+            isOneToOne: false
+            referencedRelation: "public_forms"
             referencedColumns: ["id"]
           },
           {
