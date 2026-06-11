@@ -425,31 +425,37 @@ export type Database = {
           age: number | null
           created_at: string
           dni: string | null
+          email: string | null
           first_name: string | null
           id: string
           last_name: string | null
           notes: string | null
           participant_id: string
+          phone: string | null
         }
         Insert: {
           age?: number | null
           created_at?: string
           dni?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
           notes?: string | null
           participant_id: string
+          phone?: string | null
         }
         Update: {
           age?: number | null
           created_at?: string
           dni?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
           notes?: string | null
           participant_id?: string
+          phone?: string | null
         }
         Relationships: [
           {
@@ -1331,8 +1337,11 @@ export type Database = {
           created_by: string | null
           description: string | null
           event_id: string
+          field_config: Json
           fields_schema: Json
+          header_image_url: string | null
           id: string
+          intro_text: string | null
           max_submissions: number | null
           offers_future_processes_consent: boolean
           opens_at: string | null
@@ -1351,8 +1360,11 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           event_id: string
+          field_config?: Json
           fields_schema?: Json
+          header_image_url?: string | null
           id?: string
+          intro_text?: string | null
           max_submissions?: number | null
           offers_future_processes_consent?: boolean
           opens_at?: string | null
@@ -1371,8 +1383,11 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           event_id?: string
+          field_config?: Json
           fields_schema?: Json
+          header_image_url?: string | null
           id?: string
+          intro_text?: string | null
           max_submissions?: number | null
           offers_future_processes_consent?: boolean
           opens_at?: string | null

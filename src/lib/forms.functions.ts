@@ -38,7 +38,7 @@ export const listEventForms = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("public_forms")
-      .select("id, slug, title, attendee_type, status, session_id, opens_at, closes_at, created_at, event_sessions(name)")
+      .select("id, slug, title, attendee_type, status, session_id, opens_at, closes_at, created_at, intro_text, header_image_url, field_config, requires_image_consent, offers_future_processes_consent, event_sessions(name)")
       .eq("event_id", data.event_id)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -114,6 +114,11 @@ export const updatePublicForm = createServerFn({ method: "POST" })
         status: FORM_STATUS.optional(),
         attendee_type: ATTENDEE.optional(),
         session_id: z.string().uuid().nullable().optional(),
+        intro_text: z.string().trim().max(2000).nullable().optional(),
+        header_image_url: z.string().trim().max(500).nullable().optional(),
+        field_config: z.record(z.string(), z.any()).optional(),
+        requires_image_consent: z.boolean().optional(),
+        offers_future_processes_consent: z.boolean().optional(),
       })
       .parse(d),
   )
@@ -129,6 +134,11 @@ export const updatePublicForm = createServerFn({ method: "POST" })
     if (data.status !== undefined) patch.status = data.status;
     if (data.attendee_type !== undefined) patch.attendee_type = data.attendee_type;
     if (data.session_id !== undefined) patch.session_id = data.session_id;
+    if (data.intro_text !== undefined) patch.intro_text = data.intro_text;
+    if (data.header_image_url !== undefined) patch.header_image_url = data.header_image_url;
+    if (data.field_config !== undefined) patch.field_config = data.field_config;
+    if (data.requires_image_consent !== undefined) patch.requires_image_consent = data.requires_image_consent;
+    if (data.offers_future_processes_consent !== undefined) patch.offers_future_processes_consent = data.offers_future_processes_consent;
     const { error } = await supabaseAdmin
       .from("public_forms")
       .update(patch as never)
@@ -158,7 +168,7 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: form } = await supabaseAdmin
       .from("public_forms")
-      .select("id, slug, title, description, attendee_type, status, event_id, session_id, opens_at, closes_at")
+      .select("id, slug, title, description, intro_text, header_image_url, field_config, attendee_type, status, event_id, session_id, opens_at, closes_at, requires_image_consent, offers_future_processes_consent")
       .eq("slug", data.slug)
       .maybeSingle();
     if (!form) return { ok: false as const, code: "no_existe" as const };

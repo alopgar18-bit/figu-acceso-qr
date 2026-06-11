@@ -36,6 +36,7 @@ type State = {
   birthDate: string; socialMedia: string; sessionId: string;
   city: string; province: string; gender: string; profession: string;
   notes: string; specialNeeds: string; companionsCount: number;
+  companions: Array<{ firstName: string; lastName: string; email: string; phone: string }>;
   acceptPrivacy: boolean; acceptAttendance: boolean; acceptImage: boolean; acceptFuture: boolean;
 };
 
@@ -43,6 +44,7 @@ const INITIAL: State = {
   firstName: "", lastName: "", dni: "", email: "", phone: "", birthDate: "",
   socialMedia: "", sessionId: "", city: "", province: "", gender: "",
   profession: "", notes: "", specialNeeds: "", companionsCount: 0,
+  companions: [],
   acceptPrivacy: false, acceptAttendance: false, acceptImage: false, acceptFuture: false,
 };
 
@@ -101,6 +103,9 @@ function Page() {
   }
 
   const { form, event, sessions } = result;
+  const fieldCfg = (form.field_config ?? {}) as Record<string, { visible?: boolean; required?: boolean }>;
+  const showField = (key: string) => fieldCfg[key]?.visible !== false;
+  const reqField = (key: string) => fieldCfg[key]?.required === true;
   const userCanChoose = !form.session_id && event.user_can_choose_session;
   const targetSession = form.session_id
     ? sessions.find((s) => s.id === form.session_id)
@@ -155,6 +160,7 @@ function Page() {
           notes: state.notes || null,
           specialNeeds: state.specialNeeds || null,
           companionsCount: state.companionsCount,
+          companions: state.companions.slice(0, state.companionsCount),
           acceptPrivacy: true,
           acceptAttendance: true,
           acceptImage: state.acceptImage,
@@ -191,13 +197,24 @@ function Page() {
 
   return (
     <PublicShell brandColor={event.brand_color}>
+      {form.header_image_url && (
+        <img
+          src={form.header_image_url}
+          alt=""
+          className="w-full h-48 md:h-64 object-cover rounded-lg mb-6"
+        />
+      )}
       <div className="text-xs uppercase tracking-[0.25em] text-primary font-semibold mb-2">
         {form.title} · {attendeeLabel(form.attendee_type)}
       </div>
       <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">{event.name}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Completa el formulario. Los campos marcados con * son obligatorios.
-      </p>
+      {form.intro_text ? (
+        <p className="mt-3 text-sm text-muted-foreground whitespace-pre-line">{form.intro_text}</p>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Completa el formulario. Los campos marcados con * son obligatorios.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
         {userCanChoose && (
@@ -224,50 +241,119 @@ function Page() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <Field label="Nombre *"><Input required maxLength={100} value={state.firstName} onChange={(e) => update("firstName", e.target.value)} /></Field>
             <Field label="Apellidos *"><Input required maxLength={150} value={state.lastName} onChange={(e) => update("lastName", e.target.value)} /></Field>
-            <Field label="DNI / NIE / Pasaporte"><Input maxLength={20} value={state.dni} onChange={(e) => update("dni", e.target.value.toUpperCase())} /></Field>
+            {showField("dni") && (
+              <Field label={`DNI / NIE / Pasaporte${reqField("dni") ? " *" : ""}`}>
+                <Input required={reqField("dni")} maxLength={20} value={state.dni} onChange={(e) => update("dni", e.target.value.toUpperCase())} />
+              </Field>
+            )}
             <Field label="Email *"><Input required type="email" maxLength={255} value={state.email} onChange={(e) => update("email", e.target.value)} /></Field>
-            <Field label="Teléfono"><Input type="tel" maxLength={30} value={state.phone} onChange={(e) => update("phone", e.target.value)} /></Field>
-            <Field label="Fecha de nacimiento">
-              <Input type="date" max={new Date().toISOString().slice(0, 10)} value={state.birthDate} onChange={(e) => update("birthDate", e.target.value)} />
-              {computedAge !== null && (
-                <p className={"text-xs mt-1 " + (ageBlocked ? "text-destructive" : "text-muted-foreground")}>
-                  Edad: {computedAge} años {minAge > 0 && `· edad mínima ${minAge}`}
-                </p>
-              )}
-            </Field>
-            <Field label="Género"><Input maxLength={40} value={state.gender} onChange={(e) => update("gender", e.target.value)} /></Field>
-            <Field label="Profesión"><Input maxLength={150} value={state.profession} onChange={(e) => update("profession", e.target.value)} /></Field>
-            <Field label="Ciudad"><Input maxLength={120} value={state.city} onChange={(e) => update("city", e.target.value)} /></Field>
-            <Field label="Provincia"><Input maxLength={120} value={state.province} onChange={(e) => update("province", e.target.value)} /></Field>
+            {showField("phone") && (
+              <Field label={`Teléfono${reqField("phone") ? " *" : ""}`}>
+                <Input required={reqField("phone")} type="tel" maxLength={30} value={state.phone} onChange={(e) => update("phone", e.target.value)} />
+              </Field>
+            )}
+            {showField("birthDate") && (
+              <Field label={`Fecha de nacimiento${reqField("birthDate") ? " *" : ""}`}>
+                <Input required={reqField("birthDate")} type="date" max={new Date().toISOString().slice(0, 10)} value={state.birthDate} onChange={(e) => update("birthDate", e.target.value)} />
+                {computedAge !== null && (
+                  <p className={"text-xs mt-1 " + (ageBlocked ? "text-destructive" : "text-muted-foreground")}>
+                    Edad: {computedAge} años {minAge > 0 && `· edad mínima ${minAge}`}
+                  </p>
+                )}
+              </Field>
+            )}
+            {showField("gender") && (
+              <Field label={`Género${reqField("gender") ? " *" : ""}`}><Input required={reqField("gender")} maxLength={40} value={state.gender} onChange={(e) => update("gender", e.target.value)} /></Field>
+            )}
+            {showField("profession") && (
+              <Field label={`Profesión${reqField("profession") ? " *" : ""}`}><Input required={reqField("profession")} maxLength={150} value={state.profession} onChange={(e) => update("profession", e.target.value)} /></Field>
+            )}
+            {showField("city") && (
+              <Field label={`Ciudad${reqField("city") ? " *" : ""}`}><Input required={reqField("city")} maxLength={120} value={state.city} onChange={(e) => update("city", e.target.value)} /></Field>
+            )}
+            {showField("province") && (
+              <Field label={`Provincia${reqField("province") ? " *" : ""}`}><Input required={reqField("province")} maxLength={120} value={state.province} onChange={(e) => update("province", e.target.value)} /></Field>
+            )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-base uppercase tracking-wider">Material y redes</CardTitle></CardHeader>
-          <CardContent className="grid gap-4">
-            <Field label="Foto reciente (JPG/PNG/WebP, máx. 5 MB)">
-              <Input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-            </Field>
-            <Field label="Redes sociales (Instagram, TikTok…)">
-              <Textarea maxLength={500} value={state.socialMedia} onChange={(e) => update("socialMedia", e.target.value)} placeholder="@usuario, enlaces…" rows={2} />
-            </Field>
-          </CardContent>
-        </Card>
+        {(showField("photo") || showField("socialMedia")) && (
+          <Card>
+            <CardHeader><CardTitle className="text-base uppercase tracking-wider">Material y redes</CardTitle></CardHeader>
+            <CardContent className="grid gap-4">
+              {showField("photo") && (
+                <Field label="Foto reciente (JPG/PNG/WebP, máx. 5 MB)">
+                  <Input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+                </Field>
+              )}
+              {showField("socialMedia") && (
+                <Field label="Redes sociales (Instagram, TikTok…)">
+                  <Textarea maxLength={500} value={state.socialMedia} onChange={(e) => update("socialMedia", e.target.value)} placeholder="@usuario, enlaces…" rows={2} />
+                </Field>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader><CardTitle className="text-base uppercase tracking-wider">Información adicional</CardTitle></CardHeader>
           <CardContent className="grid gap-4">
             {allowCompanions && maxCompanions > 0 && (
-              <Field label={`Acompañantes (máx. ${maxCompanions})`}>
-                <Input type="number" min={0} max={maxCompanions} value={state.companionsCount} onChange={(e) => update("companionsCount", Math.min(maxCompanions, Math.max(0, Number(e.target.value))))} />
+              <>
+                <Field label={`Nº de acompañantes (máx. ${maxCompanions})`}>
+                  <Input type="number" min={0} max={maxCompanions} value={state.companionsCount} onChange={(e) => {
+                    const n = Math.min(maxCompanions, Math.max(0, Number(e.target.value) || 0));
+                    setState((s) => {
+                      const comps = [...s.companions];
+                      while (comps.length < n) comps.push({ firstName: "", lastName: "", email: "", phone: "" });
+                      comps.length = n;
+                      return { ...s, companionsCount: n, companions: comps };
+                    });
+                  }} />
+                </Field>
+                {state.companions.map((c, idx) => (
+                  <div key={idx} className="rounded-md border p-3 space-y-3">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acompañante {idx + 1}</div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Nombre *">
+                        <Input required maxLength={100} value={c.firstName} onChange={(e) => {
+                          const v = e.target.value;
+                          setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], firstName: v }; return { ...s, companions: a }; });
+                        }} />
+                      </Field>
+                      <Field label="Apellidos *">
+                        <Input required maxLength={150} value={c.lastName} onChange={(e) => {
+                          const v = e.target.value;
+                          setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], lastName: v }; return { ...s, companions: a }; });
+                        }} />
+                      </Field>
+                      <Field label="Email *">
+                        <Input required type="email" maxLength={255} value={c.email} onChange={(e) => {
+                          const v = e.target.value;
+                          setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], email: v }; return { ...s, companions: a }; });
+                        }} />
+                      </Field>
+                      <Field label="Teléfono *">
+                        <Input required type="tel" maxLength={30} value={c.phone} onChange={(e) => {
+                          const v = e.target.value;
+                          setState((s) => { const a = [...s.companions]; a[idx] = { ...a[idx], phone: v }; return { ...s, companions: a }; });
+                        }} />
+                      </Field>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+            {showField("specialNeeds") && (
+              <Field label="Necesidades especiales o accesibilidad">
+                <Textarea maxLength={1000} value={state.specialNeeds} onChange={(e) => update("specialNeeds", e.target.value)} rows={2} />
               </Field>
             )}
-            <Field label="Necesidades especiales o accesibilidad">
-              <Textarea maxLength={1000} value={state.specialNeeds} onChange={(e) => update("specialNeeds", e.target.value)} rows={2} />
-            </Field>
-            <Field label="Observaciones">
-              <Textarea maxLength={1000} value={state.notes} onChange={(e) => update("notes", e.target.value)} rows={2} />
-            </Field>
+            {showField("notes") && (
+              <Field label="Observaciones">
+                <Textarea maxLength={1000} value={state.notes} onChange={(e) => update("notes", e.target.value)} rows={2} />
+              </Field>
+            )}
           </CardContent>
         </Card>
 

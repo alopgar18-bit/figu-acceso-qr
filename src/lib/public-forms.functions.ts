@@ -20,6 +20,17 @@ const submitSchema = z.object({
   notes: z.string().trim().max(1000).optional().nullable(),
   specialNeeds: z.string().trim().max(1000).optional().nullable(),
   companionsCount: z.number().int().min(0).max(10).default(0),
+  companions: z
+    .array(
+      z.object({
+        firstName: z.string().trim().max(100).optional().nullable().or(z.literal("")),
+        lastName: z.string().trim().max(150).optional().nullable().or(z.literal("")),
+        email: z.string().trim().email().max(255).optional().nullable().or(z.literal("")),
+        phone: z.string().trim().max(30).optional().nullable().or(z.literal("")),
+      }),
+    )
+    .max(10)
+    .optional(),
   acceptPrivacy: z.literal(true),
   acceptAttendance: z.literal(true),
   acceptImage: z.boolean().optional(),
@@ -441,6 +452,21 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (partErr) throw partErr;
+
+    if (data.companions && data.companions.length > 0) {
+      const rows = data.companions
+        .filter((c) => (c.firstName || c.lastName || c.email || c.phone))
+        .map((c) => ({
+          participant_id: participant.id,
+          first_name: c.firstName || null,
+          last_name: c.lastName || null,
+          email: c.email || null,
+          phone: c.phone || null,
+        }));
+      if (rows.length > 0) {
+        await supabaseAdmin.from("companions").insert(rows);
+      }
+    }
 
     const consents: Array<{ kind: "privacidad" | "imagen" | "futuros_procesos"; accepted: boolean }> = [
       { kind: "privacidad", accepted: data.acceptPrivacy },
