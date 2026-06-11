@@ -1,9 +1,9 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,6 @@ function calcAge(birth: string): number | null {
 
 function Page() {
   const { formSlug } = Route.useParams();
-  const navigate = useNavigate();
   const getForm = useServerFn(getPublicFormBySlug);
   const submit = useServerFn(submitPublicFormBySlug);
 
@@ -75,6 +74,7 @@ function Page() {
   const [submitting, setSubmitting] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState<Record<string, boolean>>({});
   const [openPrivacy, setOpenPrivacy] = useState<string | null>(null);
+  const [success, setSuccess] = useState<null | "recibida" | "lista_espera">(null);
 
   const selectableSessions = useMemo(() => {
     if (!result?.ok) return [];
@@ -193,9 +193,9 @@ function Page() {
 
       if (!res.ok) {
         if (res.code === "sesion_completa") {
-          navigate({ to: "/e/$slug/completo", params: { slug: event.slug } });
+          toast.error("La sesión está completa.");
         } else if (res.code === "inscripciones_cerradas" || res.code === "evento_no_disponible") {
-          navigate({ to: "/e/$slug/cerrado", params: { slug: event.slug } });
+          toast.error("Las inscripciones están cerradas.");
         } else if (res.code === "duplicado") {
           toast.error("Ya existe una solicitud para esta sesión con tus datos.");
         } else if (res.code === "edad_minima_no_cumplida") {
@@ -205,16 +205,34 @@ function Page() {
         }
         return;
       }
-      navigate({
-        to: "/e/$slug/gracias",
-        params: { slug: event.slug },
-        search: res.code === "lista_espera" ? { waitlist: true } : {},
-      });
+      setSuccess(res.code === "lista_espera" ? "lista_espera" : "recibida");
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (success) {
+    return (
+      <PublicShell brandColor={event.brand_color}>
+        <div className="flex flex-col items-center text-center py-12">
+          <CheckCircle2 className="h-16 w-16 text-primary mb-4" />
+          <div className="text-xs uppercase tracking-[0.25em] text-primary font-semibold mb-2">
+            {success === "lista_espera" ? "En lista de espera" : "Solicitud recibida"}
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">
+            ¡Gracias!
+          </h1>
+          <p className="mt-4 max-w-lg text-muted-foreground">
+            {success === "lista_espera"
+              ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza te avisaremos por email."
+              : "Hemos recibido tu solicitud correctamente. Te contactaremos por email con los siguientes pasos."}
+          </p>
+        </div>
+      </PublicShell>
+    );
   }
 
   return (
