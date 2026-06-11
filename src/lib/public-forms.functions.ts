@@ -27,6 +27,10 @@ const submitSchema = z.object({
   userAgent: z.string().max(500).optional(),
 });
 
+const submitByFormSchema = submitSchema
+  .omit({ slug: true })
+  .extend({ formSlug: z.string().min(1).max(120) });
+
 function calcAge(birth: string): number {
   const b = new Date(birth);
   const now = new Date();
@@ -264,6 +268,185 @@ export const submitPublicForm = createServerFn({ method: "POST" })
     if (imageRequired) consents.push({ kind: "imagen", accepted: !!data.acceptImage });
     if (data.acceptFuture !== undefined) consents.push({ kind: "futuros_procesos", accepted: !!data.acceptFuture });
 
+    for (const c of consents) {
+      const legalId = await ensureLegalText(c.kind);
+      await supabaseAdmin.from("consent_records").insert({
+        consent_kind: c.kind,
+        person_id: personId,
+        submission_id: submission.id,
+        participant_id: participant.id,
+        legal_text_id: legalId,
+        accepted: c.accepted,
+        user_agent: data.userAgent ?? null,
+      });
+    }
+
+    return {
+      ok: true as const,
+      code: participantStatus === "lista_espera" ? ("lista_espera" as const) : ("recibida" as const),
+      participantId: participant.id,
+    };
+  });
+
+export const submitPublicFormBySlug = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => submitByFormSchema.parse(d))
+  .handler(async ({ data }) => {
+    // Resolve form
+    const { data: form } = await supabaseAdmin
+      .from("public_forms")
+      .select("id, event_id, session_id, status, attendee_type, opens_at, closes_at")
+      .eq("slug", data.formSlug)
+      .maybeSingle();
+    if (!form) return { ok: false, code: "evento_no_disponible" as const };
+    const now = new Date();
+    if (form.status !== "publicado") return { ok: false, code: "inscripciones_cerradas" as const };
+    if (form.opens_at && new Date(form.opens_at) > now) return { ok: false, code: "inscripciones_cerradas" as const };
+    if (form.closes_at && new Date(form.closes_at) < now) return { ok: false, code: "inscripciones_cerradas" as const };
+
+    const { data: event } = await supabaseAdmin
+      .from("events")
+      .select("*")
+      .eq("id", form.event_id)
+      .maybeSingle();
+    if (!event) return { ok: false, code: "evento_no_disponible" as const };
+    if (event.status !== "publicado") return { ok: false, code: "evento_no_disponible" as const };
+
+    // Session resolution
+    let sessionId: string | null = form.session_id ?? data.sessionId ?? null;
+    const { data: sessions } = await supabaseAdmin
+      .from("event_sessions")
+      .select("*")
+      .eq("event_id", event.id)
+      .order("starts_at", { ascending: true });
+    if (!sessions || sessions.length === 0) return { ok: false, code: "inscripciones_cerradas" as const };
+    if (!sessionId) {
+      if (event.user_can_choose_session) {
+        return { ok: false, code: "sesion_requerida" as const };
+      }
+      sessionId = sessions[0]!.id;
+    }
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return { ok: false, code: "sesion_no_disponible" as const };
+    if (session.status === "cerrada" || session.status === "cancelada" || session.status === "completada") {
+      return { ok: false, code: "inscripciones_cerradas" as const };
+    }
+
+    const minAge = session.min_age || event.default_min_age || 0;
+    if (data.birthDate && minAge > 0) {
+      const age = calcAge(data.birthDate);
+      if (age < minAge) return { ok: false, code: "edad_minima_no_cumplida" as const, minAge };
+    }
+
+    const { count: occupied } = await supabaseAdmin
+      .from("event_participants")
+      .select("*", { count: "exact", head: true })
+      .eq("session_id", sessionId)
+      .in("status", ["solicitud_recibida", "pendiente_revision", "aprobado", "invitacion_enviada", "pendiente_confirmacion", "confirmado", "qr_generado", "acceso_validado"]);
+    const full = (occupied ?? 0) >= session.capacity;
+    const waitlistEnabled = session.waitlist_enabled ?? event.default_waitlist_enabled;
+    if (full && !waitlistEnabled) return { ok: false, code: "sesion_completa" as const };
+
+    const imageRequired = event.requires_image_consent || event.requires_recording;
+    if (imageRequired && !data.acceptImage) return { ok: false, code: "consentimiento_imagen_requerido" as const };
+
+    // Person upsert
+    const dniValue = data.dni && data.dni.length > 0 ? data.dni : null;
+    const orFilter = dniValue ? `email.eq.${data.email},dni.eq.${dniValue}` : `email.eq.${data.email}`;
+    const { data: existingPerson } = await supabaseAdmin
+      .from("people")
+      .select("id")
+      .or(orFilter)
+      .limit(1)
+      .maybeSingle();
+    let personId: string;
+    if (existingPerson) {
+      personId = existingPerson.id;
+      await supabaseAdmin
+        .from("people")
+        .update({
+          first_name: data.firstName,
+          last_name: data.lastName,
+          dni: dniValue,
+          email: data.email,
+          phone: data.phone || null,
+          birth_date: data.birthDate || null,
+          city: data.city ?? null,
+          province: data.province ?? null,
+          gender: data.gender ?? null,
+        })
+        .eq("id", personId);
+    } else {
+      const { data: created, error } = await supabaseAdmin
+        .from("people")
+        .insert({
+          first_name: data.firstName,
+          last_name: data.lastName,
+          dni: dniValue,
+          email: data.email,
+          phone: data.phone || null,
+          birth_date: data.birthDate || null,
+          city: data.city ?? null,
+          province: data.province ?? null,
+          gender: data.gender ?? null,
+          source: "formulario_publico",
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      personId = created.id;
+    }
+
+    const { data: dup } = await supabaseAdmin
+      .from("event_participants")
+      .select("id")
+      .eq("session_id", sessionId)
+      .eq("person_id", personId)
+      .maybeSingle();
+    if (dup) return { ok: false, code: "duplicado" as const };
+
+    const { data: submission, error: subErr } = await supabaseAdmin
+      .from("form_submissions")
+      .insert({
+        form_id: form.id,
+        event_id: event.id,
+        session_id: sessionId,
+        person_id: personId,
+        payload: {
+          profession: data.profession ?? null,
+          social_media: data.socialMedia || null,
+          special_needs: data.specialNeeds ?? null,
+          notes: data.notes ?? null,
+          companions_count: data.companionsCount,
+          photo_path: data.photoPath || null,
+        },
+        user_agent: data.userAgent ?? null,
+      })
+      .select("id")
+      .single();
+    if (subErr) throw subErr;
+
+    const participantStatus = full && waitlistEnabled ? "lista_espera" : "pendiente_revision";
+    const { data: participant, error: partErr } = await supabaseAdmin
+      .from("event_participants")
+      .insert({
+        event_id: event.id,
+        session_id: sessionId,
+        person_id: personId,
+        submission_id: submission.id,
+        status: participantStatus,
+        attendee_type: form.attendee_type,
+        companions_count: data.companionsCount,
+        internal_notes: data.specialNeeds ?? null,
+      })
+      .select("id")
+      .single();
+    if (partErr) throw partErr;
+
+    const consents: Array<{ kind: "privacidad" | "imagen" | "futuros_procesos"; accepted: boolean }> = [
+      { kind: "privacidad", accepted: data.acceptPrivacy },
+    ];
+    if (imageRequired) consents.push({ kind: "imagen", accepted: !!data.acceptImage });
+    if (data.acceptFuture !== undefined) consents.push({ kind: "futuros_procesos", accepted: !!data.acceptFuture });
     for (const c of consents) {
       const legalId = await ensureLegalText(c.kind);
       await supabaseAdmin.from("consent_records").insert({
