@@ -328,7 +328,7 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
     // Resolve form
     const { data: form } = await supabaseAdmin
       .from("public_forms")
-      .select("id, event_id, session_id, status, attendee_type, opens_at, closes_at")
+      .select("id, event_id, session_id, status, attendee_type, opens_at, closes_at, field_config")
       .eq("slug", data.formSlug)
       .maybeSingle();
     if (!form) return { ok: false, code: "evento_no_disponible" as const };
@@ -380,7 +380,9 @@ export const submitPublicFormBySlug = createServerFn({ method: "POST" })
     const waitlistEnabled = session.waitlist_enabled ?? event.default_waitlist_enabled;
     if (full && !waitlistEnabled) return { ok: false, code: "sesion_completa" as const };
 
-    const imageRequired = event.requires_image_consent || event.requires_recording;
+    const fieldCfg = (form.field_config ?? {}) as Record<string, { visible?: boolean; required?: boolean }>;
+    const imageVisible = fieldCfg["consent_image"]?.visible !== false;
+    const imageRequired = (event.requires_image_consent || event.requires_recording) && imageVisible;
     if (imageRequired && !data.acceptImage) return { ok: false, code: "consentimiento_imagen_requerido" as const };
 
     // Clamp companions to session/event allowance
