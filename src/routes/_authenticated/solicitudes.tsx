@@ -28,7 +28,6 @@ import {
 
 import { useEvents, useEventSessions } from "@/lib/use-events";
 import { listEventForms } from "@/lib/forms.functions";
-import { useServerFn as useServerFnAlias } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
   useParticipants, useBulkUpdateParticipants,
@@ -75,7 +74,7 @@ function ListPage() {
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(search.eventId);
 
-  const listForms = useServerFnAlias(listEventForms);
+  const listForms = useServerFn(listEventForms);
   const { data: eventForms = [] } = useQuery({
     queryKey: ["public-forms", search.eventId],
     enabled: !!search.eventId,
