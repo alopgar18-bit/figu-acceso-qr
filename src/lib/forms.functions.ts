@@ -174,20 +174,26 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!event) return { ok: false as const, code: "no_existe" as const };
 
-    let sessions: Array<Record<string, unknown>> = [];
+    const sessSelect = "id, name, starts_at, ends_at, capacity, status, location_name, user_selectable, min_age, allow_companions, max_companions_per_participant, waitlist_enabled";
+    let sessions: Array<{
+      id: string; name: string; starts_at: string; ends_at: string | null;
+      capacity: number; status: string; location_name: string | null;
+      user_selectable: boolean; min_age: number | null; allow_companions: boolean | null;
+      max_companions_per_participant: number | null; waitlist_enabled: boolean | null;
+    }> = [];
     if (form.session_id) {
       const { data: s } = await supabaseAdmin
         .from("event_sessions")
-        .select("*")
+        .select(sessSelect)
         .eq("id", form.session_id);
-      sessions = s ?? [];
+      sessions = (s ?? []) as typeof sessions;
     } else {
       const { data: s } = await supabaseAdmin
         .from("event_sessions")
-        .select("*")
+        .select(sessSelect)
         .eq("event_id", form.event_id)
         .order("starts_at", { ascending: true });
-      sessions = s ?? [];
+      sessions = (s ?? []) as typeof sessions;
     }
     return { ok: true as const, form, event, sessions };
   });
