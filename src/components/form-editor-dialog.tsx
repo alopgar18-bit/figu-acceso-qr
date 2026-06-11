@@ -63,6 +63,17 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
   const [reqImage, setReqImage] = useState(!!form.requires_image_consent);
   const [offerFuture, setOfferFuture] = useState(form.offers_future_processes_consent !== false);
   const [uploading, setUploading] = useState(false);
+  const [attendanceText, setAttendanceText] = useState("");
+  const [imageText, setImageText] = useState("");
+  const [futureText, setFutureText] = useState("");
+  const [privacyText, setPrivacyText] = useState("");
+
+  const DEFAULTS = {
+    attendance: "Confirmo mi compromiso de asistencia y participación si soy seleccionado/a.",
+    image: "Autorizo la captación, grabación y difusión de mi imagen y voz en el contexto de este evento.",
+    future: "Quiero recibir información sobre futuros castings y eventos de FIGURARTE.",
+    privacy: "He leído y acepto la política de privacidad y el tratamiento de mis datos personales.",
+  };
 
   useEffect(() => {
     if (open) {
@@ -72,21 +83,36 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
       setCfg(form.field_config ?? {});
       setReqImage(!!form.requires_image_consent);
       setOfferFuture(form.offers_future_processes_consent !== false);
+      const c = (form.field_config ?? {}) as Record<string, unknown>;
+      const texts = (c._consent_texts ?? {}) as Record<string, string>;
+      setAttendanceText(texts.attendance ?? "");
+      setImageText(texts.image ?? "");
+      setFutureText(texts.future ?? "");
+      setPrivacyText(texts.privacy ?? "");
     }
   }, [open, form]);
 
   const save = useMutation({
-    mutationFn: () => update({
-      data: {
-        id: form.id,
-        title: title.trim(),
-        intro_text: intro.trim() || null,
-        header_image_url: header.trim() || null,
-        field_config: cfg,
-        requires_image_consent: reqImage,
-        offers_future_processes_consent: offerFuture,
-      },
-    }),
+    mutationFn: () => {
+      const nextCfg: Record<string, unknown> = { ...cfg };
+      nextCfg._consent_texts = {
+        attendance: attendanceText.trim(),
+        image: imageText.trim(),
+        future: futureText.trim(),
+        privacy: privacyText.trim(),
+      };
+      return update({
+        data: {
+          id: form.id,
+          title: title.trim(),
+          intro_text: intro.trim() || null,
+          header_image_url: header.trim() || null,
+          field_config: nextCfg as Record<string, { visible?: boolean; required?: boolean }>,
+          requires_image_consent: reqImage,
+          offers_future_processes_consent: offerFuture,
+        },
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["public-forms", eventId] });
       toast.success("Formulario actualizado");
@@ -211,6 +237,28 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
               <span>Ofrecer suscripción a futuros eventos</span>
               <Switch checked={offerFuture} onCheckedChange={setOfferFuture} />
             </label>
+
+            <div className="pt-2 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Personaliza el texto de cada consentimiento. Si lo dejas vacío se usará el texto por defecto.
+              </p>
+              <div>
+                <Label className="text-xs">Política de privacidad (texto fallback si no hay textos legales activos)</Label>
+                <Textarea rows={2} value={privacyText} onChange={(e) => setPrivacyText(e.target.value)} placeholder={DEFAULTS.privacy} />
+              </div>
+              <div>
+                <Label className="text-xs">Compromiso de asistencia (obligatorio)</Label>
+                <Textarea rows={2} value={attendanceText} onChange={(e) => setAttendanceText(e.target.value)} placeholder={DEFAULTS.attendance} />
+              </div>
+              <div>
+                <Label className="text-xs">Consentimiento de imagen</Label>
+                <Textarea rows={2} value={imageText} onChange={(e) => setImageText(e.target.value)} placeholder={DEFAULTS.image} />
+              </div>
+              <div>
+                <Label className="text-xs">Suscripción a futuros eventos</Label>
+                <Textarea rows={2} value={futureText} onChange={(e) => setFutureText(e.target.value)} placeholder={DEFAULTS.future} />
+              </div>
+            </div>
           </div>
         </div>
 
