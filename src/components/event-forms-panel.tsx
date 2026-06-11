@@ -207,6 +207,9 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
                         <Button variant="ghost" size="sm" onClick={() => copyUrl(f.slug)} title="Copiar URL">
                           <Copy className="h-3.5 w-3.5" />
                         </Button>
+                        <Button variant="ghost" size="sm" onClick={() => duplicate.mutate(f.id)} title="Duplicar formulario" disabled={duplicate.isPending}>
+                          {duplicate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Files className="h-3.5 w-3.5" />}
+                        </Button>
                         <FormQrDialog url={`${baseUrl}${f.slug}`} title={f.title} />
                         <FormEditorDialog form={f as never} eventId={eventId} />
                         <Button asChild variant="ghost" size="sm" title="Abrir">
