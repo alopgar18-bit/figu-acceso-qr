@@ -66,7 +66,9 @@ export function DuplicateSessionDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button variant="ghost" size="sm"><Copy className="h-3.5 w-3.5 mr-1" />Duplicar</Button>
+          <Button variant="outline" size="sm" title="Duplicar sesión">
+            <Copy className="h-3.5 w-3.5 mr-1" />Duplicar
+          </Button>
         )}
       </DialogTrigger>
       <DialogContent>
