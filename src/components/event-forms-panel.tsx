@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Copy, ExternalLink, Trash2, Loader2 } from "lucide-react";
+import { Plus, Copy, ExternalLink, Trash2, Loader2, Files } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-import { listEventForms, createPublicForm, deletePublicForm, updatePublicForm } from "@/lib/forms.functions";
+import { listEventForms, createPublicForm, deletePublicForm, updatePublicForm, duplicatePublicForm } from "@/lib/forms.functions";
 import { useEventSessions } from "@/lib/use-events";
 import { ATTENDEE_TYPE_OPTIONS, attendeeLabel, type AttendeeType } from "@/lib/participant-constants";
 import { FormEditorDialog } from "@/components/form-editor-dialog";
@@ -43,6 +43,7 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
   const create = useServerFn(createPublicForm);
   const remove = useServerFn(deletePublicForm);
   const update = useServerFn(updatePublicForm);
+  const dup = useServerFn(duplicatePublicForm);
   const { data: sessions = [] } = useEventSessions(eventId);
 
   const { data: forms, isLoading } = useQuery({
@@ -99,6 +100,15 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
       update({ data: { id, status } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["public-forms", eventId] }),
     onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo actualizar"),
+  });
+
+  const duplicate = useMutation({
+    mutationFn: (id: string) => dup({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["public-forms", eventId] });
+      toast.success("Formulario duplicado");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo duplicar"),
   });
 
   function copyUrl(slug: string) {
@@ -196,6 +206,9 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => copyUrl(f.slug)} title="Copiar URL">
                           <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => duplicate.mutate(f.id)} title="Duplicar formulario" disabled={duplicate.isPending}>
+                          {duplicate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Files className="h-3.5 w-3.5" />}
                         </Button>
                         <FormQrDialog url={`${baseUrl}${f.slug}`} title={f.title} />
                         <FormEditorDialog form={f as never} eventId={eventId} />

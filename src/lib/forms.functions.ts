@@ -45,6 +45,65 @@ export const listEventForms = createServerFn({ method: "GET" })
     return rows ?? [];
   });
 
+export const duplicatePublicForm = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRole(context.supabase, context.userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+    ]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: original } = await supabaseAdmin
+      .from("public_forms")
+      .select("event_id, session_id, attendee_type, title, status, intro_text, header_image_url, field_config, requires_image_consent, offers_future_processes_consent, opens_at, closes_at")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!original) throw new Error("Formulario no encontrado");
+
+    const { data: ev } = await supabaseAdmin
+      .from("events")
+      .select("slug")
+      .eq("id", original.event_id)
+      .maybeSingle();
+    const base = slugify(`${ev?.slug ?? "evento"}-${original.attendee_type}-copia`);
+    let slug = base;
+    for (let i = 2; i < 100; i++) {
+      const { data: exists } = await supabaseAdmin
+        .from("public_forms")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!exists) break;
+      slug = `${base}-${i}`;
+    }
+
+    const { data: created, error } = await supabaseAdmin
+      .from("public_forms")
+      .insert({
+        event_id: original.event_id,
+        session_id: original.session_id,
+        attendee_type: original.attendee_type,
+        title: `${original.title} (copia)`,
+        slug,
+        status: original.status ?? "borrador",
+        intro_text: original.intro_text,
+        header_image_url: original.header_image_url,
+        field_config: original.field_config,
+        requires_image_consent: original.requires_image_consent,
+        offers_future_processes_consent: original.offers_future_processes_consent,
+        opens_at: original.opens_at,
+        closes_at: original.closes_at,
+        fields_schema: [],
+      } as never)
+      .select("id, slug")
+      .single();
+    if (error) throw new Error(error.message);
+    return { ok: true, id: created.id, slug: created.slug };
+  });
+
 export const createPublicForm = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
