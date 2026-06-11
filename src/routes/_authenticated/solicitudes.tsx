@@ -241,7 +241,7 @@ function ListPage() {
               <Select
                 value={search.eventId ?? "all"}
                 onValueChange={(v) =>
-                  navigate({ search: { ...search, eventId: v === "all" ? undefined : v, sessionId: undefined } })
+                  navigate({ search: { ...search, eventId: v === "all" ? undefined : v, sessionId: undefined, formId: undefined } })
                 }
               >
                 <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
