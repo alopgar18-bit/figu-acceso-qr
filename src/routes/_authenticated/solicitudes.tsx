@@ -27,6 +27,9 @@ import {
 } from "@/components/ui/table";
 
 import { useEvents, useEventSessions } from "@/lib/use-events";
+import { listEventForms } from "@/lib/forms.functions";
+import { useServerFn as useServerFnAlias } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import {
   useParticipants, useBulkUpdateParticipants,
   findDuplicateIds, hasPhoto, type ParticipantFilters,
@@ -46,6 +49,7 @@ const searchSchema = z.object({
   eventId: z.string().optional(),
   sessionId: z.string().optional(),
   importBatchId: z.string().optional(),
+  formId: z.string().optional(),
   status: z.string().optional(),
   type: z.string().optional(),
   waitlist: z.boolean().optional(),
@@ -71,6 +75,13 @@ function ListPage() {
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(search.eventId);
 
+  const listForms = useServerFnAlias(listEventForms);
+  const { data: eventForms = [] } = useQuery({
+    queryKey: ["public-forms", search.eventId],
+    enabled: !!search.eventId,
+    queryFn: () => listForms({ data: { event_id: search.eventId! } }),
+  });
+
   const [searchText, setSearchText] = useState("");
   const [extraFilters, setExtraFilters] = useState({
     city: "",
@@ -89,6 +100,7 @@ function ListPage() {
     eventId: search.eventId,
     sessionId: search.sessionId,
     importBatchId: search.importBatchId,
+    publicFormId: search.formId,
     statuses: search.waitlist
       ? ["lista_espera"]
       : search.status
