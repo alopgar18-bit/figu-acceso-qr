@@ -56,7 +56,7 @@ export const checkoutPosOrder = createServerFn({ method: "POST" })
     const { data: result, error } = await supabaseAdmin.rpc("checkout_pos_order", {
       _lines: data.lines,
       _payment_method: data.payment_method,
-      _tendered: data.tendered ?? null,
+      _tendered: data.tendered ?? undefined,
     });
     if (error) throw new Error(error.message);
     const r = result as {
