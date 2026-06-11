@@ -36,6 +36,7 @@ type State = {
   birthDate: string; socialMedia: string; sessionId: string;
   city: string; province: string; gender: string; profession: string;
   notes: string; specialNeeds: string; companionsCount: number;
+  companions: Array<{ firstName: string; lastName: string; email: string; phone: string }>;
   acceptPrivacy: boolean; acceptAttendance: boolean; acceptImage: boolean; acceptFuture: boolean;
 };
 
@@ -43,6 +44,7 @@ const INITIAL: State = {
   firstName: "", lastName: "", dni: "", email: "", phone: "", birthDate: "",
   socialMedia: "", sessionId: "", city: "", province: "", gender: "",
   profession: "", notes: "", specialNeeds: "", companionsCount: 0,
+  companions: [],
   acceptPrivacy: false, acceptAttendance: false, acceptImage: false, acceptFuture: false,
 };
 
