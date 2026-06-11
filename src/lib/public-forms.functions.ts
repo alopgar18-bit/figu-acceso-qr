@@ -20,6 +20,17 @@ const submitSchema = z.object({
   notes: z.string().trim().max(1000).optional().nullable(),
   specialNeeds: z.string().trim().max(1000).optional().nullable(),
   companionsCount: z.number().int().min(0).max(10).default(0),
+  companions: z
+    .array(
+      z.object({
+        firstName: z.string().trim().max(100).optional().nullable().or(z.literal("")),
+        lastName: z.string().trim().max(150).optional().nullable().or(z.literal("")),
+        email: z.string().trim().email().max(255).optional().nullable().or(z.literal("")),
+        phone: z.string().trim().max(30).optional().nullable().or(z.literal("")),
+      }),
+    )
+    .max(10)
+    .optional(),
   acceptPrivacy: z.literal(true),
   acceptAttendance: z.literal(true),
   acceptImage: z.boolean().optional(),
