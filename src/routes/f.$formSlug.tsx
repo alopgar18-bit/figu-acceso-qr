@@ -197,13 +197,24 @@ function Page() {
 
   return (
     <PublicShell brandColor={event.brand_color}>
+      {form.header_image_url && (
+        <img
+          src={form.header_image_url}
+          alt=""
+          className="w-full h-48 md:h-64 object-cover rounded-lg mb-6"
+        />
+      )}
       <div className="text-xs uppercase tracking-[0.25em] text-primary font-semibold mb-2">
         {form.title} · {attendeeLabel(form.attendee_type)}
       </div>
       <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">{event.name}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Completa el formulario. Los campos marcados con * son obligatorios.
-      </p>
+      {form.intro_text ? (
+        <p className="mt-3 text-sm text-muted-foreground whitespace-pre-line">{form.intro_text}</p>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Completa el formulario. Los campos marcados con * son obligatorios.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
         {userCanChoose && (
