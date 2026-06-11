@@ -46,6 +46,7 @@ import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
 import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
+import { Route as AuthenticatedTpvVentasRouteImport } from './routes/_authenticated/tpv.ventas'
 import { Route as AuthenticatedTpvVentaRouteImport } from './routes/_authenticated/tpv.venta'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
 import { Route as AuthenticatedInformesEventIdRouteImport } from './routes/_authenticated/informes.$eventId'
@@ -251,6 +252,11 @@ const CTokenCancelarRoute = CTokenCancelarRouteImport.update({
   path: '/cancelar',
   getParentRoute: () => CTokenRoute,
 } as any)
+const AuthenticatedTpvVentasRoute = AuthenticatedTpvVentasRouteImport.update({
+  id: '/tpv/ventas',
+  path: '/tpv/ventas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedTpvVentaRoute = AuthenticatedTpvVentaRouteImport.update({
   id: '/tpv/venta',
   path: '/tpv/venta',
@@ -366,6 +372,7 @@ export interface FileRoutesByFullPath {
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/tpv/venta': typeof AuthenticatedTpvVentaRoute
+  '/tpv/ventas': typeof AuthenticatedTpvVentasRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -415,6 +422,7 @@ export interface FileRoutesByTo {
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/tpv/venta': typeof AuthenticatedTpvVentaRoute
+  '/tpv/ventas': typeof AuthenticatedTpvVentasRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -468,6 +476,7 @@ export interface FileRoutesById {
   '/_authenticated/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/_authenticated/tpv/venta': typeof AuthenticatedTpvVentaRoute
+  '/_authenticated/tpv/ventas': typeof AuthenticatedTpvVentasRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -521,6 +530,7 @@ export interface FileRouteTypes {
     | '/informes/$eventId'
     | '/solicitudes/$participantId'
     | '/tpv/venta'
+    | '/tpv/ventas'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -570,6 +580,7 @@ export interface FileRouteTypes {
     | '/informes/$eventId'
     | '/solicitudes/$participantId'
     | '/tpv/venta'
+    | '/tpv/ventas'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -622,6 +633,7 @@ export interface FileRouteTypes {
     | '/_authenticated/informes/$eventId'
     | '/_authenticated/solicitudes/$participantId'
     | '/_authenticated/tpv/venta'
+    | '/_authenticated/tpv/ventas'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -910,6 +922,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CTokenCancelarRouteImport
       parentRoute: typeof CTokenRoute
     }
+    '/_authenticated/tpv/ventas': {
+      id: '/_authenticated/tpv/ventas'
+      path: '/tpv/ventas'
+      fullPath: '/tpv/ventas'
+      preLoaderRoute: typeof AuthenticatedTpvVentasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/tpv/venta': {
       id: '/_authenticated/tpv/venta'
       path: '/tpv/venta'
@@ -1121,6 +1140,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedEventosEventIdRoute: typeof AuthenticatedEventosEventIdRouteWithChildren
   AuthenticatedEventosNuevoRoute: typeof AuthenticatedEventosNuevoRoute
   AuthenticatedTpvVentaRoute: typeof AuthenticatedTpvVentaRoute
+  AuthenticatedTpvVentasRoute: typeof AuthenticatedTpvVentasRoute
   AuthenticatedEventosIndexRoute: typeof AuthenticatedEventosIndexRoute
 }
 
@@ -1145,6 +1165,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedEventosEventIdRouteWithChildren,
   AuthenticatedEventosNuevoRoute: AuthenticatedEventosNuevoRoute,
   AuthenticatedTpvVentaRoute: AuthenticatedTpvVentaRoute,
+  AuthenticatedTpvVentasRoute: AuthenticatedTpvVentasRoute,
   AuthenticatedEventosIndexRoute: AuthenticatedEventosIndexRoute,
 }
 
