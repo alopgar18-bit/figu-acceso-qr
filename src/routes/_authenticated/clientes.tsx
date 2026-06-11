@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { ClientAssignmentsPanel } from "@/components/client-assignments-panel";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Page,
@@ -265,6 +266,8 @@ function ClientDialog({
               </div>
             ))}
           </div>
+
+          {client && <ClientAssignmentsPanel clientId={client.id} />}
         </div>
 
         <DialogFooter>
