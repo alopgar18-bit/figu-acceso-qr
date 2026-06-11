@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { createUser, updateUserRoles, updateUserClients } from "@/lib/users.functions";
+import { ClientAssignmentsPanel } from "@/components/client-assignments-panel";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: Page,
