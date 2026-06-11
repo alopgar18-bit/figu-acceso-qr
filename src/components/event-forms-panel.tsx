@@ -102,6 +102,15 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo actualizar"),
   });
 
+  const duplicate = useMutation({
+    mutationFn: (id: string) => dup({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["public-forms", eventId] });
+      toast.success("Formulario duplicado");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo duplicar"),
+  });
+
   function copyUrl(slug: string) {
     const url = `${baseUrl}${slug}`;
     navigator.clipboard.writeText(url).then(() => toast.success("URL copiada"));
