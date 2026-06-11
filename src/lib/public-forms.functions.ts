@@ -173,6 +173,14 @@ export const submitPublicForm = createServerFn({ method: "POST" })
       return { ok: false, code: "consentimiento_imagen_requerido" as const };
     }
 
+    // Clamp companions to session/event allowance
+    const allowComp = (session.allow_companions ?? event.default_allow_companions) ?? false;
+    const maxComp = allowComp
+      ? (session.max_companions_per_participant ?? event.default_max_companions ?? 0)
+      : 0;
+    const companionsCount = Math.min(data.companionsCount ?? 0, maxComp);
+    const companions = (data.companions ?? []).slice(0, companionsCount);
+
     // Person upsert (by email)
     let personId: string;
     const dniValue = data.dni && data.dni.length > 0 ? data.dni : null;
@@ -245,7 +253,7 @@ export const submitPublicForm = createServerFn({ method: "POST" })
           social_media: data.socialMedia || null,
           special_needs: data.specialNeeds ?? null,
           notes: data.notes ?? null,
-          companions_count: data.companionsCount,
+          companions_count: companionsCount,
           photo_path: data.photoPath || null,
         },
         user_agent: data.userAgent ?? null,
@@ -265,7 +273,7 @@ export const submitPublicForm = createServerFn({ method: "POST" })
         submission_id: submission.id,
         status: participantStatus,
         attendee_type: "publico",
-        companions_count: data.companionsCount,
+        companions_count: companionsCount,
         internal_notes: data.specialNeeds ?? null,
       })
       .select("id")
