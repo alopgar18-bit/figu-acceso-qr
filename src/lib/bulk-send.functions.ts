@@ -255,6 +255,8 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       }
 
       const enlace = buildEntryUrl(linkToken);
+      const compRows = companionsByParticipant.get(p.id) ?? [];
+      const compBlocks = buildCompanionsBlocks(compRows, ticketByCompanion);
       const ctx: RenderContext = {
         nombre: person?.first_name ?? "",
         apellidos: person?.last_name ?? "",
@@ -272,6 +274,8 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         // la URL externa de generación de QR.
         qr_image: isWhatsapp ? enlace : enlace ? buildQrImageUrl(enlace) : "",
         telefono: person?.phone ?? "",
+        acompanantes: compBlocks.text,
+        acompanantes_html: compBlocks.html,
       };
 
       const subject = template.subject ? renderTemplate(template.subject, ctx) : null;
