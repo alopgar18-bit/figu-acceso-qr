@@ -194,26 +194,34 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
 
     // 5. Already queued / sent in this batch+template? Avoid duplicates.
     const alreadyKeys = new Set<string>();
+    const alreadyCompanionKeys = new Set<string>(); // companion_id seen in metadata
     if (data.skip_already_queued) {
       for (const idChunk of chunk(ids, 100)) {
         let aq = supabase
           .from("communication_logs")
-          .select("participant_id, status, template_id")
+          .select("participant_id, status, template_id, metadata")
           .eq("template_id", data.template_id)
           .in("participant_id", idChunk)
           .in("status", ["pendiente", "programado", "enviado"]);
         if (data.batch_id) aq = aq.eq("batch_id", data.batch_id);
         const { data: existing } = await aq;
         for (const row of existing ?? []) {
-          if (row.participant_id) alreadyKeys.add(row.participant_id);
+          const meta = (row.metadata ?? null) as { companion_id?: string } | null;
+          if (meta?.companion_id) {
+            alreadyCompanionKeys.add(meta.companion_id);
+          } else if (row.participant_id) {
+            alreadyKeys.add(row.participant_id);
+          }
         }
       }
     }
 
     let queued = 0;
+    let queued_companions = 0;
     let skipped_no_email = 0;
     let skipped_no_ticket = 0;
     let skipped_already = 0;
+    let skipped_no_companion_ticket = 0;
     const errors: Array<{ participant_id: string; reason: string }> = [];
 
     const sessionStart = (session as { starts_at?: string } | null)?.starts_at;
