@@ -18,6 +18,7 @@ import { QrScanner, extractQrToken } from "@/components/qr-scanner";
 import { validateQr, manualCheckin, createIncident, searchSessionParticipants, type ValidationResult } from "@/lib/access.functions";
 import { useSessionDashboard, useSessionIncidents } from "@/lib/use-access";
 import { INCIDENT_TYPE_LABELS, INCIDENT_TYPES_BY_CATEGORY, type IncidentType, type IncidentCategory } from "@/lib/incident-constants";
+import { zoneTone, zoneToneClasses } from "@/lib/event-constants";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -196,8 +197,15 @@ function ResultPanel({ result, onContinue, onIncident, isCoord }: { result: Vali
       {result.person && (
         <div className="mt-5 rounded-md bg-background/60 p-4 text-foreground">
           <div className="text-lg font-semibold">
-            {result.person.first_name} {result.person.last_name ?? ""}
+            {result.companion
+              ? `${result.companion.first_name ?? ""} ${result.companion.last_name ?? ""}`.trim()
+              : `${result.person.first_name} ${result.person.last_name ?? ""}`}
           </div>
+          {result.companion && (
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Acompañante de {result.person.first_name} {result.person.last_name ?? ""}
+            </div>
+          )}
           <div className="mt-2 text-sm text-muted-foreground space-y-0.5">
             {isCoord && result.person.dni && <div>DNI: {result.person.dni}</div>}
             {isCoord && result.person.email && <div>{result.person.email}</div>}
@@ -209,6 +217,16 @@ function ResultPanel({ result, onContinue, onIncident, isCoord }: { result: Vali
               <div className="text-destructive font-medium">Motivo bloqueo: {result.person.blocked_reason}</div>
             )}
           </div>
+          {result.seat && (result.seat.zone || result.seat.row || result.seat.number) && (
+            <div className={`mt-3 rounded-md border-2 px-3 py-2 text-sm font-semibold ${zoneToneClasses(zoneTone(result.seat.zone))}`}>
+              <div className="text-[10px] uppercase tracking-wider opacity-80">Ubicación</div>
+              <div className="mt-0.5">
+                {result.seat.zone && <span>{result.seat.zone}</span>}
+                {result.seat.row && <span> · Fila {result.seat.row}</span>}
+                {result.seat.number && <span> · Asiento {result.seat.number}</span>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
