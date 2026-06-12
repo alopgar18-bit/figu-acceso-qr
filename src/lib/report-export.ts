@@ -121,60 +121,90 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(partAoa), "Asistentes");
 
   // Sheet: Asistentes con acompañantes (jerárquico)
-  const detalleHeader = ["Tipo", "Titular", "Nombre", "Apellidos", "DNI", "Email", "Teléfono", "Sesión", "Estado", "Zona", "Fila", "Asiento", "Check-in"];
+  const detalleHeader = [
+    "Grupo", "Rol", "Solicitante (titular)",
+    "Nombre", "Apellidos", "Nombre completo",
+    "DNI", "Email", "Teléfono",
+    "Sesión", "Estado", "Zona", "Fila", "Asiento", "Check-in",
+  ];
   const detalleAoa: (string | number)[][] = [detalleHeader];
   try {
-    // Participants for this event (con asientos)
     const eventId = data.event.id;
-    const partsRes = await supabase
-      .from("event_participants")
-      .select("id, status, session_id, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone), event_sessions(name)")
-      .eq("event_id", eventId)
-      .order("id", { ascending: true });
-    const participants = (partsRes.data ?? []) as Array<{
+    type PartRow = {
       id: string; status: string; session_id: string;
       seat_zone: string | null; seat_row: string | null; seat_number: string | null;
       people: { first_name?: string; last_name?: string; dni?: string; email?: string; phone?: string } | null;
       event_sessions: { name?: string } | null;
-    }>;
-    const partIds = participants.map((p) => p.id);
-    let companions: Array<{
+    };
+    // Pagina event_participants (limit por defecto 1000)
+    const participants: PartRow[] = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data: page, error } = await supabase
+        .from("event_participants")
+        .select("id, status, session_id, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone), event_sessions(name)")
+        .eq("event_id", eventId)
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const rows = (page ?? []) as PartRow[];
+      participants.push(...rows);
+      if (rows.length < pageSize) break;
+    }
+
+    type CompRow = {
       participant_id: string; first_name: string | null; last_name: string | null;
       dni: string | null; email: string | null; phone: string | null;
       seat_zone: string | null; seat_row: string | null; seat_number: string | null;
-    }> = [];
-    if (partIds.length > 0) {
-      const compRes = await supabase
-        .from("companions")
-        .select("participant_id, first_name, last_name, dni, email, phone, seat_zone, seat_row, seat_number")
-        .in("participant_id", partIds);
-      companions = (compRes.data ?? []) as typeof companions;
+    };
+    const partIds = participants.map((p) => p.id);
+    const companions: CompRow[] = [];
+    const chunkSize = 300;
+    for (let i = 0; i < partIds.length; i += chunkSize) {
+      const chunk = partIds.slice(i, i + chunkSize);
+      // Inner pagination por si un chunk tuviera >1000 acompañantes
+      for (let from = 0; ; from += pageSize) {
+        const { data: page, error } = await supabase
+          .from("companions")
+          .select("participant_id, first_name, last_name, dni, email, phone, seat_zone, seat_row, seat_number")
+          .in("participant_id", chunk)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const rows = (page ?? []) as CompRow[];
+        companions.push(...rows);
+        if (rows.length < pageSize) break;
+      }
     }
-    const compsByPart = new Map<string, typeof companions>();
+    const compsByPart = new Map<string, CompRow[]>();
     for (const c of companions) {
       const arr = compsByPart.get(c.participant_id) ?? [];
       arr.push(c);
       compsByPart.set(c.participant_id, arr);
     }
-    // Optional name-based filtering by visibility perms
     const hideNames = opts.perms && !opts.perms.see_names;
     const hideDni = opts.perms && !opts.perms.see_dni;
     const hideEmail = opts.perms && !opts.perms.see_email;
     const hidePhone = opts.perms && !opts.perms.see_phone;
     const blank = (v: string | null | undefined, hide?: boolean) => hide ? "" : (v ?? "");
-    // Sort participants by session/last_name
+    const fullName = (fn?: string | null, ln?: string | null) => `${fn ?? ""} ${ln ?? ""}`.trim();
+    // Ordenar: sesión → apellidos titular → nombre titular
     participants.sort((a, b) => {
       const an = `${a.event_sessions?.name ?? ""}|${a.people?.last_name ?? ""}|${a.people?.first_name ?? ""}`;
       const bn = `${b.event_sessions?.name ?? ""}|${b.people?.last_name ?? ""}|${b.people?.first_name ?? ""}`;
       return an.localeCompare(bn);
     });
+    let groupIdx = 0;
     for (const p of participants) {
-      const titularName = `${p.people?.first_name ?? ""} ${p.people?.last_name ?? ""}`.trim();
+      groupIdx += 1;
+      const titularFull = fullName(p.people?.first_name, p.people?.last_name);
+      const titularDisplay = hideNames ? "" : titularFull;
       detalleAoa.push([
-        "Titular",
-        "",
+        groupIdx,
+        "Solicitante",
+        titularDisplay,
         blank(p.people?.first_name, hideNames),
         blank(p.people?.last_name, hideNames),
+        titularDisplay,
         blank(p.people?.dni, hideDni),
         blank(p.people?.email, hideEmail),
         blank(p.people?.phone, hidePhone),
@@ -185,13 +215,17 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
         p.seat_number ?? "",
         "",
       ]);
-      const comps = compsByPart.get(p.id) ?? [];
+      const comps = (compsByPart.get(p.id) ?? []).slice().sort((a, b) =>
+        `${a.last_name ?? ""}|${a.first_name ?? ""}`.localeCompare(`${b.last_name ?? ""}|${b.first_name ?? ""}`),
+      );
       for (const c of comps) {
         detalleAoa.push([
-          "  Acompañante",
-          titularName,
+          groupIdx,
+          "Acompañante",
+          titularDisplay,
           blank(c.first_name, hideNames),
           blank(c.last_name, hideNames),
+          hideNames ? "" : fullName(c.first_name, c.last_name),
           blank(c.dni, hideDni),
           blank(c.email, hideEmail),
           blank(c.phone, hidePhone),
@@ -204,7 +238,15 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
         ]);
       }
     }
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detalleAoa), "Detalle");
+    const ws = XLSX.utils.aoa_to_sheet(detalleAoa);
+    ws["!cols"] = [
+      { wch: 6 }, { wch: 13 }, { wch: 28 },
+      { wch: 18 }, { wch: 22 }, { wch: 30 },
+      { wch: 12 }, { wch: 28 }, { wch: 14 },
+      { wch: 22 }, { wch: 22 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 },
+    ];
+    ws["!freeze"] = { ySplit: 1 } as unknown as never;
+    XLSX.utils.book_append_sheet(wb, ws, "Detalle");
   } catch (e) {
     console.warn("No se pudo generar hoja Detalle", e);
   }
