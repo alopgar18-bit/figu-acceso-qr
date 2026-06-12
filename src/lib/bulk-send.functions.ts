@@ -69,6 +69,10 @@ const inputSchema = z.object({
   only_with_email: z.boolean().default(true),
   only_with_ticket: z.boolean().default(true),
   skip_already_queued: z.boolean().default(true),
+  // Si true, además del email al titular, se encola un email adicional por
+  // cada acompañante (dirigido al email del titular) con el QR/enlace
+  // individual del acompañante. ON por defecto.
+  send_per_companion: z.boolean().default(true),
   from: z.string().max(200).optional(),
 });
 
@@ -151,7 +155,15 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       throw new Error(`No se pudieron leer participantes: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!participants || participants.length === 0) {
-      return { queued: 0, skipped_no_email: 0, skipped_no_ticket: 0, skipped_already: 0, errors: [] };
+      return {
+        queued: 0,
+        queued_companions: 0,
+        skipped_no_email: 0,
+        skipped_no_ticket: 0,
+        skipped_already: 0,
+        skipped_no_companion_ticket: 0,
+        errors: [] as Array<{ participant_id: string; reason: string }>,
+      };
     }
 
     // 4. Map participants to tickets (active)
@@ -190,26 +202,34 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
 
     // 5. Already queued / sent in this batch+template? Avoid duplicates.
     const alreadyKeys = new Set<string>();
+    const alreadyCompanionKeys = new Set<string>(); // companion_id seen in metadata
     if (data.skip_already_queued) {
       for (const idChunk of chunk(ids, 100)) {
         let aq = supabase
           .from("communication_logs")
-          .select("participant_id, status, template_id")
+          .select("participant_id, status, template_id, metadata")
           .eq("template_id", data.template_id)
           .in("participant_id", idChunk)
           .in("status", ["pendiente", "programado", "enviado"]);
         if (data.batch_id) aq = aq.eq("batch_id", data.batch_id);
         const { data: existing } = await aq;
         for (const row of existing ?? []) {
-          if (row.participant_id) alreadyKeys.add(row.participant_id);
+          const meta = (row.metadata ?? null) as { companion_id?: string } | null;
+          if (meta?.companion_id) {
+            alreadyCompanionKeys.add(meta.companion_id);
+          } else if (row.participant_id) {
+            alreadyKeys.add(row.participant_id);
+          }
         }
       }
     }
 
     let queued = 0;
+    let queued_companions = 0;
     let skipped_no_email = 0;
     let skipped_no_ticket = 0;
     let skipped_already = 0;
+    let skipped_no_companion_ticket = 0;
     const errors: Array<{ participant_id: string; reason: string }> = [];
 
     const sessionStart = (session as { starts_at?: string } | null)?.starts_at;
@@ -308,9 +328,84 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       } catch (err) {
         errors.push({ participant_id: p.id, reason: err instanceof Error ? err.message : "error" });
       }
+
+      // 6. Email individual por cada acompañante (al email del titular).
+      // Solo aplica a canal email, cuando hay email del titular y existe
+      // un ticket vinculado al companion_id.
+      if (
+        data.send_per_companion &&
+        !isWhatsapp &&
+        email &&
+        compRows.length > 0
+      ) {
+        for (const c of compRows) {
+          if (data.skip_already_queued && alreadyCompanionKeys.has(c.id)) {
+            skipped_already++;
+            continue;
+          }
+          const compToken = ticketByCompanion.get(c.id);
+          if (!compToken) {
+            skipped_no_companion_ticket++;
+            continue;
+          }
+          const compName = (c.first_name ?? "").trim();
+          const compLast = (c.last_name ?? "").trim();
+          const compEntryUrl = buildTicketUrl(compToken);
+          const compCtx: RenderContext = {
+            ...ctx,
+            nombre: compName,
+            apellidos: compLast,
+            enlace_entrada: compEntryUrl,
+            enlace_confirmacion: enlace, // se mantiene el del titular
+            qr: compToken,
+            qr_image: buildQrImageUrl(compEntryUrl),
+            acompanantes: "",
+            acompanantes_html: "",
+          };
+          const compSubject = template.subject ? renderTemplate(template.subject, compCtx) : null;
+          const compBody = renderTemplate(template.body, compCtx);
+          try {
+            const { error: cErr } = await supabase.from("communication_logs").insert({
+              channel: template.channel,
+              status: "pendiente",
+              to_address: email,
+              subject: compSubject,
+              body: compBody,
+              template_id: template.id,
+              participant_id: p.id,
+              person_id: p.person_id,
+              event_id: data.event_id,
+              session_id: data.session_id ?? null,
+              batch_id: data.batch_id ?? null,
+              error_message: null,
+              metadata: {
+                ...(data.from ? { from: data.from } : {}),
+                companion_id: c.id,
+                companion_name: `${compName} ${compLast}`.trim(),
+              },
+              created_by: userId,
+            });
+            if (cErr) throw new Error(cErr.message);
+            queued_companions++;
+          } catch (err) {
+            errors.push({
+              participant_id: p.id,
+              reason: `acompañante ${c.id}: ${err instanceof Error ? err.message : "error"}`,
+            });
+          }
+        }
+      }
     }
 
-    return { queued, skipped_no_email, skipped_no_ticket, skipped_already, errors };
+    return {
+      queued,
+      queued_companions,
+      skipped_no_email,
+      skipped_no_ticket,
+      skipped_already,
+      skipped_no_companion_ticket,
+      errors,
+    };
   });
 
 /**

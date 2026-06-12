@@ -21,7 +21,7 @@ function Page() {
       <PageHeader
         eyebrow="Análisis"
         title="Informes"
-        description="Informes previos, en tiempo real y finales por evento y sesión. Exportables a Excel y PDF."
+        description="Informes previos, en tiempo real y finales por evento y sesión. Abre un evento y pulsa “Excel completo” para descargar el .xlsx con todas las hojas (Resumen, Sesiones, Asistentes, Detalle titulares + acompañantes con nombre, email, teléfono y asiento e Incidencias)."
       />
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>

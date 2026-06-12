@@ -57,8 +57,13 @@ function EventReportPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={handleExcel}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />Excel
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExcel}
+              title="Incluye hojas: Resumen, Sesiones, Asistentes, Detalle (titulares + acompañantes con nombre, email, teléfono, asiento) e Incidencias"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Excel completo
             </Button>
             <Button size="sm" onClick={handlePDF}>
               <Download className="h-4 w-4 mr-2" />PDF

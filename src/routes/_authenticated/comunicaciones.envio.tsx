@@ -55,6 +55,7 @@ function BulkSendPage() {
   const [templateId, setTemplateId] = useState<string | undefined>();
   const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
   const [channel, setChannel] = useState<CommChannel>("email");
+  const [sendPerCompanion, setSendPerCompanion] = useState<boolean>(true);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
@@ -276,11 +277,15 @@ FIGURARTE Casting & Producción`,
           only_with_email: !isWhatsapp,
           only_with_ticket: true,
           skip_already_queued: true,
+          send_per_companion: !isWhatsapp && sendPerCompanion,
           from: isWhatsapp ? undefined : senderValue,
         },
       });
+      const compMsg = res.queued_companions
+        ? ` + ${res.queued_companions} acompañante(s)`
+        : "";
       toast.success(
-        `Cola creada: ${res.queued} en cola, ${res.skipped_no_email} sin email, ${res.skipped_no_ticket} sin QR, ${res.skipped_already} ya en cola.`,
+        `Cola creada: ${res.queued} titular(es)${compMsg}. ${res.skipped_no_email} sin email · ${res.skipped_no_ticket} sin QR · ${res.skipped_already} ya en cola.`,
       );
       sentQ.refetch();
     } catch (e) {
@@ -502,6 +507,23 @@ FIGURARTE Casting & Producción`,
                 )}
               </AlertDescription>
             </Alert>
+            {!isWhatsapp && (
+              <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
+                  checked={sendPerCompanion}
+                  onChange={(e) => setSendPerCompanion(e.target.checked)}
+                />
+                <span>
+                  <strong>Enviar también un correo individual por cada acompañante</strong>
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Se manda al email del titular un correo extra por cada acompañante con su nombre, asiento y QR/enlace individual. Requiere que el acompañante tenga su QR generado (modo "QR individual por acompañante" en la sesión).
+                  </span>
+                </span>
+              </label>
+            )}
             <div className="flex gap-2">
               <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : stats.withEmail === 0}>
                 <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : stats.withEmail} destinatarios)
