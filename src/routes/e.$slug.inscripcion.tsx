@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, Clock } from "lucide-react";
 
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,7 @@ function Page() {
   const [state, setState] = useState<State>(INITIAL);
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState<null | "recibida" | "lista_espera">(null);
 
   const selectableSessions = useMemo(
     () => (data?.sessions ?? []).filter(
@@ -120,6 +121,28 @@ function Page() {
   const ageBlocked = computedAge !== null && minAge > 0 && computedAge < minAge;
 
   const update = <K extends keyof State>(k: K, v: State[K]) => setState((s) => ({ ...s, [k]: v }));
+
+  if (success) {
+    return (
+      <PublicShell brandColor={event.brand_color}>
+        <div className="text-center py-12">
+          {success === "lista_espera" ? (
+            <Clock className="h-14 w-14 mx-auto text-primary" />
+          ) : (
+            <CheckCircle2 className="h-14 w-14 mx-auto text-primary" />
+          )}
+          <h1 className="mt-6 text-3xl md:text-4xl font-black uppercase tracking-tight">
+            {success === "lista_espera" ? "Estás en lista de espera" : "¡Gracias!"}
+          </h1>
+          <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
+            {success === "lista_espera"
+              ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza, nos pondremos en contacto contigo."
+              : "Hemos recibido tu solicitud correctamente. Nos pondremos en contacto contigo."}
+          </p>
+        </div>
+      </PublicShell>
+    );
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -184,11 +207,8 @@ function Page() {
         }
         return;
       }
-      navigate({
-        to: "/e/$slug/gracias",
-        params: { slug },
-        search: result.code === "lista_espera" ? { waitlist: true } : {},
-      });
+      setSuccess(result.code === "lista_espera" ? "lista_espera" : "recibida");
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
