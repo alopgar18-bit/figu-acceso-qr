@@ -2,7 +2,62 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
-import { renderTemplate, buildQrImageUrl, buildEntryUrl, type RenderContext } from "./communication-constants";
+import { renderTemplate, buildQrImageUrl, buildEntryUrl, buildTicketUrl, type RenderContext } from "./communication-constants";
+
+type CompanionRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  seat_zone: string | null;
+  seat_row: string | null;
+  seat_number: string | null;
+};
+type TicketRow = { participant_id: string; companion_id: string | null; qr_token: string };
+
+function formatSeat(c: { seat_zone: string | null; seat_row: string | null; seat_number: string | null }): string {
+  const parts: string[] = [];
+  if (c.seat_zone) parts.push(c.seat_zone);
+  if (c.seat_row) parts.push(`Fila ${c.seat_row}`);
+  if (c.seat_number) parts.push(`Asiento ${c.seat_number}`);
+  return parts.join(" · ");
+}
+
+function buildCompanionsBlocks(
+  companions: CompanionRow[],
+  ticketByCompanion: Map<string, string>, // companion_id -> qr_token
+): { text: string; html: string } {
+  if (companions.length === 0) return { text: "", html: "" };
+  const lines: string[] = [];
+  const htmlItems: string[] = [];
+  for (const c of companions) {
+    const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Acompañante";
+    const seat = formatSeat(c);
+    const token = ticketByCompanion.get(c.id);
+    const link = token ? buildTicketUrl(token) : "";
+    const seatSuffix = seat ? ` — ${seat}` : "";
+    lines.push(link ? `• ${name}${seatSuffix} — ${link}` : `• ${name}${seatSuffix}`);
+    const safeName = escapeHtml(name);
+    const safeSeat = seat ? ` — <span style="color:#555">${escapeHtml(seat)}</span>` : "";
+    const linkHtml = link
+      ? ` — <a href="${link}" style="color:#111;text-decoration:underline;">Ver entrada</a>`
+      : "";
+    htmlItems.push(`<li style="margin:4px 0;">${safeName}${safeSeat}${linkHtml}</li>`);
+  }
+  const html = `<div style="margin:16px 0;padding:12px 16px;background:#fafafa;border:1px solid #ececec;border-radius:8px;">
+    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:6px;">Acompañantes</div>
+    <ul style="margin:0;padding-left:18px;font-size:14px;color:#1a1a1a;">${htmlItems.join("")}</ul>
+  </div>`;
+  return { text: `Acompañantes:\n${lines.join("\n")}`, html };
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 const inputSchema = z.object({
   event_id: z.string().uuid(),
