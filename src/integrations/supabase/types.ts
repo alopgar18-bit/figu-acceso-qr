@@ -432,6 +432,9 @@ export type Database = {
           notes: string | null
           participant_id: string
           phone: string | null
+          seat_number: string | null
+          seat_row: string | null
+          seat_zone: string | null
         }
         Insert: {
           age?: number | null
@@ -444,6 +447,9 @@ export type Database = {
           notes?: string | null
           participant_id: string
           phone?: string | null
+          seat_number?: string | null
+          seat_row?: string | null
+          seat_zone?: string | null
         }
         Update: {
           age?: number | null
@@ -456,6 +462,9 @@ export type Database = {
           notes?: string | null
           participant_id?: string
           phone?: string | null
+          seat_number?: string | null
+          seat_row?: string | null
+          seat_zone?: string | null
         }
         Relationships: [
           {
@@ -1474,6 +1483,7 @@ export type Database = {
       }
       tickets: {
         Row: {
+          companion_id: string | null
           created_at: string
           event_id: string
           expires_at: string | null
@@ -1488,6 +1498,7 @@ export type Database = {
           session_id: string
         }
         Insert: {
+          companion_id?: string | null
           created_at?: string
           event_id: string
           expires_at?: string | null
@@ -1502,6 +1513,7 @@ export type Database = {
           session_id: string
         }
         Update: {
+          companion_id?: string | null
           created_at?: string
           event_id?: string
           expires_at?: string | null
@@ -1517,6 +1529,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "tickets_companion_id_fkey"
+            columns: ["companion_id"]
+            isOneToOne: false
+            referencedRelation: "companions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tickets_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
@@ -1526,7 +1545,7 @@ export type Database = {
           {
             foreignKeyName: "tickets_participant_id_fkey"
             columns: ["participant_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "event_participants"
             referencedColumns: ["id"]
           },
