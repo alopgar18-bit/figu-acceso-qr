@@ -434,13 +434,16 @@ export const searchSessionParticipants = createServerFn({ method: "POST" })
       attendee_type: string;
       event_id: string;
       session_id: string;
+      seat_zone?: string | null;
+      seat_row?: string | null;
+      seat_number?: string | null;
       people: { first_name?: string; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
     }> = [];
     const pageSize = 1000;
     for (let from = 0; ; from += pageSize) {
       const { data: page, error } = await supabase
         .from("event_participants")
-        .select(`id, status, companions_count, attendee_type, event_id, session_id, people(${personFields})`)
+        .select(`id, status, companions_count, attendee_type, event_id, session_id, seat_zone, seat_row, seat_number, people(${personFields})`)
         .eq("session_id", data.sessionId)
         .in("status", [
           "aprobado",
@@ -458,9 +461,62 @@ export const searchSessionParticipants = createServerFn({ method: "POST" })
       if (!page || page.length < pageSize) break;
     }
     const q = data.query.toLowerCase();
-    return rows.filter((r) => {
+    const titularMatches = rows.filter((r) => {
       const p = r.people;
       if (!p) return false;
       return [p.first_name, p.last_name, p.dni, p.email, p.phone].filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
-    });
+    }).map((r) => ({ ...r, match: "titular" as const, titular: null as null | { id: string; first_name: string | null; last_name: string | null } }));
+
+    // Search companions in this session
+    const participantIds = rows.map((r) => r.id);
+    const titularById = new Map(rows.map((r) => [r.id, r] as const));
+    const companionMatches: typeof titularMatches = [];
+    if (participantIds.length > 0) {
+      const compFields = canSeePII
+        ? "id, participant_id, first_name, last_name, dni, email, phone, seat_zone, seat_row, seat_number"
+        : "id, participant_id, first_name, last_name, seat_zone, seat_row, seat_number";
+      const { data: companions, error: cErr } = await supabase
+        .from("companions")
+        .select(compFields)
+        .in("participant_id", participantIds);
+      if (cErr) throw cErr;
+      for (const c of (companions ?? []) as Array<{
+        id: string; participant_id: string;
+        first_name: string | null; last_name: string | null;
+        dni?: string | null; email?: string | null; phone?: string | null;
+        seat_zone: string | null; seat_row: string | null; seat_number: string | null;
+      }>) {
+        const hit = [c.first_name, c.last_name, c.dni, c.email, c.phone]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q));
+        if (!hit) continue;
+        const titular = titularById.get(c.participant_id);
+        if (!titular) continue;
+        companionMatches.push({
+          id: titular.id,
+          status: titular.status,
+          companions_count: titular.companions_count,
+          attendee_type: titular.attendee_type,
+          event_id: titular.event_id,
+          session_id: titular.session_id,
+          seat_zone: c.seat_zone,
+          seat_row: c.seat_row,
+          seat_number: c.seat_number,
+          people: {
+            first_name: c.first_name ?? undefined,
+            last_name: c.last_name ?? undefined,
+            dni: canSeePII ? c.dni ?? undefined : undefined,
+            email: canSeePII ? c.email ?? undefined : undefined,
+            phone: canSeePII ? c.phone ?? undefined : undefined,
+          },
+          match: "acompanante" as const,
+          titular: {
+            id: titular.id,
+            first_name: titular.people?.first_name ?? null,
+            last_name: titular.people?.last_name ?? null,
+          },
+        });
+      }
+    }
+    return [...titularMatches, ...companionMatches];
   });
