@@ -461,26 +461,30 @@ export const searchSessionParticipants = createServerFn({ method: "POST" })
       if (!page || page.length < pageSize) break;
     }
     const q = data.query.toLowerCase();
-    const titularMatches = rows.filter((r) => {
+    type Match = (typeof rows)[number] & {
+      match: "titular" | "acompanante";
+      titular: null | { id: string; first_name: string | null; last_name: string | null };
+    };
+    const titularMatches: Match[] = rows.filter((r) => {
       const p = r.people;
       if (!p) return false;
       return [p.first_name, p.last_name, p.dni, p.email, p.phone].filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
-    }).map((r) => ({ ...r, match: "titular" as const, titular: null as null | { id: string; first_name: string | null; last_name: string | null } }));
+    }).map((r) => ({ ...r, match: "titular", titular: null }));
 
     // Search companions in this session
     const participantIds = rows.map((r) => r.id);
     const titularById = new Map(rows.map((r) => [r.id, r] as const));
-    const companionMatches: typeof titularMatches = [];
+    const companionMatches: Match[] = [];
     if (participantIds.length > 0) {
       const compFields = canSeePII
         ? "id, participant_id, first_name, last_name, dni, email, phone, seat_zone, seat_row, seat_number"
         : "id, participant_id, first_name, last_name, seat_zone, seat_row, seat_number";
-      const { data: companions, error: cErr } = await supabase
+      const { data: companions, error: cErr } = (await supabase
         .from("companions")
-        .select(compFields)
-        .in("participant_id", participantIds);
+        .select(compFields as never)
+        .in("participant_id", participantIds)) as unknown as { data: unknown[] | null; error: { message: string } | null };
       if (cErr) throw cErr;
-      for (const c of (companions ?? []) as Array<{
+      for (const c of ((companions ?? []) as unknown) as Array<{
         id: string; participant_id: string;
         first_name: string | null; last_name: string | null;
         dni?: string | null; email?: string | null; phone?: string | null;
@@ -509,7 +513,7 @@ export const searchSessionParticipants = createServerFn({ method: "POST" })
             email: canSeePII ? c.email ?? undefined : undefined,
             phone: canSeePII ? c.phone ?? undefined : undefined,
           },
-          match: "acompanante" as const,
+          match: "acompanante",
           titular: {
             id: titular.id,
             first_name: titular.people?.first_name ?? null,
