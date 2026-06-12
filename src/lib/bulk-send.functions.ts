@@ -69,6 +69,10 @@ const inputSchema = z.object({
   only_with_email: z.boolean().default(true),
   only_with_ticket: z.boolean().default(true),
   skip_already_queued: z.boolean().default(true),
+  // Si true, además del email al titular, se encola un email adicional por
+  // cada acompañante (dirigido al email del titular) con el QR/enlace
+  // individual del acompañante. ON por defecto.
+  send_per_companion: z.boolean().default(true),
   from: z.string().max(200).optional(),
 });
 
