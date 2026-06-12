@@ -55,6 +55,7 @@ function BulkSendPage() {
   const [templateId, setTemplateId] = useState<string | undefined>();
   const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
   const [channel, setChannel] = useState<CommChannel>("email");
+  const [sendPerCompanion, setSendPerCompanion] = useState<boolean>(true);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
