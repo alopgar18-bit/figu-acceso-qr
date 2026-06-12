@@ -277,11 +277,15 @@ FIGURARTE Casting & Producción`,
           only_with_email: !isWhatsapp,
           only_with_ticket: true,
           skip_already_queued: true,
+          send_per_companion: !isWhatsapp && sendPerCompanion,
           from: isWhatsapp ? undefined : senderValue,
         },
       });
+      const compMsg = res.queued_companions
+        ? ` + ${res.queued_companions} acompañante(s)`
+        : "";
       toast.success(
-        `Cola creada: ${res.queued} en cola, ${res.skipped_no_email} sin email, ${res.skipped_no_ticket} sin QR, ${res.skipped_already} ya en cola.`,
+        `Cola creada: ${res.queued} titular(es)${compMsg}. ${res.skipped_no_email} sin email · ${res.skipped_no_ticket} sin QR · ${res.skipped_already} ya en cola.`,
       );
       sentQ.refetch();
     } catch (e) {
