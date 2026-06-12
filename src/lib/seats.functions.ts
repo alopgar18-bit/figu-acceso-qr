@@ -6,6 +6,7 @@ import { requireRole } from "./role-guards";
 const rowSchema = z.object({
   email: z.string().trim().email().optional().nullable(),
   dni: z.string().trim().max(20).optional().nullable(),
+  tipo: z.enum(["titular", "acompanante"]).optional().nullable(),
   seat_zone: z.string().trim().max(40).optional().nullable(),
   seat_row: z.string().trim().max(20).optional().nullable(),
   seat_number: z.string().trim().max(20).optional().nullable(),
@@ -41,34 +42,76 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
 
     const emailMap = new Map<string, string>();
     const dniMap = new Map<string, string>();
+    const participantIds: string[] = [];
     for (const p of participants ?? []) {
       const person = p.people as { email: string | null; dni: string | null } | null;
       if (person?.email) emailMap.set(person.email.toLowerCase(), p.id);
       if (person?.dni) dniMap.set(person.dni.toUpperCase(), p.id);
+      participantIds.push(p.id);
     }
 
-    const results = { updated: 0, skipped: 0, errors: [] as string[] };
+    // Companions for the same event
+    const compEmailMap = new Map<string, string>();
+    const compDniMap = new Map<string, string>();
+    if (participantIds.length > 0) {
+      const { data: comps, error: cErr } = await supabaseAdmin
+        .from("companions")
+        .select("id, participant_id, email, dni")
+        .in("participant_id", participantIds);
+      if (cErr) throw new Error(cErr.message);
+      for (const c of comps ?? []) {
+        if (c.email) compEmailMap.set(c.email.toLowerCase(), c.id);
+        if (c.dni) compDniMap.set(c.dni.toUpperCase(), c.id);
+      }
+    }
+
+    const results = {
+      updated: 0,
+      updated_titulares: 0,
+      updated_acompanantes: 0,
+      skipped: 0,
+      errors: [] as string[],
+    };
     for (const row of data.rows) {
+      const wantsCompanion = row.tipo === "acompanante";
+      let companionId: string | undefined;
       let participantId: string | undefined;
-      if (row.email) participantId = emailMap.get(row.email.toLowerCase());
-      if (!participantId && row.dni) participantId = dniMap.get(row.dni.toUpperCase());
-      if (!participantId) {
+      if (wantsCompanion) {
+        if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
+        if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
+      } else {
+        if (row.email) participantId = emailMap.get(row.email.toLowerCase());
+        if (!participantId && row.dni) participantId = dniMap.get(row.dni.toUpperCase());
+        // If tipo not set, fall back to companion lookup
+        if (!row.tipo && !participantId) {
+          if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
+          if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
+        }
+      }
+      if (!participantId && !companionId) {
         results.skipped++;
         results.errors.push(`No encontrado: ${row.email ?? row.dni ?? "(sin id)"}`);
         continue;
       }
-      const { error: upErr } = await supabaseAdmin
-        .from("event_participants")
-        .update({
-          seat_zone: row.seat_zone || null,
-          seat_row: row.seat_row || null,
-          seat_number: row.seat_number || null,
-        } as never)
-        .eq("id", participantId);
-      if (upErr) {
-        results.errors.push(`${row.email ?? row.dni}: ${upErr.message}`);
-      } else {
-        results.updated++;
+      const patch = {
+        seat_zone: row.seat_zone || null,
+        seat_row: row.seat_row || null,
+        seat_number: row.seat_number || null,
+      };
+      if (companionId) {
+        const { error: upErr } = await supabaseAdmin
+          .from("companions")
+          .update(patch as never)
+          .eq("id", companionId);
+        if (upErr) results.errors.push(`${row.email ?? row.dni}: ${upErr.message}`);
+        else { results.updated_acompanantes++; results.updated++; }
+      } else if (participantId) {
+        const { error: upErr } = await supabaseAdmin
+          .from("event_participants")
+          .update(patch as never)
+          .eq("id", participantId);
+        if (upErr) results.errors.push(`${row.email ?? row.dni}: ${upErr.message}`);
+        else { results.updated_titulares++; results.updated++; }
       }
     }
 
@@ -78,7 +121,13 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
       event_id: data.event_id,
       session_id: data.session_id ?? null,
       actor_id: context.userId,
-      changes: { total: data.rows.length, updated: results.updated, skipped: results.skipped },
+      changes: {
+        total: data.rows.length,
+        updated: results.updated,
+        updated_titulares: results.updated_titulares,
+        updated_acompanantes: results.updated_acompanantes,
+        skipped: results.skipped,
+      },
     } as never);
 
     return results;
