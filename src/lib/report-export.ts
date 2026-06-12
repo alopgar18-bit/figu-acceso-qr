@@ -120,6 +120,100 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(partAoa), "Asistentes");
 
+  // Sheet: Asistentes con acompañantes (jerárquico)
+  const detalleHeader = ["Tipo", "Titular", "Nombre", "Apellidos", "DNI", "Email", "Teléfono", "Sesión", "Estado", "Zona", "Fila", "Asiento", "Check-in"];
+  const detalleAoa: (string | number)[][] = [detalleHeader];
+  try {
+    // Participants for this event (con asientos)
+    const eventId = data.event.id;
+    const partsRes = await supabase
+      .from("event_participants")
+      .select("id, status, session_id, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone), event_sessions(name)")
+      .eq("event_id", eventId)
+      .order("id", { ascending: true });
+    const participants = (partsRes.data ?? []) as Array<{
+      id: string; status: string; session_id: string;
+      seat_zone: string | null; seat_row: string | null; seat_number: string | null;
+      people: { first_name?: string; last_name?: string; dni?: string; email?: string; phone?: string } | null;
+      event_sessions: { name?: string } | null;
+    }>;
+    const partIds = participants.map((p) => p.id);
+    let companions: Array<{
+      participant_id: string; first_name: string | null; last_name: string | null;
+      dni: string | null; email: string | null; phone: string | null;
+      seat_zone: string | null; seat_row: string | null; seat_number: string | null;
+    }> = [];
+    if (partIds.length > 0) {
+      const compRes = await supabase
+        .from("companions")
+        .select("participant_id, first_name, last_name, dni, email, phone, seat_zone, seat_row, seat_number")
+        .in("participant_id", partIds);
+      companions = (compRes.data ?? []) as typeof companions;
+    }
+    // checkin map
+    const checkinByPart = new Map<string, string>();
+    for (const r of data.participants) {
+      // ParticipantExportRow has session_name+first/last; we rely on the dedicated fetch above for ordering
+    }
+    const compsByPart = new Map<string, typeof companions>();
+    for (const c of companions) {
+      const arr = compsByPart.get(c.participant_id) ?? [];
+      arr.push(c);
+      compsByPart.set(c.participant_id, arr);
+    }
+    // Optional name-based filtering by visibility perms
+    const hideNames = opts.perms && !opts.perms.see_names;
+    const hideDni = opts.perms && !opts.perms.see_dni;
+    const hideEmail = opts.perms && !opts.perms.see_email;
+    const hidePhone = opts.perms && !opts.perms.see_phone;
+    const blank = (v: string | null | undefined, hide?: boolean) => hide ? "" : (v ?? "");
+    // Sort participants by session/last_name
+    participants.sort((a, b) => {
+      const an = `${a.event_sessions?.name ?? ""}|${a.people?.last_name ?? ""}|${a.people?.first_name ?? ""}`;
+      const bn = `${b.event_sessions?.name ?? ""}|${b.people?.last_name ?? ""}|${b.people?.first_name ?? ""}`;
+      return an.localeCompare(bn);
+    });
+    for (const p of participants) {
+      const titularName = `${p.people?.first_name ?? ""} ${p.people?.last_name ?? ""}`.trim();
+      detalleAoa.push([
+        "Titular",
+        "",
+        blank(p.people?.first_name, hideNames),
+        blank(p.people?.last_name, hideNames),
+        blank(p.people?.dni, hideDni),
+        blank(p.people?.email, hideEmail),
+        blank(p.people?.phone, hidePhone),
+        p.event_sessions?.name ?? "",
+        statusLabel(p.status as never),
+        p.seat_zone ?? "",
+        p.seat_row ?? "",
+        p.seat_number ?? "",
+        "",
+      ]);
+      const comps = compsByPart.get(p.id) ?? [];
+      for (const c of comps) {
+        detalleAoa.push([
+          "  Acompañante",
+          titularName,
+          blank(c.first_name, hideNames),
+          blank(c.last_name, hideNames),
+          blank(c.dni, hideDni),
+          blank(c.email, hideEmail),
+          blank(c.phone, hidePhone),
+          p.event_sessions?.name ?? "",
+          "",
+          c.seat_zone ?? p.seat_zone ?? "",
+          c.seat_row ?? "",
+          c.seat_number ?? "",
+          "",
+        ]);
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detalleAoa), "Detalle");
+  } catch (e) {
+    console.warn("No se pudo generar hoja Detalle", e);
+  }
+
   // Sheet 4: Incidencias (manuales y de entrada con nombre/apellidos)
   const incAoa = [
     ["Fecha", "Sesión", "Categoría", "Tipo", "Título", "Descripción", "Participante", "Nombre (walk-in)", "Apellidos (walk-in)", "DNI (walk-in)", "Acompañantes"],
