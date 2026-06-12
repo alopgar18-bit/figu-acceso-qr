@@ -280,6 +280,77 @@ const cancelSchema = z.object({
   userAgent: z.string().max(500).optional(),
 });
 
+// ─────── Per-ticket public endpoint (for companions' individual entries) ───────
+const ticketTokenSchema = z.object({
+  qrToken: z.string().trim().min(8).max(256),
+});
+
+export const getTicketByQr = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => ticketTokenSchema.parse(d))
+  .handler(async ({ data }) => {
+    const { data: ticket } = await supabaseAdmin
+      .from("tickets")
+      .select("id, qr_token, companion_id, participant_id, event_id, session_id, qr_payload, revoked")
+      .eq("qr_token", data.qrToken)
+      .maybeSingle();
+    if (!ticket || ticket.revoked) return { ok: false as const, code: "invalido" as const };
+
+    const [{ data: participant }, { data: event }, { data: session }, { data: companion }] = await Promise.all([
+      supabaseAdmin
+        .from("event_participants")
+        .select("id, status, companions_count, seat_zone, seat_row, seat_number, people(first_name,last_name,dni)")
+        .eq("id", ticket.participant_id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("events")
+        .select("id,name,slug,location_name,location_address,general_instructions,brand_color,status,requires_image_consent,requires_recording,ticket_design,cover_image_url")
+        .eq("id", ticket.event_id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("event_sessions")
+        .select("*")
+        .eq("id", ticket.session_id)
+        .maybeSingle(),
+      ticket.companion_id
+        ? supabaseAdmin
+            .from("companions")
+            .select("id, first_name, last_name, dni, seat_zone, seat_row, seat_number")
+            .eq("id", ticket.companion_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    if (!participant || !event || !session) return { ok: false as const, code: "invalido" as const };
+    if (event.status !== "publicado" || session.status === "cancelada") {
+      return { ok: false as const, code: "evento_cerrado" as const };
+    }
+
+    const resolved = await resolveTicketDesign(event.id, session.id);
+    const isCompanion = !!companion;
+    const holderName = isCompanion
+      ? `${companion!.first_name ?? ""} ${companion!.last_name ?? ""}`.trim()
+      : `${(participant.people as { first_name?: string } | null)?.first_name ?? ""} ${
+          (participant.people as { last_name?: string | null } | null)?.last_name ?? ""
+        }`.trim();
+    const seat = isCompanion
+      ? { zone: companion!.seat_zone, row: companion!.seat_row, number: companion!.seat_number }
+      : { zone: participant.seat_zone, row: participant.seat_row, number: participant.seat_number };
+    const dni = isCompanion
+      ? companion!.dni
+      : (participant.people as { dni?: string | null } | null)?.dni ?? null;
+
+    return {
+      ok: true as const,
+      ticket: { id: ticket.id, qr_token: ticket.qr_token, qr_payload: ticket.qr_payload },
+      kind: isCompanion ? ("acompanante" as const) : ("titular" as const),
+      holderName,
+      dni,
+      seat,
+      event: { ...event, ticket_design: resolved ?? event.ticket_design ?? null },
+      session,
+    };
+  });
+
 export const cancelAttendance = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => cancelSchema.parse(d))
   .handler(async ({ data }) => {
