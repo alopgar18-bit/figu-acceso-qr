@@ -150,11 +150,6 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
         .in("participant_id", partIds);
       companions = (compRes.data ?? []) as typeof companions;
     }
-    // checkin map
-    const checkinByPart = new Map<string, string>();
-    for (const r of data.participants) {
-      // ParticipantExportRow has session_name+first/last; we rely on the dedicated fetch above for ordering
-    }
     const compsByPart = new Map<string, typeof companions>();
     for (const c of companions) {
       const arr = compsByPart.get(c.participant_id) ?? [];
