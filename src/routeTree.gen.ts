@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as TQrTokenRouteImport } from './routes/t.$qrToken'
 import { Route as PortalInformesRouteImport } from './routes/portal.informes'
 import { Route as PortalIncidenciasRouteImport } from './routes/portal.incidencias'
 import { Route as PortalEventosRouteImport } from './routes/portal.eventos'
@@ -87,6 +88,11 @@ const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => PortalRoute,
+} as any)
+const TQrTokenRoute = TQrTokenRouteImport.update({
+  id: '/t/$qrToken',
+  path: '/t/$qrToken',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PortalInformesRoute = PortalInformesRouteImport.update({
   id: '/informes',
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
+  '/t/$qrToken': typeof TQrTokenRoute
   '/portal/': typeof PortalIndexRoute
   '/comunicaciones/cola': typeof AuthenticatedComunicacionesColaRoute
   '/comunicaciones/envio': typeof AuthenticatedComunicacionesEnvioRoute
@@ -397,6 +404,7 @@ export interface FileRoutesByTo {
   '/f/$formSlug': typeof FFormSlugRoute
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
+  '/t/$qrToken': typeof TQrTokenRoute
   '/portal': typeof PortalIndexRoute
   '/comunicaciones/cola': typeof AuthenticatedComunicacionesColaRoute
   '/comunicaciones/envio': typeof AuthenticatedComunicacionesEnvioRoute
@@ -449,6 +457,7 @@ export interface FileRoutesById {
   '/portal/eventos': typeof PortalEventosRouteWithChildren
   '/portal/incidencias': typeof PortalIncidenciasRoute
   '/portal/informes': typeof PortalInformesRoute
+  '/t/$qrToken': typeof TQrTokenRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/comunicaciones/cola': typeof AuthenticatedComunicacionesColaRoute
   '/_authenticated/comunicaciones/envio': typeof AuthenticatedComunicacionesEnvioRoute
@@ -501,6 +510,7 @@ export interface FileRouteTypes {
     | '/portal/eventos'
     | '/portal/incidencias'
     | '/portal/informes'
+    | '/t/$qrToken'
     | '/portal/'
     | '/comunicaciones/cola'
     | '/comunicaciones/envio'
@@ -549,6 +559,7 @@ export interface FileRouteTypes {
     | '/f/$formSlug'
     | '/portal/incidencias'
     | '/portal/informes'
+    | '/t/$qrToken'
     | '/portal'
     | '/comunicaciones/cola'
     | '/comunicaciones/envio'
@@ -600,6 +611,7 @@ export interface FileRouteTypes {
     | '/portal/eventos'
     | '/portal/incidencias'
     | '/portal/informes'
+    | '/t/$qrToken'
     | '/portal/'
     | '/_authenticated/comunicaciones/cola'
     | '/_authenticated/comunicaciones/envio'
@@ -634,6 +646,7 @@ export interface RootRouteChildren {
   CTokenRoute: typeof CTokenRouteWithChildren
   ESlugRoute: typeof ESlugRouteWithChildren
   FFormSlugRoute: typeof FFormSlugRoute
+  TQrTokenRoute: typeof TQrTokenRoute
   OgCTokenRoute: typeof OgCTokenRoute
 }
 
@@ -680,6 +693,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/'
       preLoaderRoute: typeof PortalIndexRouteImport
       parentRoute: typeof PortalRoute
+    }
+    '/t/$qrToken': {
+      id: '/t/$qrToken'
+      path: '/t/$qrToken'
+      fullPath: '/t/$qrToken'
+      preLoaderRoute: typeof TQrTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/portal/informes': {
       id: '/portal/informes'
@@ -1200,6 +1220,7 @@ const rootRouteChildren: RootRouteChildren = {
   CTokenRoute: CTokenRouteWithChildren,
   ESlugRoute: ESlugRouteWithChildren,
   FFormSlugRoute: FFormSlugRoute,
+  TQrTokenRoute: TQrTokenRoute,
   OgCTokenRoute: OgCTokenRoute,
 }
 export const routeTree = rootRouteImport

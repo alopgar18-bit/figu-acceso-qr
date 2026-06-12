@@ -50,6 +50,11 @@ export const COMM_VARIABLES = [
   { token: "{{instrucciones}}", description: "Instrucciones específicas" },
 ] as const;
 
+export const COMM_VARIABLES_EXTRA = [
+  { token: "{{acompanantes}}", description: "Lista de acompañantes (texto plano)" },
+  { token: "{{acompanantes_html}}", description: "Lista de acompañantes con enlaces individuales (HTML)" },
+] as const;
+
 export const SENDER_EMAIL = "casting@figurarte.es";
 // Dominio público fijo al que apuntan los enlaces de entrada/confirmación.
 export const PUBLIC_SITE_URL_FALLBACK = "https://figurarte.app";
@@ -59,6 +64,13 @@ export function buildEntryUrl(token: string | null | undefined): string {
   // Apuntamos a /og/c/[token]: SSR público con Open Graph para previsualizaciones
   // (WhatsApp, Facebook, Twitter). Para usuarios normales redirige a /c/[token]/entrada.
   return cleanToken ? `${PUBLIC_SITE_URL_FALLBACK}/og/c/${cleanToken}` : "";
+}
+
+// Enlace público a la entrada individual de un único ticket (titular o acompañante)
+// identificado por su qr_token. Pensado para acompañantes en modo qr_propio.
+export function buildTicketUrl(qrToken: string | null | undefined): string {
+  const t = (qrToken ?? "").trim();
+  return t ? `${PUBLIC_SITE_URL_FALLBACK}/t/${t}` : "";
 }
 
 export interface SenderOption {
@@ -96,6 +108,8 @@ export interface RenderContext {
   qr_image?: string | null;
   instrucciones?: string | null;
   telefono?: string | null;
+  acompanantes?: string | null;
+  acompanantes_html?: string | null;
 }
 
 export function renderTemplate(text: string, ctx: RenderContext): string {
