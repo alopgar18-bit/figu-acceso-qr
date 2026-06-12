@@ -30,15 +30,23 @@ function parseCsv(text: string) {
   };
   const iEmail = idx(["email", "correo", "e-mail"]);
   const iDni = idx(["dni", "nie", "documento", "pasaporte"]);
+  const iTipo = idx(["tipo", "rol", "role"]);
   const iZone = idx(["zona", "sector", "zone"]);
   const iRow = idx(["fila", "row"]);
   const iSeat = idx(["asiento", "butaca", "seat", "numero", "número"]);
-  const rows: Array<{ email?: string; dni?: string; seat_zone?: string; seat_row?: string; seat_number?: string }> = [];
+  const rows: Array<{ email?: string; dni?: string; tipo?: "titular" | "acompanante"; seat_zone?: string; seat_row?: string; seat_number?: string }> = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i]!.split(sep).map((c) => c.trim());
+    let tipo: "titular" | "acompanante" | undefined;
+    if (iTipo >= 0) {
+      const raw = (cols[iTipo] ?? "").toLowerCase();
+      if (raw.startsWith("acomp") || raw === "companion") tipo = "acompanante";
+      else if (raw.startsWith("titu") || raw === "main" || raw === "principal") tipo = "titular";
+    }
     rows.push({
       email: iEmail >= 0 ? cols[iEmail] || undefined : undefined,
       dni: iDni >= 0 ? cols[iDni]?.toUpperCase() || undefined : undefined,
+      tipo,
       seat_zone: iZone >= 0 ? cols[iZone] || undefined : undefined,
       seat_row: iRow >= 0 ? cols[iRow] || undefined : undefined,
       seat_number: iSeat >= 0 ? cols[iSeat] || undefined : undefined,
@@ -68,7 +76,9 @@ export function SeatImportDialog({ eventId }: { eventId: string }) {
           rows,
         },
       });
-      toast.success(`${res.updated} asiento/s asignados · ${res.skipped} no encontrados`);
+      toast.success(
+        `${res.updated} asignados (${res.updated_titulares} titulares · ${res.updated_acompanantes} acompañantes) · ${res.skipped} no encontrados`,
+      );
       if (res.errors.length > 0) {
         console.warn("Errores import asientos:", res.errors);
       }
@@ -91,7 +101,8 @@ export function SeatImportDialog({ eventId }: { eventId: string }) {
         <DialogHeader>
           <DialogTitle>Importar asientos por CSV</DialogTitle>
           <DialogDescription>
-            Cabeceras aceptadas: <code>email</code> o <code>dni</code> (para identificar) y <code>zona</code>, <code>fila</code>, <code>asiento</code>.
+            Cabeceras: <code>email</code> o <code>dni</code> (identificación), <code>tipo</code> (opcional: <code>titular</code> / <code>acompanante</code>),
+            <code>zona</code>, <code>fila</code>, <code>asiento</code>. Si no indicas <code>tipo</code>, se busca primero entre titulares y luego entre acompañantes.
             Separador coma o punto y coma.
           </DialogDescription>
         </DialogHeader>
@@ -115,7 +126,7 @@ export function SeatImportDialog({ eventId }: { eventId: string }) {
               value={csv}
               onChange={(e) => setCsv(e.target.value)}
               className="font-mono text-xs"
-              placeholder={"email,zona,fila,asiento\njuan@ejemplo.com,Patio,A,12\nmaria@ejemplo.com,Patio,A,13"}
+              placeholder={"email,tipo,zona,fila,asiento\njuan@ejemplo.com,titular,VIP,A,12\nana@ejemplo.com,acompanante,VIP,A,13"}
             />
           </div>
         </div>
