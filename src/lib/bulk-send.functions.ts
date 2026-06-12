@@ -155,7 +155,15 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       throw new Error(`No se pudieron leer participantes: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!participants || participants.length === 0) {
-      return { queued: 0, skipped_no_email: 0, skipped_no_ticket: 0, skipped_already: 0, errors: [] };
+      return {
+        queued: 0,
+        queued_companions: 0,
+        skipped_no_email: 0,
+        skipped_no_ticket: 0,
+        skipped_already: 0,
+        skipped_no_companion_ticket: 0,
+        errors: [] as Array<{ participant_id: string; reason: string }>,
+      };
     }
 
     // 4. Map participants to tickets (active)
