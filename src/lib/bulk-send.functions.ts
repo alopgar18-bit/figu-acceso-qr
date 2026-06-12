@@ -156,15 +156,35 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
 
     // 4. Map participants to tickets (active)
     const ids = participants.map((p) => p.id);
-    const ticketMap = new Map<string, string>();
+    const ticketMap = new Map<string, string>();          // participant_id -> titular qr_token
+    const ticketByCompanion = new Map<string, string>();  // companion_id -> qr_token
     for (const idChunk of chunk(ids, 100)) {
       const { data: tickets } = await supabase
         .from("tickets")
-        .select("participant_id, qr_token")
+        .select("participant_id, companion_id, qr_token")
         .in("participant_id", idChunk)
         .eq("revoked", false);
-      for (const t of tickets ?? []) {
-        if (!ticketMap.has(t.participant_id)) ticketMap.set(t.participant_id, t.qr_token);
+      for (const t of (tickets ?? []) as TicketRow[]) {
+        if (t.companion_id) {
+          if (!ticketByCompanion.has(t.companion_id)) ticketByCompanion.set(t.companion_id, t.qr_token);
+        } else if (!ticketMap.has(t.participant_id)) {
+          ticketMap.set(t.participant_id, t.qr_token);
+        }
+      }
+    }
+
+    // 4b. Load companions per participant
+    const companionsByParticipant = new Map<string, CompanionRow[]>();
+    for (const idChunk of chunk(ids, 100)) {
+      const { data: comps } = await supabase
+        .from("companions")
+        .select("id, participant_id, first_name, last_name, seat_zone, seat_row, seat_number")
+        .in("participant_id", idChunk)
+        .order("created_at", { ascending: true });
+      for (const c of (comps ?? []) as (CompanionRow & { participant_id: string })[]) {
+        const arr = companionsByParticipant.get(c.participant_id) ?? [];
+        arr.push(c);
+        companionsByParticipant.set(c.participant_id, arr);
       }
     }
 
