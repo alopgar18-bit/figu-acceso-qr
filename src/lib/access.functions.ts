@@ -37,6 +37,8 @@ export interface ValidationResult {
     blocked_reason: string | null;
   } | null;
   checkin?: { id: string; checked_in_at: string } | null;
+  seat?: { zone: string | null; row: string | null; number: string | null } | null;
+  companion?: { id: string; first_name: string | null; last_name: string | null } | null;
 }
 
 const validateSchema = z.object({
@@ -92,13 +94,36 @@ export const validateQr = createServerFn({ method: "POST" })
 
     const { data: participant } = await supabase
       .from("event_participants")
-      .select("*, people(*)")
+      .select("*, people(*), seat_zone, seat_row, seat_number")
       .eq("id", ticket.participant_id)
       .maybeSingle();
 
     if (!participant) return { code: "qr_no_valido", message: msgFor("qr_no_valido") };
 
     const person = participant.people as ValidationResult["person"] | null;
+
+    // Resolve companion + seat for this specific ticket
+    let companion: ValidationResult["companion"] = null;
+    let seat: ValidationResult["seat"] = {
+      zone: (participant as { seat_zone: string | null }).seat_zone ?? null,
+      row: (participant as { seat_row: string | null }).seat_row ?? null,
+      number: (participant as { seat_number: string | null }).seat_number ?? null,
+    };
+    const ticketCompanionId = (ticket as { companion_id?: string | null }).companion_id ?? null;
+    if (ticketCompanionId) {
+      const { data: comp } = await supabase
+        .from("companions")
+        .select("id, first_name, last_name, seat_zone, seat_row, seat_number")
+        .eq("id", ticketCompanionId)
+        .maybeSingle();
+      if (comp) {
+        companion = { id: comp.id, first_name: comp.first_name, last_name: comp.last_name };
+        if (comp.seat_zone || comp.seat_row || comp.seat_number) {
+          seat = { zone: comp.seat_zone, row: comp.seat_row, number: comp.seat_number };
+        }
+      }
+    }
+
     if (person?.is_blocked) {
       return {
         code: "persona_bloqueada",
@@ -106,6 +131,8 @@ export const validateQr = createServerFn({ method: "POST" })
         participant: { id: participant.id, status: participant.status, companions_count: participant.companions_count, attendee_type: participant.attendee_type, internal_notes: participant.internal_notes },
         person,
         ticket: { id: ticket.id, qr_payload: ticket.qr_payload },
+        seat,
+        companion,
       };
     }
     if (![
@@ -122,6 +149,8 @@ export const validateQr = createServerFn({ method: "POST" })
         message: msgFor("no_confirmado"),
         participant: { id: participant.id, status: participant.status, companions_count: participant.companions_count, attendee_type: participant.attendee_type, internal_notes: participant.internal_notes },
         person,
+        seat,
+        companion,
       };
     }
 
@@ -141,6 +170,8 @@ export const validateQr = createServerFn({ method: "POST" })
         person,
         ticket: { id: ticket.id, qr_payload: ticket.qr_payload },
         checkin: { id: existing.id, checked_in_at: existing.checked_in_at },
+        seat,
+        companion,
       };
     }
 
@@ -189,6 +220,8 @@ export const validateQr = createServerFn({ method: "POST" })
       person,
       ticket: { id: ticket.id, qr_payload: ticket.qr_payload },
       checkin,
+      seat,
+      companion,
     };
   });
 
