@@ -500,14 +500,34 @@ export const resendInvitations = createServerFn({ method: "POST" })
 
     // 3) Tickets per participant (active).
     const ticketMap = new Map<string, string>();
+    const ticketByCompanion = new Map<string, string>();
     for (const ids of chunk(participants.map((p) => p.id), 100)) {
       const { data: tickets } = await supabase
         .from("tickets")
-        .select("participant_id, qr_token")
+        .select("participant_id, companion_id, qr_token")
         .in("participant_id", ids)
         .eq("revoked", false);
-      for (const t of tickets ?? []) {
-        if (!ticketMap.has(t.participant_id)) ticketMap.set(t.participant_id, t.qr_token);
+      for (const t of (tickets ?? []) as TicketRow[]) {
+        if (t.companion_id) {
+          if (!ticketByCompanion.has(t.companion_id)) ticketByCompanion.set(t.companion_id, t.qr_token);
+        } else if (!ticketMap.has(t.participant_id)) {
+          ticketMap.set(t.participant_id, t.qr_token);
+        }
+      }
+    }
+
+    // 3b) Companions per participant
+    const companionsByParticipant = new Map<string, CompanionRow[]>();
+    for (const ids of chunk(participants.map((p) => p.id), 100)) {
+      const { data: comps } = await supabase
+        .from("companions")
+        .select("id, participant_id, first_name, last_name, seat_zone, seat_row, seat_number")
+        .in("participant_id", ids)
+        .order("created_at", { ascending: true });
+      for (const c of (comps ?? []) as (CompanionRow & { participant_id: string })[]) {
+        const arr = companionsByParticipant.get(c.participant_id) ?? [];
+        arr.push(c);
+        companionsByParticipant.set(c.participant_id, arr);
       }
     }
 
@@ -556,6 +576,8 @@ export const resendInvitations = createServerFn({ method: "POST" })
       const ticketToken = ticketMap.get(p.id);
       const linkToken = p.confirmation_token;
       const enlace = buildEntryUrl(linkToken);
+      const compRows = companionsByParticipant.get(p.id) ?? [];
+      const compBlocks = buildCompanionsBlocks(compRows, ticketByCompanion);
       const ctx: RenderContext = {
         nombre: person?.first_name ?? "",
         apellidos: person?.last_name ?? "",
@@ -570,6 +592,8 @@ export const resendInvitations = createServerFn({ method: "POST" })
         qr: ticketToken ?? "",
         qr_image: enlace ? buildQrImageUrl(enlace) : "",
         telefono: person?.phone ?? "",
+        acompanantes: compBlocks.text,
+        acompanantes_html: compBlocks.html,
       };
 
       const subject = template.subject ? renderTemplate(template.subject, ctx) : null;
