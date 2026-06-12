@@ -65,3 +65,42 @@ export function fromDateTimeLocal(value: string) {
   if (!value) return null;
   return new Date(value).toISOString();
 }
+
+// ─────── Zone color helpers ───────
+// Devuelve una tonalidad estable por zona para distinguir visualmente VIP / Público
+// en pantallas de validación y reports. Case-insensitive, ignora acentos.
+export type ZoneTone = "green" | "blue" | "amber" | "purple" | "neutral";
+
+function normalizeZone(zone: string | null | undefined): string {
+  return (zone ?? "")
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+export function zoneTone(zone: string | null | undefined): ZoneTone {
+  const z = normalizeZone(zone);
+  if (!z) return "neutral";
+  if (z.includes("vip")) return "green";
+  if (z.includes("publico") || z === "public") return "blue";
+  if (z.includes("prensa") || z.includes("press")) return "amber";
+  if (z.includes("invitado") || z.includes("staff")) return "purple";
+  return "neutral";
+}
+
+export function zoneToneClasses(tone: ZoneTone): string {
+  switch (tone) {
+    case "green":
+      return "bg-emerald-500/15 border-emerald-500/50 text-emerald-700 dark:text-emerald-300";
+    case "blue":
+      return "bg-blue-500/15 border-blue-500/50 text-blue-700 dark:text-blue-300";
+    case "amber":
+      return "bg-amber-500/15 border-amber-500/50 text-amber-700 dark:text-amber-300";
+    case "purple":
+      return "bg-purple-500/15 border-purple-500/50 text-purple-700 dark:text-purple-300";
+    default:
+      return "bg-muted border-border text-foreground";
+  }
+}
