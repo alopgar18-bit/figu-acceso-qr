@@ -320,9 +320,84 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       } catch (err) {
         errors.push({ participant_id: p.id, reason: err instanceof Error ? err.message : "error" });
       }
+
+      // 6. Email individual por cada acompañante (al email del titular).
+      // Solo aplica a canal email, cuando hay email del titular y existe
+      // un ticket vinculado al companion_id.
+      if (
+        data.send_per_companion &&
+        !isWhatsapp &&
+        email &&
+        compRows.length > 0
+      ) {
+        for (const c of compRows) {
+          if (data.skip_already_queued && alreadyCompanionKeys.has(c.id)) {
+            skipped_already++;
+            continue;
+          }
+          const compToken = ticketByCompanion.get(c.id);
+          if (!compToken) {
+            skipped_no_companion_ticket++;
+            continue;
+          }
+          const compName = (c.first_name ?? "").trim();
+          const compLast = (c.last_name ?? "").trim();
+          const compEntryUrl = buildTicketUrl(compToken);
+          const compCtx: RenderContext = {
+            ...ctx,
+            nombre: compName,
+            apellidos: compLast,
+            enlace_entrada: compEntryUrl,
+            enlace_confirmacion: enlace, // se mantiene el del titular
+            qr: compToken,
+            qr_image: buildQrImageUrl(compEntryUrl),
+            acompanantes: "",
+            acompanantes_html: "",
+          };
+          const compSubject = template.subject ? renderTemplate(template.subject, compCtx) : null;
+          const compBody = renderTemplate(template.body, compCtx);
+          try {
+            const { error: cErr } = await supabase.from("communication_logs").insert({
+              channel: template.channel,
+              status: "pendiente",
+              to_address: email,
+              subject: compSubject,
+              body: compBody,
+              template_id: template.id,
+              participant_id: p.id,
+              person_id: p.person_id,
+              event_id: data.event_id,
+              session_id: data.session_id ?? null,
+              batch_id: data.batch_id ?? null,
+              error_message: null,
+              metadata: {
+                ...(data.from ? { from: data.from } : {}),
+                companion_id: c.id,
+                companion_name: `${compName} ${compLast}`.trim(),
+              },
+              created_by: userId,
+            });
+            if (cErr) throw new Error(cErr.message);
+            queued_companions++;
+          } catch (err) {
+            errors.push({
+              participant_id: p.id,
+              reason: `acompañante ${c.id}: ${err instanceof Error ? err.message : "error"}`,
+            });
+          }
+        }
+      }
     }
 
-    return { queued, skipped_no_email, skipped_no_ticket, skipped_already, errors };
+    return {
+      queued,
+      queued_companions,
+      skipped_no_email,
+      skipped_no_ticket,
+      skipped_already,
+      skipped_no_companion_ticket,
+      errors,
+    };
   });
 
 /**
