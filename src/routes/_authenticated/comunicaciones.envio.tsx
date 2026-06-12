@@ -507,6 +507,23 @@ FIGURARTE Casting & Producción`,
                 )}
               </AlertDescription>
             </Alert>
+            {!isWhatsapp && (
+              <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
+                  checked={sendPerCompanion}
+                  onChange={(e) => setSendPerCompanion(e.target.checked)}
+                />
+                <span>
+                  <strong>Enviar también un correo individual por cada acompañante</strong>
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Se manda al email del titular un correo extra por cada acompañante con su nombre, asiento y QR/enlace individual. Requiere que el acompañante tenga su QR generado (modo "QR individual por acompañante" en la sesión).
+                  </span>
+                </span>
+              </label>
+            )}
             <div className="flex gap-2">
               <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : stats.withEmail === 0}>
                 <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : stats.withEmail} destinatarios)
