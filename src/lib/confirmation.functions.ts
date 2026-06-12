@@ -178,20 +178,33 @@ export const confirmAttendance = createServerFn({ method: "POST" })
     const validCompanions = (data.companions ?? []).filter(
       (c) => c.first_name || c.last_name || c.dni,
     );
+    let insertedCompanionIds: string[] = [];
     if (session.allow_companions && validCompanions.length > 0) {
       companionsCount = Math.min(validCompanions.length, session.max_companions_per_participant || 0);
       await supabaseAdmin.from("companions").delete().eq("participant_id", p.id);
       if (companionsCount > 0) {
-        await supabaseAdmin.from("companions").insert(
-          validCompanions.slice(0, companionsCount).map((c) => ({
-            participant_id: p.id,
-            first_name: c.first_name ?? null,
-            last_name: c.last_name ?? null,
-            dni: c.dni ?? null,
-            age: c.age ?? null,
-          })),
-        );
+        const { data: insertedComps } = await supabaseAdmin
+          .from("companions")
+          .insert(
+            validCompanions.slice(0, companionsCount).map((c) => ({
+              participant_id: p.id,
+              first_name: c.first_name ?? null,
+              last_name: c.last_name ?? null,
+              dni: c.dni ?? null,
+              age: c.age ?? null,
+            })),
+          )
+          .select("id");
+        insertedCompanionIds = (insertedComps ?? []).map((c) => c.id);
       }
+    } else if (companionsCount > 0) {
+      // Reusar acompañantes ya existentes (sin re-insertar) para vincular tickets.
+      const { data: existingComps } = await supabaseAdmin
+        .from("companions")
+        .select("id")
+        .eq("participant_id", p.id)
+        .order("created_at", { ascending: true });
+      insertedCompanionIds = (existingComps ?? []).map((c) => c.id);
     }
 
     // Update participant
@@ -226,6 +239,7 @@ export const confirmAttendance = createServerFn({ method: "POST" })
       for (let i = 0; i < companionsCount; i++) {
         ticketRows.push({
           participant_id: p.id,
+          companion_id: insertedCompanionIds[i] ?? null,
           event_id: event.id,
           session_id: session.id,
           qr_token: randomToken(),
