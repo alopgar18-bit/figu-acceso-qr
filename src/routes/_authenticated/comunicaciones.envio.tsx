@@ -208,21 +208,96 @@ function BulkSendPage() {
 
   const ticketSet = ticketsQ.data ?? new Set<string>();
 
+  // Aplicar filtros en cliente sobre los participantes cargados.
+  const filteredParticipants = useMemo(() => {
+    const today = Date.now();
+    const minAge = flt.minAge ? Number(flt.minAge) : null;
+    const maxAge = flt.maxAge ? Number(flt.maxAge) : null;
+    const from = flt.fromDate ? new Date(flt.fromDate).getTime() : null;
+    const to = flt.toDate ? new Date(flt.toDate + "T23:59:59").getTime() : null;
+    const s = flt.search.trim().toLowerCase();
+    return participants.filter((p) => {
+      const person = p.people;
+      if (flt.status !== "all" && p.status !== flt.status) return false;
+      if (flt.type !== "all" && (p.attendee_type ?? "") !== flt.type) return false;
+      if (flt.gender !== "all" && (person?.gender ?? "") !== flt.gender) return false;
+      if (flt.city && (person?.city ?? "").toLowerCase() !== flt.city.toLowerCase()) return false;
+      if (flt.province && (person?.province ?? "").toLowerCase() !== flt.province.toLowerCase()) return false;
+      if (flt.email === "yes" && !person?.email) return false;
+      if (flt.email === "no" && person?.email) return false;
+      if (flt.phone === "yes" && !person?.phone) return false;
+      if (flt.phone === "no" && person?.phone) return false;
+      if (flt.qr === "yes" && !ticketSet.has(p.id)) return false;
+      if (flt.qr === "no" && ticketSet.has(p.id)) return false;
+      if (flt.blocked && !person?.is_blocked) return false;
+      if (minAge != null || maxAge != null) {
+        if (!person?.birth_date) return false;
+        const age = Math.floor((today - new Date(person.birth_date).getTime()) / (365.25 * 86400000));
+        if (minAge != null && age < minAge) return false;
+        if (maxAge != null && age > maxAge) return false;
+      }
+      if (from != null && p.created_at && new Date(p.created_at).getTime() < from) return false;
+      if (to != null && p.created_at && new Date(p.created_at).getTime() > to) return false;
+      if (s) {
+        const hay = [person?.first_name, person?.last_name, person?.email, person?.phone, person?.dni]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase());
+        if (!hay.some((v) => v.includes(s))) return false;
+      }
+      return true;
+    });
+  }, [participants, flt, ticketSet]);
+
+  // IDs excluidos manualmente desde la tabla.
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const toggleExcluded = (id: string) =>
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const allFilteredExcluded =
+    filteredParticipants.length > 0 && filteredParticipants.every((p) => excluded.has(p.id));
+  const toggleAllFiltered = () => {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (allFilteredExcluded) {
+        for (const p of filteredParticipants) next.delete(p.id);
+      } else {
+        for (const p of filteredParticipants) next.add(p.id);
+      }
+      return next;
+    });
+  };
+
+  // Lista efectiva = filtrados − excluidos. Esto es lo que usan generar QR / cola.
+  const effectiveParticipants = useMemo(
+    () => filteredParticipants.filter((p) => !excluded.has(p.id)),
+    [filteredParticipants, excluded],
+  );
+  const effectiveIds = effectiveParticipants.map((p) => p.id);
+
   const stats = useMemo(() => {
     let withEmail = 0;
     let withoutEmail = 0;
     let withTicket = 0;
     let withoutTicket = 0;
-    for (const p of participants) {
+    for (const p of effectiveParticipants) {
       if (p.people?.email) withEmail++;
       else withoutEmail++;
       if (ticketSet.has(p.id)) withTicket++;
       else withoutTicket++;
     }
-    const alreadyQueued = (sentQ.data ?? []).filter((r) => r.status === "pendiente" || r.status === "programado").length;
-    const alreadySent = (sentQ.data ?? []).filter((r) => r.status === "enviado").length;
+    const effIdSet = new Set(effectiveParticipants.map((p) => p.id));
+    const alreadyQueued = (sentQ.data ?? []).filter(
+      (r) => effIdSet.has(r.participant_id) && (r.status === "pendiente" || r.status === "programado"),
+    ).length;
+    const alreadySent = (sentQ.data ?? []).filter(
+      (r) => effIdSet.has(r.participant_id) && r.status === "enviado",
+    ).length;
     return {
-      total: participants.length,
+      total: effectiveParticipants.length,
       withEmail,
       withoutEmail,
       withTicket,
@@ -230,7 +305,7 @@ function BulkSendPage() {
       alreadyQueued,
       alreadySent,
     };
-  }, [participants, ticketSet, sentQ.data]);
+  }, [effectiveParticipants, ticketSet, sentQ.data]);
 
   const { data: templates = [] } = useTemplates();
   const channelTemplates = templates.filter((t) => t.channel === channel && t.is_active);
