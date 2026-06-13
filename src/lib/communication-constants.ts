@@ -155,7 +155,7 @@ export const DEFAULT_TEMPLATES: { name: string; channel: CommChannel; subject: s
     name: "Entrada / QR – Email",
     channel: "email",
     subject: "Tu entrada para {{evento}}",
-    body: `Hola {{nombre}},\n\nAdjuntamos tu entrada para {{evento}}.\nSesión: {{sesion}} – {{fecha}} ({{hora_acceso}})\nUbicación: {{ubicacion}}\n\nAccede a tu entrada: {{enlace_entrada}}\n\n{{instrucciones}}\n\nNos vemos pronto,\nFIGURARTE`,
+    body: `Hola {{nombre}},\n\nAdjuntamos tu entrada para {{evento}}.\nSesión: {{sesion}} – {{fecha}}\nHora de acceso: {{hora_acceso}}\nHora de inicio: {{hora_inicio}}\nHora fin aprox.: {{hora_fin}}\nUbicación: {{ubicacion}}\n\nAccede a tu entrada: {{enlace_entrada}}\n\n{{instrucciones}}\n\nNos vemos pronto,\nFIGURARTE`,
   },
   {
     type: "entrada_qr",
@@ -177,7 +177,8 @@ export const DEFAULT_TEMPLATES: { name: string; channel: CommChannel; subject: s
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border:1px solid #ececec;border-radius:10px;margin:0 0 24px;">
             <tr><td style="padding:16px 20px;font-size:14px;line-height:1.7;">
               <div><strong>Sesión:</strong> {{sesion}}</div>
-              <div><strong>Fecha:</strong> {{fecha}} · {{hora_acceso}}</div>
+              <div><strong>Fecha:</strong> {{fecha}}</div>
+              <div><strong>Acceso:</strong> {{hora_acceso}} · <strong>Inicio:</strong> {{hora_inicio}} · <strong>Fin aprox.:</strong> {{hora_fin}}</div>
               <div><strong>Lugar:</strong> {{ubicacion}}</div>
             </td></tr>
           </table>
@@ -204,7 +205,7 @@ export const DEFAULT_TEMPLATES: { name: string; channel: CommChannel; subject: s
     name: "Recordatorio – WhatsApp",
     channel: "whatsapp_asistido",
     subject: null,
-    body: `Hola {{nombre}}, te recordamos que mañana es {{evento}} – {{sesion}} a las {{hora_acceso}}. Ubicación: {{ubicacion}}. ¡Te esperamos! FIGURARTE`,
+    body: `Hola {{nombre}}, te recordamos que mañana es {{evento}} – {{sesion}}. Acceso {{hora_acceso}}, inicio {{hora_inicio}} (fin aprox. {{hora_fin}}). Ubicación: {{ubicacion}}. ¡Te esperamos! FIGURARTE`,
   },
   {
     type: "cancelacion",

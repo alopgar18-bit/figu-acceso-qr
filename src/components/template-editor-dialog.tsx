@@ -69,6 +69,8 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
     sesion: "Sesión tarde",
     fecha: "21/05/2026",
     hora_acceso: "19:30",
+    hora_inicio: "20:00",
+    hora_fin: "22:30",
     ubicacion: "Teatro Alameda, Sevilla",
     enlace_entrada: "https://figurarte.app/c/demo-token/entrada",
     enlace_confirmacion: "https://figurarte.app/c/demo-token/entrada",
