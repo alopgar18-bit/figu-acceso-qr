@@ -635,7 +635,21 @@ function BulkActionsBar({
       const res = await genTickets({
         data: { event_id: [...evs][0], session_id: [...ses][0], participant_ids: ids },
       });
-      toast.success(`Generados ${res.generated} QR (${res.skipped} ya existían).`);
+      const parts: string[] = [];
+      parts.push(`${res.generated_titulars} titular(es)`);
+      if (res.mode === "qr_propio") {
+        parts.push(`${res.generated_companions} acompañante(s)`);
+      }
+      const skippedTotal = res.skipped_titulars + res.skipped_companions;
+      const modeNote =
+        res.mode === "mismo_qr"
+          ? " · Sesión en modo 'un QR para el grupo': no se generan QR por acompañante."
+          : "";
+      if (res.generated === 0 && skippedTotal > 0) {
+        toast.info(`Todos los QR ya existían (${skippedTotal}).${modeNote}`);
+      } else {
+        toast.success(`Generados ${parts.join(" + ")} (${skippedTotal} ya existían).${modeNote}`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error generando QR");
     } finally {
