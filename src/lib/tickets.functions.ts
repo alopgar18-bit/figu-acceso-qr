@@ -19,8 +19,9 @@ const inputSchema = z.object({
 });
 
 /**
- * Generates QR tickets for all participants in a session that don't have an active ticket yet.
- * Does NOT require DNI, email or phone. Uses crypto-safe random token (no gen_random_bytes).
+ * Generates QR tickets for participants (and companions, when the session is in
+ * `qr_propio` mode) that don't have an active ticket yet.
+ * Does NOT require DNI, email or phone. Uses crypto-safe random token.
  */
 export const generateMissingTickets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -32,6 +33,15 @@ export const generateMissingTickets = createServerFn({ method: "POST" })
       "admin_figurarte",
       "coordinador",
     ]);
+
+    // 0. Load session to know the QR mode.
+    const { data: session, error: sErr } = await supabase
+      .from("event_sessions")
+      .select("id, companions_qr_mode")
+      .eq("id", data.session_id)
+      .single();
+    if (sErr || !session) throw new Error(`No se pudo leer la sesión: ${sErr?.message ?? "no encontrada"}`);
+    const qrMode = session.companions_qr_mode as "mismo_qr" | "qr_propio";
 
     // 1. Resolve target participants.
     let query = supabase
@@ -49,50 +59,137 @@ export const generateMissingTickets = createServerFn({ method: "POST" })
     const { data: participants, error: pErr } = await query.limit(5000);
     if (pErr) throw new Error(`No se pudieron leer los participantes: ${pErr.message}`);
     if (!participants || participants.length === 0) {
-      return { generated: 0, skipped: 0, errors: [] as Array<{ participant_id: string; reason: string }> };
+      return {
+        generated: 0,
+        skipped: 0,
+        generated_titulars: 0,
+        generated_companions: 0,
+        skipped_titulars: 0,
+        skipped_companions: 0,
+        mode: qrMode,
+        errors: [] as Array<{ participant_id: string; reason: string }>,
+      };
     }
 
-    // 2. Find which already have an active ticket.
+    // 2. Find existing active tickets (by titular and by companion).
     const ids = participants.map((p) => p.id);
     const { data: existingTickets } = await supabase
       .from("tickets")
-      .select("participant_id")
+      .select("participant_id, companion_id")
       .in("participant_id", ids)
       .eq("revoked", false);
-    const haveTicket = new Set((existingTickets ?? []).map((t) => t.participant_id));
+    const haveTitularTicket = new Set(
+      (existingTickets ?? []).filter((t) => !t.companion_id).map((t) => t.participant_id),
+    );
+    const haveCompanionTicket = new Set(
+      (existingTickets ?? []).filter((t) => t.companion_id).map((t) => t.companion_id as string),
+    );
 
-    let generated = 0;
-    let skipped = 0;
-    const errors: Array<{ participant_id: string; reason: string }> = [];
-
-    for (const p of participants) {
-      if (haveTicket.has(p.id)) {
-        skipped++;
-        continue;
-      }
-      try {
-        const token = genToken();
-        const { error: tErr } = await supabase.from("tickets").insert({
-          event_id: data.event_id,
-          session_id: data.session_id,
-          participant_id: p.id,
-          qr_token: token,
-          qr_payload: {
-            token,
-            event_id: data.event_id,
-            session_id: data.session_id,
-            participant_id: p.id,
-          },
-        });
-        if (tErr) throw new Error(tErr.message);
-        generated++;
-      } catch (err) {
-        errors.push({
-          participant_id: p.id,
-          reason: err instanceof Error ? err.message : "error",
-        });
+    // 2b. Load companions for these participants (only relevant if qr_propio).
+    let companionsByParticipant = new Map<string, Array<{ id: string }>>();
+    if (qrMode === "qr_propio") {
+      const { data: comps } = await supabase
+        .from("companions")
+        .select("id, participant_id")
+        .in("participant_id", ids)
+        .order("created_at", { ascending: true });
+      for (const c of comps ?? []) {
+        const arr = companionsByParticipant.get(c.participant_id) ?? [];
+        arr.push({ id: c.id });
+        companionsByParticipant.set(c.participant_id, arr);
       }
     }
 
-    return { generated, skipped, errors };
+    let generated_titulars = 0;
+    let generated_companions = 0;
+    let skipped_titulars = 0;
+    let skipped_companions = 0;
+    const errors: Array<{ participant_id: string; reason: string }> = [];
+
+    for (const p of participants) {
+      const comps = companionsByParticipant.get(p.id) ?? [];
+      const hasCompanions = comps.length > 0;
+      // 3. Titular ticket
+      if (haveTitularTicket.has(p.id)) {
+        skipped_titulars++;
+      } else {
+        try {
+          const token = genToken();
+          const kind =
+            qrMode === "qr_propio" && hasCompanions
+              ? "titular"
+              : "grupo";
+          const { error: tErr } = await supabase.from("tickets").insert({
+            event_id: data.event_id,
+            session_id: data.session_id,
+            participant_id: p.id,
+            qr_token: token,
+            qr_payload: {
+              kind,
+              token,
+              event_id: data.event_id,
+              session_id: data.session_id,
+              participant_id: p.id,
+            },
+          });
+          if (tErr) throw new Error(tErr.message);
+          generated_titulars++;
+        } catch (err) {
+          errors.push({
+            participant_id: p.id,
+            reason: err instanceof Error ? err.message : "error",
+          });
+        }
+      }
+
+      // 4. Companion tickets (only in qr_propio mode)
+      if (qrMode === "qr_propio") {
+        let idx = 0;
+        for (const c of comps) {
+          idx++;
+          if (haveCompanionTicket.has(c.id)) {
+            skipped_companions++;
+            continue;
+          }
+          try {
+            const token = genToken();
+            const { error: cErr } = await supabase.from("tickets").insert({
+              event_id: data.event_id,
+              session_id: data.session_id,
+              participant_id: p.id,
+              companion_id: c.id,
+              qr_token: token,
+              qr_payload: {
+                kind: "acompanante",
+                index: idx,
+                token,
+                event_id: data.event_id,
+                session_id: data.session_id,
+                participant_id: p.id,
+                companion_id: c.id,
+              },
+            });
+            if (cErr) throw new Error(cErr.message);
+            generated_companions++;
+          } catch (err) {
+            errors.push({
+              participant_id: p.id,
+              reason: `acompañante ${c.id}: ${err instanceof Error ? err.message : "error"}`,
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      // Back-compat aliases
+      generated: generated_titulars + generated_companions,
+      skipped: skipped_titulars + skipped_companions,
+      generated_titulars,
+      generated_companions,
+      skipped_titulars,
+      skipped_companions,
+      mode: qrMode,
+      errors,
+    };
   });

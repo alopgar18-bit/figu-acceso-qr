@@ -217,14 +217,31 @@ function BulkSendPage() {
     if (!eventId || !sessionId) return;
     try {
       const missing = participants.filter((p) => !ticketSet.has(p.id)).map((p) => p.id);
-      if (missing.length === 0) {
-        toast.info("Todos los participantes ya tienen QR");
+      // En modo qr_propio también queremos generar tickets de acompañantes,
+      // así que enviamos TODOS los participantes (la función ignora los que ya tienen ticket).
+      const targetIds = participants.map((p) => p.id);
+      if (targetIds.length === 0) {
+        toast.info("No hay participantes en esta selección");
         return;
       }
       const res = await genTickets({
-        data: { event_id: eventId, session_id: sessionId, participant_ids: missing },
+        data: { event_id: eventId, session_id: sessionId, participant_ids: targetIds },
       });
-      toast.success(`Generados ${res.generated} QR (${res.skipped} ya existían)`);
+      const parts: string[] = [];
+      parts.push(`${res.generated_titulars} titular(es)`);
+      if (res.mode === "qr_propio") {
+        parts.push(`${res.generated_companions} acompañante(s)`);
+      }
+      const skippedTotal = res.skipped_titulars + res.skipped_companions;
+      const modeNote =
+        res.mode === "mismo_qr"
+          ? " · Sesión en modo 'un QR para el grupo': no se generan QR por acompañante."
+          : "";
+      if (res.generated === 0 && skippedTotal > 0) {
+        toast.info(`Todos los QR ya existían (${skippedTotal}).${modeNote}`);
+      } else {
+        toast.success(`Generados ${parts.join(" + ")} (${skippedTotal} ya existían).${modeNote}`);
+      }
       ticketsQ.refetch();
     } catch (e) {
       toast.error((e as Error).message);
