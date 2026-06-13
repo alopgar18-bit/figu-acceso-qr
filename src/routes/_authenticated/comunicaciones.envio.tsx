@@ -150,7 +150,33 @@ function BulkSendPage() {
   });
 
   const participants = (participantsQ.data ?? []) as PartRow[];
-  const ids = participants.map((p) => p.id);
+
+  // ---- Filtros sobre los participantes cargados (en cliente) ----
+  const [flt, setFlt] = useState({
+    search: "",
+    status: "all" as string,
+    type: "all" as string,
+    city: "",
+    province: "",
+    gender: "all" as string,
+    minAge: "",
+    maxAge: "",
+    fromDate: "",
+    toDate: "",
+    email: "all" as "all" | "yes" | "no",
+    phone: "all" as "all" | "yes" | "no",
+    qr: "all" as "all" | "yes" | "no",
+    blocked: false,
+  });
+  const resetFilters = () =>
+    setFlt({
+      search: "", status: "all", type: "all", city: "", province: "", gender: "all",
+      minAge: "", maxAge: "", fromDate: "", toDate: "",
+      email: "all", phone: "all", qr: "all", blocked: false,
+    });
+
+  // IDs de los cargados (sin filtrar) para precargar tickets y logs.
+  const loadedIds = participants.map((p) => p.id);
 
   // Tickets per participant
   const ticketsQ = useQuery({
