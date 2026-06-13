@@ -8,8 +8,17 @@ export type PersonRow = Database["public"]["Tables"]["people"]["Row"];
 
 export interface ParticipantWithRelations extends ParticipantRow {
   people: PersonRow | null;
-  event_sessions: { id: string; name: string; starts_at: string; capacity: number } | null;
-  events: { id: string; name: string } | null;
+  event_sessions: {
+    id: string;
+    name: string;
+    starts_at: string;
+    ends_at?: string | null;
+    doors_open_at?: string | null;
+    capacity: number;
+    location_name?: string | null;
+    location_address?: string | null;
+  } | null;
+  events: { id: string; name: string; slug?: string | null; location_name?: string | null; location_address?: string | null } | null;
   form_submissions: { id: string; payload: unknown } | null;
   public_forms: { id: string; title: string; slug: string; attendee_type: string } | null;
 }
@@ -123,14 +132,12 @@ export function useParticipant(id: string | undefined) {
       const { data, error } = await supabase
         .from("event_participants")
         .select(
-          "*, people(*), event_sessions(id, name, starts_at, ends_at, capacity, location_name), events(id, name, slug), form_submissions(id, payload, submitted_at)",
+          "*, people(*), event_sessions(id, name, starts_at, ends_at, doors_open_at, capacity, location_name, location_address), events(id, name, slug, location_name, location_address), form_submissions(id, payload, submitted_at)",
         )
         .eq("id", id!)
         .single();
       if (error) throw error;
-      return data as unknown as ParticipantWithRelations & {
-        events: { id: string; name: string; slug: string | null } | null;
-      };
+      return data as unknown as ParticipantWithRelations;
     },
   });
 }
