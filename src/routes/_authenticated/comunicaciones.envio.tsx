@@ -180,13 +180,13 @@ function BulkSendPage() {
 
   // Tickets per participant
   const ticketsQ = useQuery({
-    queryKey: ["bulk_tickets", ids],
-    enabled: ids.length > 0,
+    queryKey: ["bulk_tickets", loadedIds],
+    enabled: loadedIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from("tickets")
         .select("participant_id, qr_token")
-        .in("participant_id", ids)
+        .in("participant_id", loadedIds)
         .eq("revoked", false);
       return new Set((data ?? []).map((t) => t.participant_id));
     },
@@ -194,14 +194,14 @@ function BulkSendPage() {
 
   // Existing logs per participant for the selected template
   const sentQ = useQuery({
-    queryKey: ["bulk_sent", ids, templateId],
-    enabled: ids.length > 0 && !!templateId,
+    queryKey: ["bulk_sent", loadedIds, templateId],
+    enabled: loadedIds.length > 0 && !!templateId,
     queryFn: async () => {
       const { data } = await supabase
         .from("communication_logs")
         .select("participant_id, status")
         .eq("template_id", templateId!)
-        .in("participant_id", ids);
+        .in("participant_id", loadedIds);
       return data ?? [];
     },
   });
