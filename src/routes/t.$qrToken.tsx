@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
-import { CalendarDays, MapPin, Clock, Loader2, IdCard, Armchair, Download } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Loader2, IdCard, Armchair, Download, AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getTicketByQr } from "@/lib/confirmation.functions";
 import { zoneTone, zoneToneClasses } from "@/lib/event-constants";
+import { parseTicketDesign, DEFAULT_TICKET_NOTICES, NOTICE_ICON_MAP, type TicketNoticeIcon } from "@/lib/ticket-design";
 
 export const Route = createFileRoute("/t/$qrToken")({
   component: Page,
@@ -54,12 +55,18 @@ function Page() {
   const doorsAt = session.doors_open_at ? new Date(session.doors_open_at) : null;
   const tone = zoneTone(seat.zone);
   const toneClass = zoneToneClasses(tone);
+  const design = parseTicketDesign(event.ticket_design);
+  const headerBg = design.header_bg || event.brand_color || null;
+  const headerColor = design.header_text_color || "#ffffff";
+  const notices = design.notices && design.notices.length > 0 ? design.notices : DEFAULT_TICKET_NOTICES;
+  const footerNote = design.footer_note ?? "Conserva este enlace para volver a ver tu entrada.";
+  const instructionsText = design.instructions_override ?? session.specific_instructions ?? event.general_instructions ?? null;
 
   return (
     <div className="min-h-screen bg-muted/30 px-4 py-6 sm:py-10">
       <div className="max-w-md mx-auto">
-        <Card className="overflow-hidden shadow-xl border-2" style={event.brand_color ? { borderColor: event.brand_color } : undefined}>
-          <div className="px-6 py-6 text-center text-white" style={{ background: event.brand_color ?? "#111" }}>
+        <Card className="overflow-hidden shadow-xl border-2" style={headerBg ? { borderColor: headerBg } : undefined}>
+          <div className="px-6 py-6 text-center" style={{ background: headerBg ?? "hsl(var(--primary))", color: headerColor }}>
             <h1 className="text-xl font-black uppercase tracking-tight leading-tight">{event.name}</h1>
             <div className="mt-1 text-sm opacity-90">{session.name}</div>
             <div className="mt-2 text-[10px] uppercase tracking-[0.25em] opacity-80">
@@ -116,6 +123,24 @@ function Page() {
             )}
 
             <QrBlock token={ticket.qr_token} />
+
+            <Separator />
+
+            <div className="space-y-3 text-xs">
+              {notices.map((n, i) => {
+                const Icon = NOTICE_ICON_MAP[n.icon as TicketNoticeIcon] ?? AlertCircle;
+                return (
+                  <Notice key={i} icon={<Icon className="h-3.5 w-3.5" />}>
+                    <span dangerouslySetInnerHTML={{ __html: n.text }} />
+                  </Notice>
+                );
+              })}
+              {instructionsText && (
+                <div className="text-muted-foreground whitespace-pre-line bg-muted/50 p-3 rounded-md">
+                  {instructionsText}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -124,6 +149,8 @@ function Page() {
             <Download className="h-3.5 w-3.5 mr-1" /> Guardar / imprimir
           </Button>
         </div>
+
+        <p className="mt-4 text-[10px] text-center text-muted-foreground">{footerNote}</p>
       </div>
     </div>
   );
@@ -134,6 +161,15 @@ function InfoLine({ icon, children }: { icon: React.ReactNode; children: React.R
     <div className="flex items-start gap-2">
       <div className="text-muted-foreground mt-0.5">{icon}</div>
       <div className="flex-1">{children}</div>
+    </div>
+  );
+}
+
+function Notice({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 text-muted-foreground">
+      <div className="mt-0.5 text-foreground">{icon}</div>
+      <div>{children}</div>
     </div>
   );
 }
