@@ -157,6 +157,8 @@ function Page() {
               )}
             </div>
 
+            <SeatBlock zone={participant.seat_zone} row={participant.seat_row} number={participant.seat_number} />
+
             {main && (
               <QrBlock
                 token={main.qr_token}
