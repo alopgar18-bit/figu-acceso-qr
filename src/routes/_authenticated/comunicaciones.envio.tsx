@@ -482,7 +482,7 @@ FIGURARTE Casting & Producción`,
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!eventId || !sessionId ? (
+          {participants.length === 0 && (!eventId || !sessionId) ? (
             <div className="space-y-4">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
@@ -511,14 +511,214 @@ FIGURARTE Casting & Producción`,
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <Stat label="Total" value={stats.total} />
-              <Stat label="Con email" value={stats.withEmail} tone="ok" />
-              <Stat label="Sin email" value={stats.withoutEmail} tone="warn" />
-              <Stat label="Con QR" value={stats.withTicket} tone="ok" />
-              <Stat label="Sin QR" value={stats.withoutTicket} tone="warn" />
-              <Stat label="Ya en cola" value={stats.alreadyQueued} />
-              <Stat label="Ya enviados" value={stats.alreadySent} tone="ok" />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <Stat label="Total" value={stats.total} />
+                <Stat label="Con email" value={stats.withEmail} tone="ok" />
+                <Stat label="Sin email" value={stats.withoutEmail} tone="warn" />
+                <Stat label="Con QR" value={stats.withTicket} tone="ok" />
+                <Stat label="Sin QR" value={stats.withoutTicket} tone="warn" />
+                <Stat label="Ya en cola" value={stats.alreadyQueued} />
+                <Stat label="Ya enviados" value={stats.alreadySent} tone="ok" />
+              </div>
+
+              {/* Filtros */}
+              <div className="rounded border p-4 space-y-3 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Filter className="h-3 w-3" /> Filtros
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={resetFilters}>
+                    <X className="h-3 w-3 mr-1" />Limpiar filtros
+                  </Button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="md:col-span-2">
+                    <Label className="text-xs uppercase tracking-wider">Buscar</Label>
+                    <div className="relative">
+                      <SearchIcon className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={flt.search}
+                        onChange={(e) => setFlt((f) => ({ ...f, search: e.target.value }))}
+                        placeholder="Nombre, email, DNI, teléfono…"
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Estado</Label>
+                    <Select value={flt.status} onValueChange={(v) => setFlt((f) => ({ ...f, status: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {PARTICIPANT_STATUS_OPTIONS.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Tipo</Label>
+                    <Select value={flt.type} onValueChange={(v) => setFlt((f) => ({ ...f, type: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {ATTENDEE_TYPE_OPTIONS.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-6">
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Email</Label>
+                    <Select value={flt.email} onValueChange={(v) => setFlt((f) => ({ ...f, email: v as "all" | "yes" | "no" }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="yes">Con email</SelectItem>
+                        <SelectItem value="no">Sin email</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Teléfono</Label>
+                    <Select value={flt.phone} onValueChange={(v) => setFlt((f) => ({ ...f, phone: v as "all" | "yes" | "no" }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="yes">Con teléfono</SelectItem>
+                        <SelectItem value="no">Sin teléfono</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">QR</Label>
+                    <Select value={flt.qr} onValueChange={(v) => setFlt((f) => ({ ...f, qr: v as "all" | "yes" | "no" }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="yes">Con QR</SelectItem>
+                        <SelectItem value="no">Sin QR</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Género</Label>
+                    <Select value={flt.gender} onValueChange={(v) => setFlt((f) => ({ ...f, gender: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="F">Femenino</SelectItem>
+                        <SelectItem value="M">Masculino</SelectItem>
+                        <SelectItem value="X">Otro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Edad min</Label>
+                    <Input type="number" value={flt.minAge} onChange={(e) => setFlt((f) => ({ ...f, minAge: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Edad max</Label>
+                    <Input type="number" value={flt.maxAge} onChange={(e) => setFlt((f) => ({ ...f, maxAge: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Ciudad</Label>
+                    <Input value={flt.city} onChange={(e) => setFlt((f) => ({ ...f, city: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Provincia</Label>
+                    <Input value={flt.province} onChange={(e) => setFlt((f) => ({ ...f, province: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Desde</Label>
+                    <Input type="date" value={flt.fromDate} onChange={(e) => setFlt((f) => ({ ...f, fromDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Hasta</Label>
+                    <Input type="date" value={flt.toDate} onChange={(e) => setFlt((f) => ({ ...f, toDate: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox checked={flt.blocked} onCheckedChange={(c) => setFlt((f) => ({ ...f, blocked: !!c }))} />
+                    <span>Solo bloqueados</span>
+                  </label>
+                  <div className="ml-auto text-xs text-muted-foreground">
+                    {filteredParticipants.length} de {participants.length} cargados · {excluded.size > 0 ? `${excluded.size} excluidos · ` : ""}
+                    <strong>{effectiveParticipants.length}</strong> destinatarios efectivos
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla de destinatarios */}
+              <div className="rounded border overflow-hidden">
+                <div className="max-h-96 overflow-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={!allFilteredExcluded && filteredParticipants.length > 0}
+                            onCheckedChange={toggleAllFiltered}
+                          />
+                        </TableHead>
+                        <TableHead>Persona</TableHead>
+                        <TableHead>Contacto</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>QR</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredParticipants.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">
+                            Ningún participante con estos filtros.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredParticipants.slice(0, 500).map((p) => {
+                          const checked = !excluded.has(p.id);
+                          return (
+                            <TableRow key={p.id} data-state={checked ? undefined : "selected"}>
+                              <TableCell>
+                                <Checkbox checked={checked} onCheckedChange={() => toggleExcluded(p.id)} />
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                <div className="font-medium">
+                                  {p.people ? `${p.people.first_name} ${p.people.last_name ?? ""}`.trim() : "—"}
+                                </div>
+                                <div className="text-xs text-muted-foreground">{p.people?.dni ?? ""}</div>
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <div>{p.people?.email ?? <span className="text-muted-foreground">sin email</span>}</div>
+                                <div className="text-muted-foreground">{p.people?.phone ?? ""}</div>
+                              </TableCell>
+                              <TableCell className="text-xs">{statusLabel(p.status as never)}</TableCell>
+                              <TableCell>
+                                {ticketSet.has(p.id) ? (
+                                  <Badge variant="secondary" className="text-[10px]">Con QR</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px]">Sin QR</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {filteredParticipants.length > 500 && (
+                  <div className="text-xs text-muted-foreground px-3 py-2 border-t bg-muted/40">
+                    Mostrando los primeros 500 de {filteredParticipants.length}. Los filtros y acciones se aplican a todos.
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
