@@ -3,14 +3,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
-import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users } from "lucide-react";
-
+import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users, Armchair } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getConfirmation } from "@/lib/confirmation.functions";
+import { zoneTone, zoneToneClasses } from "@/lib/event-constants";
 import { parseTicketDesign, DEFAULT_TICKET_NOTICES, NOTICE_ICON_MAP, type TicketNoticeIcon } from "@/lib/ticket-design";
 
 const FALLBACK_OG_IMAGE = "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/4bcdb372-0e17-41c3-bfed-2e3aa64605e7";
