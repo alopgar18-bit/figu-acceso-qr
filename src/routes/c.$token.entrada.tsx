@@ -253,17 +253,17 @@ function Notice({ icon, children }: { icon: React.ReactNode; children: React.Rea
 }
 
 function SeatBlock({ zone, row, number }: { zone?: string | null; row?: string | null; number?: string | null }) {
-  if (!zone) return null;
+  if (!zone && !row && !number) return null;
   const tone = zoneTone(zone);
   const toneClass = zoneToneClasses(tone);
   return (
     <div className={`rounded-md border-2 p-3 ${toneClass}`}>
       <div className="text-[10px] uppercase tracking-[0.25em] opacity-80 flex items-center gap-1">
-        <Armchair className="h-3 w-3" /> Zona
+        <Armchair className="h-3 w-3" /> Asiento
       </div>
-      <div className="text-lg font-black uppercase">{zone}</div>
+      {zone && <div className="text-lg font-black uppercase">Zona {zone}</div>}
       {(row || number) && (
-        <div className="text-sm mt-1">
+        <div className={zone ? "text-sm mt-1" : "text-lg font-black uppercase"}>
           {row && <span>Fila <strong>{row}</strong></span>}
           {row && number && <span> · </span>}
           {number && <span>Asiento <strong>{number}</strong></span>}

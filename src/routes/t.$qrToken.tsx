@@ -53,6 +53,7 @@ function Page() {
   const { event, session, ticket, holderName, dni, seat, kind } = data;
   const startsAt = new Date(session.starts_at);
   const doorsAt = session.doors_open_at ? new Date(session.doors_open_at) : null;
+  const hasSeat = Boolean(seat.zone || seat.row || seat.number);
   const tone = zoneTone(seat.zone);
   const toneClass = zoneToneClasses(tone);
   const design = parseTicketDesign(event.ticket_design);
@@ -106,14 +107,14 @@ function Page() {
               )}
             </div>
 
-            {seat.zone && (
+            {hasSeat && (
               <div className={`rounded-md border-2 p-3 ${toneClass}`}>
                 <div className="text-[10px] uppercase tracking-[0.25em] opacity-80 flex items-center gap-1">
-                  <Armchair className="h-3 w-3" /> Zona
+                  <Armchair className="h-3 w-3" /> Asiento
                 </div>
-                <div className="text-lg font-black uppercase">{seat.zone}</div>
+                {seat.zone && <div className="text-lg font-black uppercase">Zona {seat.zone}</div>}
                 {(seat.row || seat.number) && (
-                  <div className="text-sm mt-1">
+                  <div className={seat.zone ? "text-sm mt-1" : "text-lg font-black uppercase"}>
                     {seat.row && <span>Fila <strong>{seat.row}</strong></span>}
                     {seat.row && seat.number && <span> · </span>}
                     {seat.number && <span>Asiento <strong>{seat.number}</strong></span>}
