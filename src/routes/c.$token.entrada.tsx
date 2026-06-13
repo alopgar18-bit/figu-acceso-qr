@@ -124,7 +124,17 @@ function Page() {
                 {startsAt.toLocaleString("es-ES", { dateStyle: "full" })}
               </InfoLine>
               <InfoLine icon={<Clock className="h-4 w-4" />}>
-                Acceso: {(doorsAt ?? startsAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                <div className="space-y-0.5">
+                  {doorsAt && (
+                    <div>Acceso: {doorsAt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</div>
+                  )}
+                  <div>Inicio: {startsAt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</div>
+                  {session.ends_at && (
+                    <div className="text-muted-foreground">
+                      Fin aprox.: {new Date(session.ends_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  )}
+                </div>
               </InfoLine>
               {(session.location_name || event.location_name) && (
                 <InfoLine icon={<MapPin className="h-4 w-4" />}>
