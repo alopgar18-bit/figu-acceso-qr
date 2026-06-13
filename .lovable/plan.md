@@ -1,37 +1,60 @@
 ## Objetivo
 
-Que el botón **2 · Generar QR faltantes** del envío masivo cree también un ticket por cada acompañante registrado, siempre que la sesión esté configurada en modo `qr_propio` (un QR por persona). En sesiones `mismo_qr` no se generan QR de acompañantes (solo el del titular/grupo), respetando la configuración.
+1. Hacer que el flujo **Solicitudes → filtrar → Generar QR** sea completo (incluye acompañantes y muestra desglose).
+2. Que en **`/comunicaciones/envio`** veas la lista de destinatarios y puedas refinarla con los mismos filtros que en Solicitudes, sin tener que volver atrás.
 
 ## Cambios
 
-### 1. `src/lib/tickets.functions.ts` — `generateMissingTickets`
+### 1. `src/routes/_authenticated/solicitudes.tsx` — `BulkActionsBar.generateQrBulk`
 
-Reescribir el handler para que, además del titular:
+- Actualizar el toast para mostrar `Generados X titular(es) + Y acompañante(s) (Z ya existían)` usando los nuevos campos `generated_titulars`, `generated_companions`, `skipped_titulars`, `skipped_companions`, `mode` que ya devuelve `generateMissingTickets`.
+- Si `mode === "mismo_qr"`, añadir nota "Sesión en modo 'un QR para el grupo': no se generan QR por acompañante".
+- No tocar el resto del flujo (selección + botón "Enviar comunicación" ya navega a `/comunicaciones/envio` con `selection_key`).
 
-1. Lea la sesión y obtenga `companions_qr_mode`.
-2. Cargue todos los `companions` de los participantes objetivo.
-3. Cargue los `tickets` activos agrupados por `(participant_id, companion_id)` — no solo por `participant_id` como ahora.
-4. Para cada participante sin ticket de titular: insertar el ticket de titular (igual que hoy, con `qr_payload.kind = "titular"` cuando hay acompañantes, o `"grupo"` cuando es `mismo_qr`).
-5. Si `companions_qr_mode = "qr_propio"`: para cada `companion` sin ticket activo asociado a su `companion_id`, insertar un ticket con `participant_id`, `companion_id`, `qr_token`, `qr_payload = { kind: "acompanante", index }`.
-6. Devolver contadores ampliados: `{ generated_titulars, generated_companions, skipped_titulars, skipped_companions, mode, errors }`.
+### 2. `/comunicaciones/envio` — nueva sección "Destinatarios" con filtros y tabla
 
-Mantener el límite de inserción razonable (batch de 5000 participantes ya existente). Reutilizar `genToken()`.
+En `src/routes/_authenticated/comunicaciones.envio.tsx`:
 
-### 2. `src/routes/_authenticated/comunicaciones.envio.tsx`
+- Añadir un **panel de filtros en el Paso 1** con los mismos campos que Solicitudes (los relevantes para envío):
+  - Estado (multi-select sobre `PARTICIPANT_STATUS_OPTIONS`).
+  - Tipo de asistente.
+  - Con/sin email · Con/sin teléfono · Con/sin QR generado.
+  - Búsqueda libre (nombre / apellidos / email / DNI / teléfono).
+  - Provincia / ciudad / género / rango de edad / rango de fechas de creación.
+  - Solo bloqueados · Solo duplicados (opcional, si lo usas).
+  - Importación (`import_batch_id`) si hay batch contexto.
+- Reescribir `participantsQ` para que además de filtrar por evento/sesión (o `selectedIds` cuando vienes de Solicitudes), aplique en cliente los filtros anteriores. Cuando vienen `selectedIds`, la lista parte de esos IDs y los filtros la reducen aún más.
+- Añadir una **tabla de destinatarios** (similar a la de Solicitudes pero compacta: nombre, email/teléfono, estado, con/sin QR, checkbox para excluir filas concretas).
+- Los contadores del resumen (Total, Con email, Sin email, Con QR, Sin QR, Ya en cola, Ya enviados) se recalculan sobre la lista filtrada + excluida.
+- Pasos 2 (generar QR faltantes) y 5 (crear cola) actúan **solo sobre los participantes visibles (filtrados y no excluidos)**, no sobre todo el evento/sesión.
 
-- En el query `ticketsQ`, contar también los QR de acompañantes para el resumen (opcional; mínimo, no romper el conteo actual de "Sin QR" del titular).
-- En `handleGenerateMissingQr`, mostrar en el toast los dos contadores: `Generados X titulares y Y acompañantes (Z ya existían)`. Si la sesión es `mismo_qr`, añadir una nota: "Sesión en modo 'un QR para el grupo': no se generan QR por acompañante".
-- (Opcional, pequeño) Añadir bajo el botón un texto explicativo que aclare el comportamiento según el modo de la sesión.
+### 3. Reutilizar el componente de filtros (mínima refactor)
 
-### 3. Coherencia con el resto
+Para evitar duplicar UI:
+- Extraer de `solicitudes.tsx` el bloque de filtros (la grilla con `Input`, `Select`, `Checkbox`) a un componente reutilizable `src/components/participant-filters-panel.tsx` con props `{ value, onChange, events, sessions, forms, hideEvent?, hideSession? }`.
+- Usarlo tanto en Solicitudes como en Envío masivo. En envío, si ya viene `event_id`/`session_id` del contexto, se ocultan esos selectores.
+- Reutilizar `ParticipantFilters` de `@/lib/use-participants`: cargar participantes con `useParticipants(filters)` también en envío masivo y aplicar los filtros adicionales que viven solo en cliente (ciudad, edad, fechas, duplicados, hasPhoto).
 
-- `bulk-send.functions.ts` ya está preparado: lee `tickets` con `companion_id` y construye `ticketByCompanion`. En cuanto existan esos tickets, el toggle "Enviar también un correo individual por cada acompañante" y el bloque "Incluir acompañantes (nombre + QR) en el email del titular" funcionarán automáticamente.
-- No se tocan `confirmation.functions.ts` (ya genera correctamente al confirmar desde el enlace público) ni el esquema de BD.
+### 4. Carga de participantes en envío masivo
 
-## Resultado esperado
+Cambios concretos en el query:
+- Si hay `selection_key` (selección desde Solicitudes), parte de esos IDs (como hoy).
+- Si no, usa `useParticipants({ eventId, sessionId, ...filtros })`.
+- En ambos casos, aplicar los filtros UI sobre el resultado y guardar `excludedIds` (los desmarcados en la tabla).
+- Los IDs efectivos = `participantesFiltrados - excludedIds`.
 
-Tras pulsar **Generar QR faltantes** en una sesión `qr_propio` con participantes importados:
+### 5. Coherencia con el resto
 
-- Cada titular tendrá su ticket.
-- Cada acompañante registrado tendrá su propio ticket con `companion_id`.
-- Al enviar con cualquiera de los dos toggles de acompañantes, los QR se incluyen / se mandan por separado sin caer en `skipped_no_companion_ticket`.
+- `handleQueue`, `handleGenerateMissingQr` y los toggles de acompañantes ya operan sobre `participants.map(p => p.id)`, así que con cambiar la fuente de `participants` a la lista filtrada+excluida, todo encaja sin tocar `bulk-send.functions.ts` ni `tickets.functions.ts`.
+- Mantener el path "vengo desde Solicitudes con selección" para no romper deep links existentes.
+
+## Resultado
+
+- **Solicitudes**: filtras → seleccionas (o no) → "Generar QR" crea titular + acompañantes (modo qr_propio) con toast claro; "Enviar comunicación" sigue llevando al envío masivo con esa selección.
+- **Envío masivo**: ves la tabla de destinatarios, los filtras como en Solicitudes, desmarcas los que no quieras, generas QR faltantes y creas la cola sobre exactamente esa lista.
+
+## Notas técnicas
+
+- No hace falta migración de BD.
+- Para no romper el endpoint `generateMissingTickets`, ya devuelve los campos nuevos + alias `generated`/`skipped` (compatibilidad).
+- El componente extraído (`participant-filters-panel.tsx`) recibe el estado como prop controlada para que cada página gestione su propio URL/`useSearch` si lo necesita.

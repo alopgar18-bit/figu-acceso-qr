@@ -3,7 +3,7 @@ import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Send, QrCode, AlertCircle, CheckCircle2, Mail } from "lucide-react";
+import { ArrowLeft, Send, QrCode, AlertCircle, CheckCircle2, Mail, Search as SearchIcon, Filter, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,6 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { generateMissingTickets } from "@/lib/tickets.functions";
@@ -18,6 +22,7 @@ import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
 import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel } from "@/lib/communication-constants";
 import { useEvents, useEventSessions } from "@/lib/use-events";
+import { PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, statusLabel } from "@/lib/participant-constants";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -37,6 +42,8 @@ interface PartRow {
   person_id: string;
   event_id?: string;
   session_id?: string;
+  attendee_type?: string | null;
+  created_at?: string | null;
   people:
     | {
         first_name: string;
@@ -44,6 +51,12 @@ interface PartRow {
         email: string | null;
         phone: string | null;
         source?: string | null;
+        dni?: string | null;
+        city?: string | null;
+        province?: string | null;
+        gender?: string | null;
+        birth_date?: string | null;
+        is_blocked?: boolean | null;
       }
     | null;
 }
@@ -112,7 +125,7 @@ function BulkSendPage() {
     queryFn: async () => {
       let q = supabase
         .from("event_participants")
-        .select("id, status, person_id, event_id, session_id, people(first_name,last_name,email,phone,source)")
+        .select("id, status, person_id, event_id, session_id, attendee_type, created_at, people(first_name,last_name,email,phone,source,dni,city,province,gender,birth_date,is_blocked)")
         .limit(5000);
       if (selectedIds && selectedIds.length > 0) {
         q = q.in("id", selectedIds);
@@ -137,17 +150,43 @@ function BulkSendPage() {
   });
 
   const participants = (participantsQ.data ?? []) as PartRow[];
-  const ids = participants.map((p) => p.id);
+
+  // ---- Filtros sobre los participantes cargados (en cliente) ----
+  const [flt, setFlt] = useState({
+    search: "",
+    status: "all" as string,
+    type: "all" as string,
+    city: "",
+    province: "",
+    gender: "all" as string,
+    minAge: "",
+    maxAge: "",
+    fromDate: "",
+    toDate: "",
+    email: "all" as "all" | "yes" | "no",
+    phone: "all" as "all" | "yes" | "no",
+    qr: "all" as "all" | "yes" | "no",
+    blocked: false,
+  });
+  const resetFilters = () =>
+    setFlt({
+      search: "", status: "all", type: "all", city: "", province: "", gender: "all",
+      minAge: "", maxAge: "", fromDate: "", toDate: "",
+      email: "all", phone: "all", qr: "all", blocked: false,
+    });
+
+  // IDs de los cargados (sin filtrar) para precargar tickets y logs.
+  const loadedIds = participants.map((p) => p.id);
 
   // Tickets per participant
   const ticketsQ = useQuery({
-    queryKey: ["bulk_tickets", ids],
-    enabled: ids.length > 0,
+    queryKey: ["bulk_tickets", loadedIds],
+    enabled: loadedIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from("tickets")
         .select("participant_id, qr_token")
-        .in("participant_id", ids)
+        .in("participant_id", loadedIds)
         .eq("revoked", false);
       return new Set((data ?? []).map((t) => t.participant_id));
     },
@@ -155,35 +194,110 @@ function BulkSendPage() {
 
   // Existing logs per participant for the selected template
   const sentQ = useQuery({
-    queryKey: ["bulk_sent", ids, templateId],
-    enabled: ids.length > 0 && !!templateId,
+    queryKey: ["bulk_sent", loadedIds, templateId],
+    enabled: loadedIds.length > 0 && !!templateId,
     queryFn: async () => {
       const { data } = await supabase
         .from("communication_logs")
         .select("participant_id, status")
         .eq("template_id", templateId!)
-        .in("participant_id", ids);
+        .in("participant_id", loadedIds);
       return data ?? [];
     },
   });
 
   const ticketSet = ticketsQ.data ?? new Set<string>();
 
+  // Aplicar filtros en cliente sobre los participantes cargados.
+  const filteredParticipants = useMemo(() => {
+    const today = Date.now();
+    const minAge = flt.minAge ? Number(flt.minAge) : null;
+    const maxAge = flt.maxAge ? Number(flt.maxAge) : null;
+    const from = flt.fromDate ? new Date(flt.fromDate).getTime() : null;
+    const to = flt.toDate ? new Date(flt.toDate + "T23:59:59").getTime() : null;
+    const s = flt.search.trim().toLowerCase();
+    return participants.filter((p) => {
+      const person = p.people;
+      if (flt.status !== "all" && p.status !== flt.status) return false;
+      if (flt.type !== "all" && (p.attendee_type ?? "") !== flt.type) return false;
+      if (flt.gender !== "all" && (person?.gender ?? "") !== flt.gender) return false;
+      if (flt.city && (person?.city ?? "").toLowerCase() !== flt.city.toLowerCase()) return false;
+      if (flt.province && (person?.province ?? "").toLowerCase() !== flt.province.toLowerCase()) return false;
+      if (flt.email === "yes" && !person?.email) return false;
+      if (flt.email === "no" && person?.email) return false;
+      if (flt.phone === "yes" && !person?.phone) return false;
+      if (flt.phone === "no" && person?.phone) return false;
+      if (flt.qr === "yes" && !ticketSet.has(p.id)) return false;
+      if (flt.qr === "no" && ticketSet.has(p.id)) return false;
+      if (flt.blocked && !person?.is_blocked) return false;
+      if (minAge != null || maxAge != null) {
+        if (!person?.birth_date) return false;
+        const age = Math.floor((today - new Date(person.birth_date).getTime()) / (365.25 * 86400000));
+        if (minAge != null && age < minAge) return false;
+        if (maxAge != null && age > maxAge) return false;
+      }
+      if (from != null && p.created_at && new Date(p.created_at).getTime() < from) return false;
+      if (to != null && p.created_at && new Date(p.created_at).getTime() > to) return false;
+      if (s) {
+        const hay = [person?.first_name, person?.last_name, person?.email, person?.phone, person?.dni]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase());
+        if (!hay.some((v) => v.includes(s))) return false;
+      }
+      return true;
+    });
+  }, [participants, flt, ticketSet]);
+
+  // IDs excluidos manualmente desde la tabla.
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const toggleExcluded = (id: string) =>
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const allFilteredExcluded =
+    filteredParticipants.length > 0 && filteredParticipants.every((p) => excluded.has(p.id));
+  const toggleAllFiltered = () => {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (allFilteredExcluded) {
+        for (const p of filteredParticipants) next.delete(p.id);
+      } else {
+        for (const p of filteredParticipants) next.add(p.id);
+      }
+      return next;
+    });
+  };
+
+  // Lista efectiva = filtrados − excluidos. Esto es lo que usan generar QR / cola.
+  const effectiveParticipants = useMemo(
+    () => filteredParticipants.filter((p) => !excluded.has(p.id)),
+    [filteredParticipants, excluded],
+  );
+  const effectiveIds = effectiveParticipants.map((p) => p.id);
+
   const stats = useMemo(() => {
     let withEmail = 0;
     let withoutEmail = 0;
     let withTicket = 0;
     let withoutTicket = 0;
-    for (const p of participants) {
+    for (const p of effectiveParticipants) {
       if (p.people?.email) withEmail++;
       else withoutEmail++;
       if (ticketSet.has(p.id)) withTicket++;
       else withoutTicket++;
     }
-    const alreadyQueued = (sentQ.data ?? []).filter((r) => r.status === "pendiente" || r.status === "programado").length;
-    const alreadySent = (sentQ.data ?? []).filter((r) => r.status === "enviado").length;
+    const effIdSet = new Set(effectiveParticipants.map((p) => p.id));
+    const alreadyQueued = (sentQ.data ?? []).filter(
+      (r) => r.participant_id != null && effIdSet.has(r.participant_id) && (r.status === "pendiente" || r.status === "programado"),
+    ).length;
+    const alreadySent = (sentQ.data ?? []).filter(
+      (r) => r.participant_id != null && effIdSet.has(r.participant_id) && r.status === "enviado",
+    ).length;
     return {
-      total: participants.length,
+      total: effectiveParticipants.length,
       withEmail,
       withoutEmail,
       withTicket,
@@ -191,7 +305,7 @@ function BulkSendPage() {
       alreadyQueued,
       alreadySent,
     };
-  }, [participants, ticketSet, sentQ.data]);
+  }, [effectiveParticipants, ticketSet, sentQ.data]);
 
   const { data: templates = [] } = useTemplates();
   const channelTemplates = templates.filter((t) => t.channel === channel && t.is_active);
@@ -216,10 +330,10 @@ function BulkSendPage() {
   const handleGenerateMissingQr = async () => {
     if (!eventId || !sessionId) return;
     try {
-      const missing = participants.filter((p) => !ticketSet.has(p.id)).map((p) => p.id);
       // En modo qr_propio también queremos generar tickets de acompañantes,
-      // así que enviamos TODOS los participantes (la función ignora los que ya tienen ticket).
-      const targetIds = participants.map((p) => p.id);
+      // así que enviamos TODOS los participantes efectivos (filtrados y no excluidos);
+      // la función ignora los que ya tienen ticket.
+      const targetIds = effectiveIds;
       if (targetIds.length === 0) {
         toast.info("No hay participantes en esta selección");
         return;
@@ -291,7 +405,7 @@ FIGURARTE Casting & Producción`,
           session_id: sessionId,
           batch_id: batchId,
           template_id: templateId,
-          participant_ids: participants.map((p) => p.id),
+          participant_ids: effectiveIds,
           only_with_email: !isWhatsapp,
           only_with_ticket: true,
           skip_already_queued: true,
@@ -316,8 +430,8 @@ FIGURARTE Casting & Producción`,
   const previewSample = useMemo(() => {
     if (!selectedTemplate) return null;
     const sample = isWhatsapp
-      ? (participants.find((p) => p.people?.phone) ?? participants[0])
-      : (participants.find((p) => p.people?.email) ?? participants[0]);
+      ? (effectiveParticipants.find((p) => p.people?.phone) ?? effectiveParticipants[0])
+      : (effectiveParticipants.find((p) => p.people?.email) ?? effectiveParticipants[0]);
     if (!sample) return null;
     const ctx: RenderContext = {
       nombre: sample.people?.first_name ?? "",
@@ -336,7 +450,7 @@ FIGURARTE Casting & Producción`,
       subject: selectedTemplate.subject ? renderTemplate(selectedTemplate.subject, ctx) : "(sin asunto)",
       body: renderTemplate(selectedTemplate.body, ctx),
     };
-  }, [selectedTemplate, participants, isWhatsapp]);
+  }, [selectedTemplate, effectiveParticipants, isWhatsapp]);
 
   return (
     <div className="space-y-6">
@@ -368,7 +482,7 @@ FIGURARTE Casting & Producción`,
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!eventId || !sessionId ? (
+          {participants.length === 0 && (!eventId || !sessionId) ? (
             <div className="space-y-4">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
@@ -397,14 +511,214 @@ FIGURARTE Casting & Producción`,
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <Stat label="Total" value={stats.total} />
-              <Stat label="Con email" value={stats.withEmail} tone="ok" />
-              <Stat label="Sin email" value={stats.withoutEmail} tone="warn" />
-              <Stat label="Con QR" value={stats.withTicket} tone="ok" />
-              <Stat label="Sin QR" value={stats.withoutTicket} tone="warn" />
-              <Stat label="Ya en cola" value={stats.alreadyQueued} />
-              <Stat label="Ya enviados" value={stats.alreadySent} tone="ok" />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <Stat label="Total" value={stats.total} />
+                <Stat label="Con email" value={stats.withEmail} tone="ok" />
+                <Stat label="Sin email" value={stats.withoutEmail} tone="warn" />
+                <Stat label="Con QR" value={stats.withTicket} tone="ok" />
+                <Stat label="Sin QR" value={stats.withoutTicket} tone="warn" />
+                <Stat label="Ya en cola" value={stats.alreadyQueued} />
+                <Stat label="Ya enviados" value={stats.alreadySent} tone="ok" />
+              </div>
+
+              {/* Filtros */}
+              <div className="rounded border p-4 space-y-3 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Filter className="h-3 w-3" /> Filtros
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={resetFilters}>
+                    <X className="h-3 w-3 mr-1" />Limpiar filtros
+                  </Button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="md:col-span-2">
+                    <Label className="text-xs uppercase tracking-wider">Buscar</Label>
+                    <div className="relative">
+                      <SearchIcon className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={flt.search}
+                        onChange={(e) => setFlt((f) => ({ ...f, search: e.target.value }))}
+                        placeholder="Nombre, email, DNI, teléfono…"
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Estado</Label>
+                    <Select value={flt.status} onValueChange={(v) => setFlt((f) => ({ ...f, status: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {PARTICIPANT_STATUS_OPTIONS.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Tipo</Label>
+                    <Select value={flt.type} onValueChange={(v) => setFlt((f) => ({ ...f, type: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {ATTENDEE_TYPE_OPTIONS.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-6">
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Email</Label>
+                    <Select value={flt.email} onValueChange={(v) => setFlt((f) => ({ ...f, email: v as "all" | "yes" | "no" }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="yes">Con email</SelectItem>
+                        <SelectItem value="no">Sin email</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Teléfono</Label>
+                    <Select value={flt.phone} onValueChange={(v) => setFlt((f) => ({ ...f, phone: v as "all" | "yes" | "no" }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="yes">Con teléfono</SelectItem>
+                        <SelectItem value="no">Sin teléfono</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">QR</Label>
+                    <Select value={flt.qr} onValueChange={(v) => setFlt((f) => ({ ...f, qr: v as "all" | "yes" | "no" }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="yes">Con QR</SelectItem>
+                        <SelectItem value="no">Sin QR</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Género</Label>
+                    <Select value={flt.gender} onValueChange={(v) => setFlt((f) => ({ ...f, gender: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="F">Femenino</SelectItem>
+                        <SelectItem value="M">Masculino</SelectItem>
+                        <SelectItem value="X">Otro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Edad min</Label>
+                    <Input type="number" value={flt.minAge} onChange={(e) => setFlt((f) => ({ ...f, minAge: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Edad max</Label>
+                    <Input type="number" value={flt.maxAge} onChange={(e) => setFlt((f) => ({ ...f, maxAge: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Ciudad</Label>
+                    <Input value={flt.city} onChange={(e) => setFlt((f) => ({ ...f, city: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Provincia</Label>
+                    <Input value={flt.province} onChange={(e) => setFlt((f) => ({ ...f, province: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Desde</Label>
+                    <Input type="date" value={flt.fromDate} onChange={(e) => setFlt((f) => ({ ...f, fromDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Hasta</Label>
+                    <Input type="date" value={flt.toDate} onChange={(e) => setFlt((f) => ({ ...f, toDate: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox checked={flt.blocked} onCheckedChange={(c) => setFlt((f) => ({ ...f, blocked: !!c }))} />
+                    <span>Solo bloqueados</span>
+                  </label>
+                  <div className="ml-auto text-xs text-muted-foreground">
+                    {filteredParticipants.length} de {participants.length} cargados · {excluded.size > 0 ? `${excluded.size} excluidos · ` : ""}
+                    <strong>{effectiveParticipants.length}</strong> destinatarios efectivos
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla de destinatarios */}
+              <div className="rounded border overflow-hidden">
+                <div className="max-h-96 overflow-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={!allFilteredExcluded && filteredParticipants.length > 0}
+                            onCheckedChange={toggleAllFiltered}
+                          />
+                        </TableHead>
+                        <TableHead>Persona</TableHead>
+                        <TableHead>Contacto</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>QR</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredParticipants.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">
+                            Ningún participante con estos filtros.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredParticipants.slice(0, 500).map((p) => {
+                          const checked = !excluded.has(p.id);
+                          return (
+                            <TableRow key={p.id} data-state={checked ? undefined : "selected"}>
+                              <TableCell>
+                                <Checkbox checked={checked} onCheckedChange={() => toggleExcluded(p.id)} />
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                <div className="font-medium">
+                                  {p.people ? `${p.people.first_name} ${p.people.last_name ?? ""}`.trim() : "—"}
+                                </div>
+                                <div className="text-xs text-muted-foreground">{p.people?.dni ?? ""}</div>
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <div>{p.people?.email ?? <span className="text-muted-foreground">sin email</span>}</div>
+                                <div className="text-muted-foreground">{p.people?.phone ?? ""}</div>
+                              </TableCell>
+                              <TableCell className="text-xs">{statusLabel(p.status as never)}</TableCell>
+                              <TableCell>
+                                {ticketSet.has(p.id) ? (
+                                  <Badge variant="secondary" className="text-[10px]">Con QR</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px]">Sin QR</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {filteredParticipants.length > 500 && (
+                  <div className="text-xs text-muted-foreground px-3 py-2 border-t bg-muted/40">
+                    Mostrando los primeros 500 de {filteredParticipants.length}. Los filtros y acciones se aplican a todos.
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
