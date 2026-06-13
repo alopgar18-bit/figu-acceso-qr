@@ -8,6 +8,8 @@ type CompanionRow = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  email: string | null;
+  phone: string | null;
   seat_zone: string | null;
   seat_row: string | null;
   seat_number: string | null;
@@ -204,7 +206,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     for (const idChunk of chunk(ids, 100)) {
       const { data: comps } = await supabase
         .from("companions")
-        .select("id, participant_id, first_name, last_name, seat_zone, seat_row, seat_number")
+        .select("id, participant_id, first_name, last_name, email, phone, seat_zone, seat_row, seat_number")
         .in("participant_id", idChunk)
         .order("created_at", { ascending: true });
       for (const c of (comps ?? []) as (CompanionRow & { participant_id: string })[]) {
@@ -359,13 +361,12 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         errors.push({ participant_id: p.id, reason: err instanceof Error ? err.message : "error" });
       }
 
-      // 6. Email individual por cada acompañante (al email del titular).
-      // Solo aplica a canal email, cuando hay email del titular y existe
-      // un ticket vinculado al companion_id.
+      // 6. Comunicación individual por cada acompañante.
+      // Se envía al email/teléfono del propio acompañante.
+      // Si el acompañante no tiene email/teléfono, se usa como fallback
+      // el del titular para que pueda reenviárselo.
       if (
         data.send_per_companion &&
-        !isWhatsapp &&
-        email &&
         compRows.length > 0
       ) {
         for (const c of compRows) {
@@ -376,6 +377,13 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
           const compToken = ticketByCompanion.get(c.id);
           if (!compToken) {
             skipped_no_companion_ticket++;
+            continue;
+          }
+          const compRecipient = isWhatsapp
+            ? (c.phone ?? phone)
+            : (c.email ?? email);
+          if (!compRecipient) {
+            skipped_no_email++;
             continue;
           }
           const compName = (c.first_name ?? "").trim();
@@ -398,7 +406,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
             const { error: cErr } = await supabase.from("communication_logs").insert({
               channel: template.channel,
               status: "pendiente",
-              to_address: email,
+              to_address: compRecipient,
               subject: compSubject,
               body: compBody,
               template_id: template.id,
@@ -646,7 +654,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
     for (const ids of chunk(participants.map((p) => p.id), 100)) {
       const { data: comps } = await supabase
         .from("companions")
-        .select("id, participant_id, first_name, last_name, seat_zone, seat_row, seat_number")
+        .select("id, participant_id, first_name, last_name, email, phone, seat_zone, seat_row, seat_number")
         .in("participant_id", ids)
         .order("created_at", { ascending: true });
       for (const c of (comps ?? []) as (CompanionRow & { participant_id: string })[]) {
@@ -744,6 +752,65 @@ export const resendInvitations = createServerFn({ method: "POST" })
         queued++;
       } catch (err) {
         errors.push({ participant_id: p.id, reason: err instanceof Error ? err.message : "error" });
+      }
+
+      // Re-enviar también a cada acompañante a su propio email
+      // (fallback al email del titular si no tiene uno propio).
+      if (template.channel === "email" && compRows.length > 0) {
+        for (const c of compRows) {
+          const compToken = ticketByCompanion.get(c.id);
+          if (!compToken) continue;
+          const compRecipient = c.email ?? email;
+          if (!compRecipient) {
+            skipped_no_email++;
+            continue;
+          }
+          const compName = (c.first_name ?? "").trim();
+          const compLast = (c.last_name ?? "").trim();
+          const compEntryUrl = buildTicketUrl(compToken);
+          const compCtx: RenderContext = {
+            ...ctx,
+            nombre: compName,
+            apellidos: compLast,
+            enlace_entrada: compEntryUrl,
+            enlace_confirmacion: enlace,
+            qr: compToken,
+            qr_image: buildQrImageUrl(compEntryUrl),
+            acompanantes: "",
+            acompanantes_html: "",
+          };
+          const compSubject = template.subject ? renderTemplate(template.subject, compCtx) : null;
+          const compBody = renderTemplate(template.body, compCtx);
+          try {
+            const { error: cErr } = await supabase.from("communication_logs").insert({
+              channel: "email",
+              status: "pendiente",
+              to_address: compRecipient,
+              subject: compSubject,
+              body: compBody,
+              template_id: template.id,
+              participant_id: p.id,
+              person_id: p.person_id,
+              event_id: p.event_id,
+              session_id: p.session_id,
+              error_message: null,
+              metadata: {
+                resend: true,
+                ...(data.from ? { from: data.from } : {}),
+                companion_id: c.id,
+                companion_name: `${compName} ${compLast}`.trim(),
+              },
+              created_by: userId,
+            });
+            if (cErr) throw new Error(cErr.message);
+            queued++;
+          } catch (err) {
+            errors.push({
+              participant_id: p.id,
+              reason: `acompañante ${c.id}: ${err instanceof Error ? err.message : "error"}`,
+            });
+          }
+        }
       }
     }
 
