@@ -3,7 +3,7 @@ import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Send, QrCode, AlertCircle, CheckCircle2, Mail } from "lucide-react";
+import { ArrowLeft, Send, QrCode, AlertCircle, CheckCircle2, Mail, Search as SearchIcon, Filter, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,6 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { generateMissingTickets } from "@/lib/tickets.functions";
@@ -18,6 +22,7 @@ import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
 import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel } from "@/lib/communication-constants";
 import { useEvents, useEventSessions } from "@/lib/use-events";
+import { PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, statusLabel } from "@/lib/participant-constants";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -37,6 +42,8 @@ interface PartRow {
   person_id: string;
   event_id?: string;
   session_id?: string;
+  attendee_type?: string | null;
+  created_at?: string | null;
   people:
     | {
         first_name: string;
@@ -44,6 +51,12 @@ interface PartRow {
         email: string | null;
         phone: string | null;
         source?: string | null;
+        dni?: string | null;
+        city?: string | null;
+        province?: string | null;
+        gender?: string | null;
+        birth_date?: string | null;
+        is_blocked?: boolean | null;
       }
     | null;
 }
