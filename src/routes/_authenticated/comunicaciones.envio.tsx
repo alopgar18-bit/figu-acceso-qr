@@ -330,10 +330,10 @@ function BulkSendPage() {
   const handleGenerateMissingQr = async () => {
     if (!eventId || !sessionId) return;
     try {
-      const missing = participants.filter((p) => !ticketSet.has(p.id)).map((p) => p.id);
       // En modo qr_propio también queremos generar tickets de acompañantes,
-      // así que enviamos TODOS los participantes (la función ignora los que ya tienen ticket).
-      const targetIds = participants.map((p) => p.id);
+      // así que enviamos TODOS los participantes efectivos (filtrados y no excluidos);
+      // la función ignora los que ya tienen ticket.
+      const targetIds = effectiveIds;
       if (targetIds.length === 0) {
         toast.info("No hay participantes en esta selección");
         return;
