@@ -430,8 +430,8 @@ FIGURARTE Casting & Producción`,
   const previewSample = useMemo(() => {
     if (!selectedTemplate) return null;
     const sample = isWhatsapp
-      ? (participants.find((p) => p.people?.phone) ?? participants[0])
-      : (participants.find((p) => p.people?.email) ?? participants[0]);
+      ? (effectiveParticipants.find((p) => p.people?.phone) ?? effectiveParticipants[0])
+      : (effectiveParticipants.find((p) => p.people?.email) ?? effectiveParticipants[0]);
     if (!sample) return null;
     const ctx: RenderContext = {
       nombre: sample.people?.first_name ?? "",
@@ -450,7 +450,7 @@ FIGURARTE Casting & Producción`,
       subject: selectedTemplate.subject ? renderTemplate(selectedTemplate.subject, ctx) : "(sin asunto)",
       body: renderTemplate(selectedTemplate.body, ctx),
     };
-  }, [selectedTemplate, participants, isWhatsapp]);
+  }, [selectedTemplate, effectiveParticipants, isWhatsapp]);
 
   return (
     <div className="space-y-6">
