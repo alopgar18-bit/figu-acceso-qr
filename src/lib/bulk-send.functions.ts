@@ -560,6 +560,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
         | {
             name: string;
             starts_at: string;
+            ends_at: string | null;
             doors_open_at: string | null;
             location_name: string | null;
             location_address: string | null;
