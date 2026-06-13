@@ -193,3 +193,41 @@ export const generateMissingTickets = createServerFn({ method: "POST" })
       errors,
     };
   });
+
+const companionSeatSchema = z.object({
+  companion_id: z.string().uuid(),
+  seat_zone: z.string().trim().max(40).nullable().optional(),
+  seat_row: z.string().trim().max(20).nullable().optional(),
+  seat_number: z.string().trim().max(20).nullable().optional(),
+});
+
+export const updateCompanionSeat = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => companionSeatSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRole(context.supabase, context.userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+    ]);
+    const patch = {
+      seat_zone: data.seat_zone?.trim() ? data.seat_zone.trim() : null,
+      seat_row: data.seat_row?.trim() ? data.seat_row.trim() : null,
+      seat_number: data.seat_number?.trim() ? data.seat_number.trim() : null,
+    };
+    const { data: updated, error } = await context.supabase
+      .from("companions")
+      .update(patch as never)
+      .eq("id", data.companion_id)
+      .select("id, participant_id")
+      .single();
+    if (error) throw new Error(error.message);
+    await context.supabase.from("audit_logs").insert({
+      action: "companion.seat",
+      entity_type: "companion",
+      entity_id: data.companion_id,
+      actor_id: context.userId,
+      changes: patch as never,
+    } as never);
+    return { ok: true as const, participant_id: updated.participant_id };
+  });
