@@ -125,7 +125,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     const { data: session } = data.session_id
       ? await supabase
           .from("event_sessions")
-          .select("id, name, starts_at, doors_open_at, location_name, location_address")
+          .select("id, name, starts_at, ends_at, doors_open_at, location_name, location_address")
           .eq("id", data.session_id)
           .single()
       : { data: null };
@@ -259,6 +259,10 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     const accessTimeStr = doors
       ? new Date(doors).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
       : sessionTimeStr;
+    const sessionEnd = (session as { ends_at?: string } | null)?.ends_at;
+    const sessionEndStr = sessionEnd
+      ? new Date(sessionEnd).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
+      : "";
     const sessLoc = (session as { location_name?: string; location_address?: string } | null);
     const ubicacion =
       sessLoc?.location_name ?? event?.location_name ?? sessLoc?.location_address ?? event?.location_address ?? "";
@@ -300,6 +304,8 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         sesion: (session as { name?: string } | null)?.name ?? "",
         fecha: sessionDateStr,
         hora_acceso: accessTimeStr,
+        hora_inicio: sessionTimeStr,
+        hora_fin: sessionEndStr,
         ubicacion,
         direccion,
         enlace_entrada: enlace,
@@ -566,7 +572,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
       const { data: rows, error } = await supabase
         .from("event_participants")
         .select(
-          "id, person_id, event_id, session_id, confirmation_token, people(first_name,last_name,email,phone), events(name,location_name,location_address), event_sessions(name,starts_at,doors_open_at,location_name,location_address)",
+          "id, person_id, event_id, session_id, confirmation_token, people(first_name,last_name,email,phone), events(name,location_name,location_address), event_sessions(name,starts_at,ends_at,doors_open_at,location_name,location_address)",
         )
         .in("id", ids);
       if (error) throw new Error(error.message);
@@ -697,6 +703,10 @@ export const resendInvitations = createServerFn({ method: "POST" })
       const accessTimeStr = doors
         ? new Date(doors).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
         : sessionTimeStr;
+      const sessionEnd = (sess as { ends_at?: string } | null)?.ends_at;
+      const sessionEndStr = sessionEnd
+        ? new Date(sessionEnd).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
+        : "";
       const ubicacion =
         sess?.location_name ??
         p.events?.location_name ??
@@ -718,6 +728,8 @@ export const resendInvitations = createServerFn({ method: "POST" })
         sesion: sess?.name ?? "",
         fecha: sessionDateStr,
         hora_acceso: accessTimeStr,
+        hora_inicio: sessionTimeStr,
+        hora_fin: sessionEndStr,
         ubicacion,
         direccion,
         enlace_entrada: enlace,
