@@ -375,6 +375,8 @@ Desde FIGURARTE te confirmamos tu invitación para asistir como público a "{{ev
 Sesión: {{sesion}}
 Fecha: {{fecha}}
 Hora de acceso: {{hora_acceso}}
+Hora de inicio: {{hora_inicio}}
+Hora fin aprox.: {{hora_fin}}
 Ubicación: {{ubicacion}}
 
 Puedes acceder a tu entrada individual aquí:
@@ -440,6 +442,8 @@ FIGURARTE Casting & Producción`,
       sesion: "(nombre de la sesión)",
       fecha: "(fecha)",
       hora_acceso: "(hora)",
+      hora_inicio: "(hora inicio)",
+      hora_fin: "(hora fin)",
       ubicacion: "(ubicación)",
       enlace_entrada: "https://…/c/<token>/entrada",
     };

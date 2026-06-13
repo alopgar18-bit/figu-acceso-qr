@@ -1,45 +1,25 @@
-Hay tres problemas distintos en lo que reportas:
+## Diagnóstico
 
-## 1. Las invitaciones de acompañantes dan "404 Page not found"
+- **Página de entrada** (`/c/$token/entrada` y `/t/$qrToken`): el código ya pinta tres líneas (Acceso / Inicio / Fin aprox.) leyendo `session.doors_open_at`, `session.starts_at` y `session.ends_at`. La consulta `event_sessions(*)` devuelve los tres campos y los datos en BD existen. No requiere cambios; al volver a abrir la entrada se mostrarán.
+- **Email**: el motor de plantillas sí inyecta `{{hora_inicio}}` y `{{hora_fin}}` en el contexto (lo añadimos en `bulk-send.functions.ts` y `communication-constants.ts`), pero **las plantillas guardadas en la base de datos no contienen esos tokens** — solo `{{hora_acceso}}` — así que nunca se renderizan. Hay que añadir las líneas a las plantillas existentes y a las plantillas/sugerencias por defecto.
 
-El enlace que se envía es `https://figurarte.app/t/<qr_token>`. He comprobado que:
-- La ruta `/t/$qrToken` existe en el código y está registrada en el router.
-- El ticket del acompañante de tu captura existe en base de datos y no está revocado.
+## Cambios
 
-Por tanto, el 404 viene de que **la versión publicada (figurarte.app / figu-acceso-qr.lovable.app) todavía no incluye la ruta `/t/$qrToken`**: se añadió después de la última publicación. Al republicar el proyecto, ese mismo enlace abrirá la entrada del acompañante. Lo dejaré indicado al final, pero esto se resuelve con un Publish, no con código.
+1. **Migración SQL** que actualiza `communication_templates` activas de canal `email`: para cada fila cuyo `body` contenga `Hora de acceso: {{hora_acceso}}`, insertar inmediatamente después dos líneas:
+   ```
+   Hora de inicio: {{hora_inicio}}
+   Hora fin aprox.: {{hora_fin}}
+   ```
+   Solo se aplica si todavía no contiene `{{hora_inicio}}`, para no duplicar en plantillas ya editadas manualmente. Para la plantilla HTML «Invitación El Perro Andaluz» se hace una sustitución equivalente sobre el bloque `<div><strong>Fecha:</strong> {{fecha}} · {{hora_acceso}}</div>` añadiendo dos líneas debajo.
 
-## 2. La entrada del acompañante debe verse igual que la del titular
+2. **`src/communication-constants.ts`**: actualizar las plantillas por defecto (`solicitud_aprobada`, `entrada_qr` texto, `entrada_qr` HTML y `recordatorio` WhatsApp) para incluir las dos nuevas líneas / tokens. Así las plantillas semilla nuevas ya vienen completas.
 
-Hoy hay dos páginas distintas:
-- Titular → `src/routes/c.$token.entrada.tsx` (aplica `ticket_design`: cabecera con color de marca, avisos, instrucciones, footer, etc.).
-- Acompañante → `src/routes/t.$qrToken.tsx` (tarjeta básica, sin diseño aplicado).
+3. **`src/routes/_authenticated/comunicaciones.envio.tsx`**: en `handleCreateSuggestedTemplate`, añadir al body sugerido las líneas `Hora de inicio: {{hora_inicio}}` y `Hora fin aprox.: {{hora_fin}}`. Añadir también `hora_inicio` y `hora_fin` al `previewSample` para que la vista previa los muestre.
 
-Plan:
-- Extraer la maquetación de la entrada a un componente compartido `src/components/ticket-card.tsx` que renderice: cabecera (color de marca/diseño), fecha y hora, ubicación, asistente + DNI, bloque de zona/fila/asiento, QR, avisos (`design.notices` con fallback a `DEFAULT_TICKET_NOTICES`), instrucciones y footer.
-- Reutilizar este componente desde `c.$token.entrada.tsx` (titular) y desde `t.$qrToken.tsx` (acompañante e individual del titular). Para el acompañante usa `holderName`, `dni` y `seat` de la persona acompañante, y `kind = "acompanante"` para el subtítulo.
-- `getTicketByQr` ya devuelve `event.ticket_design` resuelto, así que el componente compartido recibe el diseño y se renderiza idéntico al del titular.
+4. **`src/components/template-editor-dialog.tsx`**: añadir `hora_inicio: "20:00"` y `hora_fin: "22:30"` al `sampleCtx` para que la previsualización del editor renderice los nuevos tokens.
 
-## 3. Asignar zona / fila / asiento por acompañante
+5. **Entrada (`c.$token.entrada.tsx` y `t.$qrToken.tsx`)**: sin cambios — ya muestran Acceso / Inicio / Fin aprox. Verificar visualmente tras desplegar abriendo una entrada existente.
 
-Hoy los acompañantes ya tienen columnas `seat_zone`, `seat_row`, `seat_number` y la entrada las pinta, pero no hay UI individual para asignarlos (solo el import masivo de asientos por CSV).
+## Aviso al usuario
 
-Plan:
-- En `src/routes/_authenticated/solicitudes.$participantId.tsx`, dentro del bloque "Acompañantes registrados", añadir por cada acompañante tres inputs (`Zona`, `Fila`, `Asiento`) que guarden al `onBlur` en `companions` mediante una nueva server function.
-- Nueva server function `updateCompanionSeat` en `src/lib/tickets.functions.ts` (o `seats.functions.ts`): valida `{ companion_id, seat_zone, seat_row, seat_number }`, requiere rol superadmin/admin/coordinador, hace `update` en `companions` y registra `audit_logs` con `action: "companion.seat"`.
-- Hook cliente `useUpdateCompanionSeat` que invalide `useParticipantCompanions(participantId)` tras guardar.
-- Mostrar el resumen de asientos en el listado de acompañantes (ya disponible vía `formatSeat`-like helper).
-
-Con esto, el seat asignado al acompañante aparecerá tanto en el email masivo (ya muestra `formatSeat`) como en su entrada `/t/<token>`, idéntica visualmente a la del titular.
-
-## Archivos a tocar
-
-- `src/components/ticket-card.tsx` (nuevo)
-- `src/routes/c.$token.entrada.tsx` (refactor para usar `TicketCard`)
-- `src/routes/t.$qrToken.tsx` (refactor para usar `TicketCard`)
-- `src/lib/tickets.functions.ts` (nueva `updateCompanionSeat`)
-- `src/lib/use-participants.ts` (nuevo hook `useUpdateCompanionSeat`, junto a los existentes)
-- `src/routes/_authenticated/solicitudes.$participantId.tsx` (UI de asignación por acompañante)
-
-## Después de implementar
-
-Para que el 404 desaparezca en figurarte.app hay que **publicar** el proyecto: la ruta `/t/$qrToken` y los cambios visuales se despliegan en ese momento.
+Las plantillas que ya hayas editado manualmente y que no contengan exactamente `Hora de acceso: {{hora_acceso}}` no se tocan para no romper tu maquetación. Si tienes alguna así, dímelo y la actualizo a mano o te indico dónde añadir los dos tokens nuevos.
