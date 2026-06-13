@@ -35,6 +35,8 @@ import type { Database } from "@/integrations/supabase/types";
 import { SendCommunicationDialog, type CommRecipient } from "@/components/send-communication-dialog";
 import { useServerFn } from "@tanstack/react-start";
 import { resendInvitations } from "@/lib/bulk-send.functions";
+import { updateCompanionSeat } from "@/lib/tickets.functions";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 type Status = Database["public"]["Enums"]["participant_status"];
 type Attendee = Database["public"]["Enums"]["attendee_type"];
@@ -67,6 +69,17 @@ function Page() {
   const [commOpen, setCommOpen] = useState(false);
   const [resending, setResending] = useState(false);
   const resendFn = useServerFn(resendInvitations);
+  const updateSeatFn = useServerFn(updateCompanionSeat);
+  const qc = useQueryClient();
+  const updateCompanionSeatMut = useMutation({
+    mutationFn: (vars: { companion_id: string; seat_zone: string | null; seat_row: string | null; seat_number: string | null }) =>
+      updateSeatFn({ data: vars }),
+    onSuccess: () => {
+      toast.success("Asiento del acompañante actualizado");
+      qc.invalidateQueries({ queryKey: ["companions", participantId] });
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error al guardar"),
+  });
 
   if (isLoading || !p) {
     return (
@@ -384,12 +397,49 @@ function Page() {
             {companions.length > 0 && (
               <div className="sm:col-span-3 border-t pt-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Acompañantes registrados</div>
-                <ul className="space-y-1">
+                <ul className="space-y-3">
                   {companions.map((c) => (
-                    <li key={c.id} className="text-sm">
-                      {[c.first_name, c.last_name].filter(Boolean).join(" ") || "Sin nombre"}
-                      {c.dni && <span className="text-muted-foreground"> · DNI {c.dni}</span>}
-                      {c.age && <span className="text-muted-foreground"> · {c.age} años</span>}
+                    <li key={c.id} className="text-sm border rounded-md p-3">
+                      <div>
+                        {[c.first_name, c.last_name].filter(Boolean).join(" ") || "Sin nombre"}
+                        {c.dni && <span className="text-muted-foreground"> · DNI {c.dni}</span>}
+                        {c.age && <span className="text-muted-foreground"> · {c.age} años</span>}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Zona</Label>
+                          <Input
+                            defaultValue={c.seat_zone ?? ""}
+                            onBlur={(e) => {
+                              const v = e.target.value;
+                              if ((v || "") === (c.seat_zone ?? "")) return;
+                              updateCompanionSeatMut.mutate({ companion_id: c.id, seat_zone: v || null, seat_row: c.seat_row ?? null, seat_number: c.seat_number ?? null });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Fila</Label>
+                          <Input
+                            defaultValue={c.seat_row ?? ""}
+                            onBlur={(e) => {
+                              const v = e.target.value;
+                              if ((v || "") === (c.seat_row ?? "")) return;
+                              updateCompanionSeatMut.mutate({ companion_id: c.id, seat_zone: c.seat_zone ?? null, seat_row: v || null, seat_number: c.seat_number ?? null });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Asiento</Label>
+                          <Input
+                            defaultValue={c.seat_number ?? ""}
+                            onBlur={(e) => {
+                              const v = e.target.value;
+                              if ((v || "") === (c.seat_number ?? "")) return;
+                              updateCompanionSeatMut.mutate({ companion_id: c.id, seat_zone: c.seat_zone ?? null, seat_row: c.seat_row ?? null, seat_number: v || null });
+                            }}
+                          />
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>
