@@ -3,14 +3,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
-import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users } from "lucide-react";
-
+import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users, Armchair } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getConfirmation } from "@/lib/confirmation.functions";
+import { zoneTone, zoneToneClasses } from "@/lib/event-constants";
 import { parseTicketDesign, DEFAULT_TICKET_NOTICES, NOTICE_ICON_MAP, type TicketNoticeIcon } from "@/lib/ticket-design";
 
 const FALLBACK_OG_IMAGE = "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/4bcdb372-0e17-41c3-bfed-2e3aa64605e7";
@@ -157,6 +157,8 @@ function Page() {
               )}
             </div>
 
+            <SeatBlock zone={participant.seat_zone} row={participant.seat_row} number={participant.seat_number} />
+
             {main && (
               <QrBlock
                 token={main.qr_token}
@@ -178,12 +180,18 @@ function Page() {
                 {tickets.slice(1).map((t, idx) => {
                   const c = companions[idx];
                   return (
-                    <QrBlock
-                      key={t.id}
-                      token={t.qr_token}
-                      title={c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || `Acompañante ${idx + 1}` : `Acompañante ${idx + 1}`}
-                      subtitle={c?.dni ? `DNI: ${c.dni}` : undefined}
-                    />
+                    <div key={t.id} className="space-y-3">
+                      <SeatBlock
+                        zone={c?.seat_zone}
+                        row={c?.seat_row}
+                        number={c?.seat_number}
+                      />
+                      <QrBlock
+                        token={t.qr_token}
+                        title={c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || `Acompañante ${idx + 1}` : `Acompañante ${idx + 1}`}
+                        subtitle={c?.dni ? `DNI: ${c.dni}` : undefined}
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -240,6 +248,27 @@ function Notice({ icon, children }: { icon: React.ReactNode; children: React.Rea
     <div className="flex items-start gap-2 text-muted-foreground">
       <div className="mt-0.5 text-foreground">{icon}</div>
       <div>{children}</div>
+    </div>
+  );
+}
+
+function SeatBlock({ zone, row, number }: { zone?: string | null; row?: string | null; number?: string | null }) {
+  if (!zone) return null;
+  const tone = zoneTone(zone);
+  const toneClass = zoneToneClasses(tone);
+  return (
+    <div className={`rounded-md border-2 p-3 ${toneClass}`}>
+      <div className="text-[10px] uppercase tracking-[0.25em] opacity-80 flex items-center gap-1">
+        <Armchair className="h-3 w-3" /> Zona
+      </div>
+      <div className="text-lg font-black uppercase">{zone}</div>
+      {(row || number) && (
+        <div className="text-sm mt-1">
+          {row && <span>Fila <strong>{row}</strong></span>}
+          {row && number && <span> · </span>}
+          {number && <span>Asiento <strong>{number}</strong></span>}
+        </div>
+      )}
     </div>
   );
 }
