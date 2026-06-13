@@ -8,6 +8,8 @@ type CompanionRow = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  email: string | null;
+  phone: string | null;
   seat_zone: string | null;
   seat_row: string | null;
   seat_number: string | null;
@@ -204,7 +206,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     for (const idChunk of chunk(ids, 100)) {
       const { data: comps } = await supabase
         .from("companions")
-        .select("id, participant_id, first_name, last_name, seat_zone, seat_row, seat_number")
+        .select("id, participant_id, first_name, last_name, email, phone, seat_zone, seat_row, seat_number")
         .in("participant_id", idChunk)
         .order("created_at", { ascending: true });
       for (const c of (comps ?? []) as (CompanionRow & { participant_id: string })[]) {
