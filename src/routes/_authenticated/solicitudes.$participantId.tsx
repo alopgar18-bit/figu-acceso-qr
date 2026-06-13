@@ -96,6 +96,11 @@ function Page() {
   const submission = p.form_submissions;
   const payload = (submission?.payload ?? {}) as Record<string, unknown>;
   const photoUrl = (payload.photo_url as string) ?? (payload.photoUrl as string) ?? null;
+  const sessionStart = p.event_sessions?.starts_at ? new Date(p.event_sessions.starts_at) : null;
+  const sessionEnd = p.event_sessions?.ends_at ? new Date(p.event_sessions.ends_at) : null;
+  const doorsOpen = p.event_sessions?.doors_open_at ? new Date(p.event_sessions.doors_open_at) : sessionStart;
+  const dateFormatter = new Intl.DateTimeFormat("es-ES", { timeZone: "Europe/Madrid" });
+  const timeFormatter = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
 
   const consentByKind = (kind: string) => consents.find((c) => c.legal_texts?.kind === kind);
 
@@ -495,7 +500,12 @@ function Page() {
             apellidos: person.last_name,
             evento: p.events?.name ?? null,
             sesion: p.event_sessions?.name ?? null,
-            fecha: p.event_sessions ? new Date(p.event_sessions.starts_at).toLocaleString("es-ES") : null,
+            fecha: sessionStart ? dateFormatter.format(sessionStart) : null,
+            hora_acceso: doorsOpen ? timeFormatter.format(doorsOpen) : null,
+            hora_inicio: sessionStart ? timeFormatter.format(sessionStart) : null,
+            hora_fin: sessionEnd ? timeFormatter.format(sessionEnd) : null,
+            ubicacion: p.event_sessions?.location_name ?? p.events?.location_name ?? null,
+            direccion: p.event_sessions?.location_address ?? p.events?.location_address ?? null,
           },
         } satisfies CommRecipient] : []}
       />
