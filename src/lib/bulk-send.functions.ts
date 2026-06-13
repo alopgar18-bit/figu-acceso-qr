@@ -37,15 +37,25 @@ function buildCompanionsBlocks(
     const seatSuffix = seat ? ` — ${seat}` : "";
     lines.push(link ? `• ${name}${seatSuffix} — ${link}` : `• ${name}${seatSuffix}`);
     const safeName = escapeHtml(name);
-    const safeSeat = seat ? ` — <span style="color:#555">${escapeHtml(seat)}</span>` : "";
-    const linkHtml = link
-      ? ` — <a href="${link}" style="color:#111;text-decoration:underline;">Ver entrada</a>`
+    const safeSeat = seat ? `<div style="color:#555;font-size:12px;margin-top:2px;">${escapeHtml(seat)}</div>` : "";
+    const qrImg = link
+      ? `<div style="margin-top:8px;"><img src="${buildQrImageUrl(link)}" alt="QR ${safeName}" width="180" height="180" style="display:block;width:180px;height:180px;border:1px solid #ececec;border-radius:6px;background:#fff;" /></div>`
       : "";
-    htmlItems.push(`<li style="margin:4px 0;">${safeName}${safeSeat}${linkHtml}</li>`);
+    const linkHtml = link
+      ? `<div style="margin-top:6px;"><a href="${link}" style="color:#111;text-decoration:underline;font-size:12px;">Ver entrada</a></div>`
+      : `<div style="margin-top:6px;color:#999;font-size:12px;">Sin QR generado</div>`;
+    htmlItems.push(
+      `<div style="margin:14px 0;padding:12px;background:#fff;border:1px solid #ececec;border-radius:8px;">
+        <div style="font-weight:600;color:#111;font-size:14px;">${safeName}</div>
+        ${safeSeat}
+        ${qrImg}
+        ${linkHtml}
+      </div>`,
+    );
   }
   const html = `<div style="margin:16px 0;padding:12px 16px;background:#fafafa;border:1px solid #ececec;border-radius:8px;">
     <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:6px;">Acompañantes</div>
-    <ul style="margin:0;padding-left:18px;font-size:14px;color:#1a1a1a;">${htmlItems.join("")}</ul>
+    ${htmlItems.join("")}
   </div>`;
   return { text: `Acompañantes:\n${lines.join("\n")}`, html };
 }
@@ -73,6 +83,10 @@ const inputSchema = z.object({
   // cada acompañante (dirigido al email del titular) con el QR/enlace
   // individual del acompañante. ON por defecto.
   send_per_companion: z.boolean().default(true),
+  // Si true, cuando el titular tiene acompañantes y la plantilla no incluye
+  // {{acompanantes}} / {{acompanantes_html}}, se añade automáticamente al
+  // final del cuerpo un bloque con nombre + QR de cada acompañante.
+  include_companions_in_titular: z.boolean().default(true),
   from: z.string().max(200).optional(),
 });
 
@@ -299,7 +313,23 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       };
 
       const subject = template.subject ? renderTemplate(template.subject, ctx) : null;
-      const body = renderTemplate(template.body, ctx);
+      let body = renderTemplate(template.body, ctx);
+
+      // Auto-append: si la plantilla NO referencia las variables de
+      // acompañantes y el titular tiene acompañantes, añadimos el bloque
+      // al final del cuerpo automáticamente.
+      const templateMentionsCompanions = /\{\{\s*acompanantes(_html)?\s*\}\}/i.test(template.body);
+      if (
+        data.include_companions_in_titular &&
+        compRows.length > 0 &&
+        !templateMentionsCompanions
+      ) {
+        if (isWhatsapp) {
+          if (compBlocks.text) body = `${body}\n\n${compBlocks.text}`;
+        } else if (compBlocks.html) {
+          body = `${body}\n${compBlocks.html}`;
+        }
+      }
 
       const recipient = isWhatsapp ? phone : email;
       const status: "pendiente" | "cancelado" = recipient ? "pendiente" : "cancelado";
