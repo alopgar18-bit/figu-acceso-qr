@@ -56,6 +56,7 @@ function BulkSendPage() {
   const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
   const [channel, setChannel] = useState<CommChannel>("email");
   const [sendPerCompanion, setSendPerCompanion] = useState<boolean>(true);
+  const [includeCompanionsInTitular, setIncludeCompanionsInTitular] = useState<boolean>(true);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
@@ -278,6 +279,7 @@ FIGURARTE Casting & Producción`,
           only_with_ticket: true,
           skip_already_queued: true,
           send_per_companion: !isWhatsapp && sendPerCompanion,
+          include_companions_in_titular: includeCompanionsInTitular,
           from: isWhatsapp ? undefined : senderValue,
         },
       });
@@ -507,6 +509,23 @@ FIGURARTE Casting & Producción`,
                 )}
               </AlertDescription>
             </Alert>
+            {!isWhatsapp && (
+              <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
+                  checked={includeCompanionsInTitular}
+                  onChange={(e) => setIncludeCompanionsInTitular(e.target.checked)}
+                />
+                <span>
+                  <strong>Incluir acompañantes (nombre + QR) en el email del titular</strong>
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Añade al final del email del titular un bloque con el nombre y el QR de cada acompañante. Solo se añade si la plantilla no incluye ya las variables {"{{acompanantes_html}}"} o {"{{acompanantes}}"}.
+                  </span>
+                </span>
+              </label>
+            )}
             {!isWhatsapp && (
               <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
                 <input
