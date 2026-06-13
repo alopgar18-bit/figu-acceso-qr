@@ -12,6 +12,32 @@ const corsHeaders = {
 // Remitente por defecto (dominio verificado en Resend)
 const DEFAULT_FROM_ADDRESS = "FIGURARTE Casting & Producción <casting@figurarte.app>";
 
+function formatMadridTime(value?: string | null): string {
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Madrid",
+  });
+}
+
+function completeMissingTimes(body: string, session?: { starts_at?: string | null; ends_at?: string | null; doors_open_at?: string | null } | null): string {
+  if (!session) return body;
+  const access = formatMadridTime(session.doors_open_at ?? session.starts_at);
+  const start = formatMadridTime(session.starts_at);
+  const end = formatMadridTime(session.ends_at);
+  return body
+    .replace(/\{\{\s*hora_acceso\s*\}\}/gi, access)
+    .replace(/\{\{\s*hora_inicio\s*\}\}/gi, start)
+    .replace(/\{\{\s*hora_fin\s*\}\}/gi, end)
+    .replace(/(Hora de acceso:\s*)(?=(?:Hora de inicio:|Hora fin aprox\.?:|<\/p>|<br\s*\/?\s*>|\n|$))/gi, access ? `$1${access} ` : "$1")
+    .replace(/(Hora de inicio:\s*)(?=(?:Hora fin aprox\.?:|<\/p>|<br\s*\/?\s*>|\n|$))/gi, start ? `$1${start} ` : "$1")
+    .replace(/(Hora fin aprox\.?:\s*)(?=(?:<\/p>|<br\s*\/?\s*>|\n|$))/gi, end ? `$1${end}` : "$1")
+    .replace(/(<strong>\s*Acceso:\s*<\/strong>\s*)(?=(?:·|<\/div>|<br\s*\/?\s*>|\n|$))/gi, access ? `$1${access} ` : "$1")
+    .replace(/(<strong>\s*Inicio:\s*<\/strong>\s*)(?=(?:·|<\/div>|<br\s*\/?\s*>|\n|$))/gi, start ? `$1${start} ` : "$1")
+    .replace(/(<strong>\s*Fin aprox\.?:\s*<\/strong>\s*)(?=(?:<\/div>|<br\s*\/?\s*>|\n|$))/gi, end ? `$1${end}` : "$1");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -46,7 +72,7 @@ Deno.serve(async (req) => {
 
     let query = supabase
       .from("communication_logs")
-      .select("id, to_address, subject, body, metadata")
+      .select("id, to_address, subject, body, metadata, session_id")
       .eq("channel", "email")
       .eq("status", "pendiente")
       .order("created_at", { ascending: true })
@@ -55,7 +81,7 @@ Deno.serve(async (req) => {
     if (body.ids && body.ids.length > 0) {
       query = supabase
         .from("communication_logs")
-        .select("id, to_address, subject, body, metadata")
+        .select("id, to_address, subject, body, metadata, session_id")
         .eq("channel", "email")
         .eq("status", "pendiente")
         .in("id", body.ids);
@@ -64,11 +90,21 @@ Deno.serve(async (req) => {
     const { data: logs, error: fetchError } = await query;
     if (fetchError) throw fetchError;
 
+    const allLogs = logs ?? [];
+    const sessionIds = Array.from(new Set(allLogs.map((log) => log.session_id).filter(Boolean)));
+    const sessionsById = new Map<string, { starts_at?: string | null; ends_at?: string | null; doors_open_at?: string | null }>();
+    if (sessionIds.length > 0) {
+      const { data: sessions } = await supabase
+        .from("event_sessions")
+        .select("id, starts_at, ends_at, doors_open_at")
+        .in("id", sessionIds);
+      for (const session of sessions ?? []) sessionsById.set(session.id, session);
+    }
+
     let sent = 0;
     let failed = 0;
     const errors: Array<{ id: string; error: string }> = [];
 
-    const allLogs = logs ?? [];
     for (let i = 0; i < allLogs.length; i++) {
       const log = allLogs[i];
       if (!log.to_address) {
@@ -82,7 +118,8 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const isHtml = (log.body ?? "").trim().startsWith("<");
+        const enrichedBody = completeMissingTimes(log.body ?? "", sessionsById.get(log.session_id ?? ""));
+        const isHtml = enrichedBody.trim().startsWith("<");
         const perLogFrom = (log.metadata as Record<string, unknown> | null)?.from;
         const effectiveFrom = typeof perLogFrom === "string" && perLogFrom.trim().length > 0
           ? perLogFrom.trim()
@@ -92,8 +129,8 @@ Deno.serve(async (req) => {
           to: [log.to_address],
           subject: log.subject ?? "(sin asunto)",
         };
-        if (isHtml) payload.html = log.body ?? "";
-        else payload.text = log.body ?? "";
+        if (isHtml) payload.html = enrichedBody;
+        else payload.text = enrichedBody;
 
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
