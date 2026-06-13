@@ -180,12 +180,18 @@ function Page() {
                 {tickets.slice(1).map((t, idx) => {
                   const c = companions[idx];
                   return (
-                    <QrBlock
-                      key={t.id}
-                      token={t.qr_token}
-                      title={c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || `Acompañante ${idx + 1}` : `Acompañante ${idx + 1}`}
-                      subtitle={c?.dni ? `DNI: ${c.dni}` : undefined}
-                    />
+                    <div key={t.id} className="space-y-3">
+                      <SeatBlock
+                        zone={c?.seat_zone}
+                        row={c?.seat_row}
+                        number={c?.seat_number}
+                      />
+                      <QrBlock
+                        token={t.qr_token}
+                        title={c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || `Acompañante ${idx + 1}` : `Acompañante ${idx + 1}`}
+                        subtitle={c?.dni ? `DNI: ${c.dni}` : undefined}
+                      />
+                    </div>
                   );
                 })}
               </div>
