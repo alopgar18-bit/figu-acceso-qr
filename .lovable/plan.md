@@ -1,33 +1,37 @@
 ## Objetivo
 
-Que el email del **titular** incluya, al final, un bloque con cada acompañante mostrando su **nombre + QR embebido** (imagen), independientemente del toggle de "envío individual a acompañantes" (que se mantiene).
-
-## Estado actual
-
-`buildCompanionsBlocks` en `src/lib/bulk-send.functions.ts` ya genera un bloque HTML con la lista de acompañantes, pero solo con un enlace "Ver entrada", **sin la imagen del QR**. Además, el bloque solo aparece si la plantilla usa explícitamente `{{acompanantes_html}}` o `{{acompanantes}}`, cosa que muchas plantillas no hacen.
+Que el botón **2 · Generar QR faltantes** del envío masivo cree también un ticket por cada acompañante registrado, siempre que la sesión esté configurada en modo `qr_propio` (un QR por persona). En sesiones `mismo_qr` no se generan QR de acompañantes (solo el del titular/grupo), respetando la configuración.
 
 ## Cambios
 
-### 1. `src/lib/bulk-send.functions.ts`
-- Modificar `buildCompanionsBlocks` para que cada item del HTML incluya:
-  - Nombre del acompañante (+ asiento si lo hay).
-  - Imagen `<img>` del QR usando `buildQrImageUrl(buildTicketUrl(token))` con tamaño compacto (~180px), alineada y con estilos inline email-safe.
-  - Enlace "Ver entrada" debajo de la imagen como fallback.
-- Si un acompañante no tiene ticket, mostrarlo sin QR (no romper el bloque).
-- **Auto-append**: tras renderizar `body` con la plantilla, si el titular tiene acompañantes y el body resultante **no contiene** ya `acompanantes_html` ni `acompanantes` renderizados (heurística: comprobar antes del render si la plantilla incluye `{{acompanantes` ), concatenar `compBlocks.html` (o `compBlocks.text` para WhatsApp) al final del body. Así funciona automáticamente sin tocar plantillas.
-- En WhatsApp, mantener el comportamiento texto-only (no imágenes), pero asegurando que el listado se añade al final si la plantilla no lo incluye.
-- Añadir nuevo flag opcional `include_companions_in_titular` (default `true`) al `inputSchema` para poder desactivarlo desde la UI.
+### 1. `src/lib/tickets.functions.ts` — `generateMissingTickets`
+
+Reescribir el handler para que, además del titular:
+
+1. Lea la sesión y obtenga `companions_qr_mode`.
+2. Cargue todos los `companions` de los participantes objetivo.
+3. Cargue los `tickets` activos agrupados por `(participant_id, companion_id)` — no solo por `participant_id` como ahora.
+4. Para cada participante sin ticket de titular: insertar el ticket de titular (igual que hoy, con `qr_payload.kind = "titular"` cuando hay acompañantes, o `"grupo"` cuando es `mismo_qr`).
+5. Si `companions_qr_mode = "qr_propio"`: para cada `companion` sin ticket activo asociado a su `companion_id`, insertar un ticket con `participant_id`, `companion_id`, `qr_token`, `qr_payload = { kind: "acompanante", index }`.
+6. Devolver contadores ampliados: `{ generated_titulars, generated_companions, skipped_titulars, skipped_companions, mode, errors }`.
+
+Mantener el límite de inserción razonable (batch de 5000 participantes ya existente). Reutilizar `genToken()`.
 
 ### 2. `src/routes/_authenticated/comunicaciones.envio.tsx`
-- Añadir un segundo toggle independiente: **"Incluir acompañantes (nombre + QR) en el email del titular"**, ON por defecto.
-- Pasar el nuevo flag a `queueBulkInvitations`.
-- Mantener el toggle existente `sendPerCompanion` tal cual; ambos pueden combinarse.
 
-### 3. Sin cambios
-- Schema, plantillas existentes, hoja "Detalle" del informe, envío individual a acompañantes, WhatsApp/email flujos restantes.
+- En el query `ticketsQ`, contar también los QR de acompañantes para el resumen (opcional; mínimo, no romper el conteo actual de "Sin QR" del titular).
+- En `handleGenerateMissingQr`, mostrar en el toast los dos contadores: `Generados X titulares y Y acompañantes (Z ya existían)`. Si la sesión es `mismo_qr`, añadir una nota: "Sesión en modo 'un QR para el grupo': no se generan QR por acompañante".
+- (Opcional, pequeño) Añadir bajo el botón un texto explicativo que aclare el comportamiento según el modo de la sesión.
 
-## Resultado
+### 3. Coherencia con el resto
 
-Al enviar invitación masiva por email:
-- El titular recibe **un email** con su propio QR y, al final, un bloque visible con el nombre y QR de cada acompañante.
-- Si además está activo el toggle de envío individual, recibe **emails adicionales** (uno por acompañante) al mismo buzón. Los dos comportamientos son independientes.
+- `bulk-send.functions.ts` ya está preparado: lee `tickets` con `companion_id` y construye `ticketByCompanion`. En cuanto existan esos tickets, el toggle "Enviar también un correo individual por cada acompañante" y el bloque "Incluir acompañantes (nombre + QR) en el email del titular" funcionarán automáticamente.
+- No se tocan `confirmation.functions.ts` (ya genera correctamente al confirmar desde el enlace público) ni el esquema de BD.
+
+## Resultado esperado
+
+Tras pulsar **Generar QR faltantes** en una sesión `qr_propio` con participantes importados:
+
+- Cada titular tendrá su ticket.
+- Cada acompañante registrado tendrá su propio ticket con `companion_id`.
+- Al enviar con cualquiera de los dos toggles de acompañantes, los QR se incluyen / se mandan por separado sin caer en `skipped_no_companion_ticket`.
