@@ -361,13 +361,12 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         errors.push({ participant_id: p.id, reason: err instanceof Error ? err.message : "error" });
       }
 
-      // 6. Email individual por cada acompañante (al email del titular).
-      // Solo aplica a canal email, cuando hay email del titular y existe
-      // un ticket vinculado al companion_id.
+      // 6. Comunicación individual por cada acompañante.
+      // Se envía al email/teléfono del propio acompañante.
+      // Si el acompañante no tiene email/teléfono, se usa como fallback
+      // el del titular para que pueda reenviárselo.
       if (
         data.send_per_companion &&
-        !isWhatsapp &&
-        email &&
         compRows.length > 0
       ) {
         for (const c of compRows) {
@@ -378,6 +377,13 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
           const compToken = ticketByCompanion.get(c.id);
           if (!compToken) {
             skipped_no_companion_ticket++;
+            continue;
+          }
+          const compRecipient = isWhatsapp
+            ? (c.phone ?? phone)
+            : (c.email ?? email);
+          if (!compRecipient) {
+            skipped_no_email++;
             continue;
           }
           const compName = (c.first_name ?? "").trim();
@@ -400,7 +406,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
             const { error: cErr } = await supabase.from("communication_logs").insert({
               channel: template.channel,
               status: "pendiente",
-              to_address: email,
+              to_address: compRecipient,
               subject: compSubject,
               body: compBody,
               template_id: template.id,
