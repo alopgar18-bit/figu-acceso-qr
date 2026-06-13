@@ -399,13 +399,21 @@ function Page() {
                 <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Acompañantes registrados</div>
                 <ul className="space-y-3">
                   {companions.map((c) => (
-                    <li key={c.id} className="text-sm border rounded-md p-3">
-                      <div>
-                        {[c.first_name, c.last_name].filter(Boolean).join(" ") || "Sin nombre"}
-                        {c.dni && <span className="text-muted-foreground"> · DNI {c.dni}</span>}
-                        {c.age && <span className="text-muted-foreground"> · {c.age} años</span>}
+                    <li key={c.id} className="text-sm border rounded-md p-3 space-y-2">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <Field label="Nombre" value={c.first_name} />
+                        <Field label="Apellidos" value={c.last_name} />
+                        <Field label="DNI" value={c.dni} />
+                        <Field label="Edad" value={c.age ? `${c.age} años` : null} />
+                        <Field label="Email" value={c.email} />
+                        <Field label="Teléfono" value={c.phone} />
+                        <div className="sm:col-span-2">
+                          <dt className="text-xs uppercase tracking-wider text-muted-foreground">Notas</dt>
+                          <dd>{c.notes || "—"}</dd>
+                        </div>
+                        <Field label="Registrado" value={c.created_at ? new Date(c.created_at).toLocaleString("es-ES") : null} />
                       </div>
-                      <div className="grid grid-cols-3 gap-2 mt-2">
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t">
                         <div>
                           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Zona</Label>
                           <Input
