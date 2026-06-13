@@ -125,7 +125,7 @@ function BulkSendPage() {
     queryFn: async () => {
       let q = supabase
         .from("event_participants")
-        .select("id, status, person_id, event_id, session_id, people(first_name,last_name,email,phone,source)")
+        .select("id, status, person_id, event_id, session_id, attendee_type, created_at, people(first_name,last_name,email,phone,source,dni,city,province,gender,birth_date,is_blocked)")
         .limit(5000);
       if (selectedIds && selectedIds.length > 0) {
         q = q.in("id", selectedIds);
