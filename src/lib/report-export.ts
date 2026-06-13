@@ -126,12 +126,13 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
     "Nombre", "Apellidos", "Nombre completo",
     "DNI", "Email", "Teléfono",
     "Sesión", "Estado", "Zona", "Fila", "Asiento", "Check-in",
+    "Necesidades especiales / accesibilidad",
   ];
   const detalleAoa: (string | number)[][] = [detalleHeader];
   try {
     const eventId = data.event.id;
     type PartRow = {
-      id: string; status: string; session_id: string;
+      id: string; status: string; session_id: string; submission_id: string | null;
       seat_zone: string | null; seat_row: string | null; seat_number: string | null;
       people: { first_name?: string; last_name?: string; dni?: string; email?: string; phone?: string } | null;
       event_sessions: { name?: string } | null;
@@ -142,7 +143,7 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
     for (let from = 0; ; from += pageSize) {
       const { data: page, error } = await supabase
         .from("event_participants")
-        .select("id, status, session_id, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone), event_sessions(name)")
+        .select("id, status, session_id, submission_id, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone), event_sessions(name)")
         .eq("event_id", eventId)
         .order("id", { ascending: true })
         .range(from, from + pageSize - 1);
@@ -181,6 +182,22 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
       arr.push(c);
       compsByPart.set(c.participant_id, arr);
     }
+    // Fetch special_needs from form_submissions for the participants that have one
+    const submissionIds = Array.from(new Set(participants.map((p) => p.submission_id).filter((x): x is string => !!x)));
+    const specialBySubmission = new Map<string, string>();
+    for (let i = 0; i < submissionIds.length; i += chunkSize) {
+      const chunk = submissionIds.slice(i, i + chunkSize);
+      const { data: subs, error } = await supabase
+        .from("form_submissions")
+        .select("id, payload")
+        .in("id", chunk);
+      if (error) throw error;
+      for (const s of (subs ?? []) as Array<{ id: string; payload: Record<string, unknown> | null }>) {
+        const raw = s.payload?.["special_needs"];
+        const val = typeof raw === "string" ? raw.trim() : "";
+        if (val) specialBySubmission.set(s.id, val);
+      }
+    }
     const hideNames = opts.perms && !opts.perms.see_names;
     const hideDni = opts.perms && !opts.perms.see_dni;
     const hideEmail = opts.perms && !opts.perms.see_email;
@@ -198,6 +215,7 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
       groupIdx += 1;
       const titularFull = fullName(p.people?.first_name, p.people?.last_name);
       const titularDisplay = hideNames ? "" : titularFull;
+      const specialNeeds = p.submission_id ? (specialBySubmission.get(p.submission_id) ?? "") : "";
       detalleAoa.push([
         groupIdx,
         "Solicitante",
@@ -214,6 +232,7 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
         p.seat_row ?? "",
         p.seat_number ?? "",
         "",
+        specialNeeds,
       ]);
       const comps = (compsByPart.get(p.id) ?? []).slice().sort((a, b) =>
         `${a.last_name ?? ""}|${a.first_name ?? ""}`.localeCompare(`${b.last_name ?? ""}|${b.first_name ?? ""}`),
@@ -235,6 +254,7 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
           c.seat_row ?? "",
           c.seat_number ?? "",
           "",
+          specialNeeds,
         ]);
       }
     }
@@ -244,6 +264,7 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
       { wch: 18 }, { wch: 22 }, { wch: 30 },
       { wch: 12 }, { wch: 28 }, { wch: 14 },
       { wch: 22 }, { wch: 22 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 },
+      { wch: 50 },
     ];
     ws["!freeze"] = { ySplit: 1 } as unknown as never;
     XLSX.utils.book_append_sheet(wb, ws, "Detalle");
