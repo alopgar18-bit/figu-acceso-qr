@@ -50,6 +50,7 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
   <div style="font-size:12px;color:#666;margin-top:8px;">Presenta este QR en el acceso.</div>
 </td></tr></table>\n`;
   const BUTTON_BLOCK = `\n<p style="text-align:center;margin:24px 0;"><a href="{{enlace_entrada}}" style="background:#111;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;">Abrir entrada</a></p>\n`;
+  const TIME_BLOCK = `\nFecha: {{fecha}}\nHora de acceso: {{hora_acceso}}\nHora de inicio: {{hora_inicio}}\nHora fin aprox.: {{hora_fin}}\n`;
   const HEADER_BLOCK = `<!doctype html><html lang="es"><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1a1a;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
@@ -136,6 +137,7 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
           {channel === "email" && (
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" onClick={() => setBody(HEADER_BLOCK)}>Plantilla HTML base</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setBody((p) => p + TIME_BLOCK)}>+ Fecha y horarios</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => setBody((p) => p + QR_BLOCK)}>+ Bloque QR</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => setBody((p) => p + BUTTON_BLOCK)}>+ Botón entrada</Button>
             </div>
