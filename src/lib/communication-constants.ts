@@ -40,7 +40,9 @@ export const COMM_VARIABLES = [
   { token: "{{evento}}", description: "Nombre del evento" },
   { token: "{{sesion}}", description: "Sesión asignada" },
   { token: "{{fecha}}", description: "Fecha de la sesión" },
-  { token: "{{hora_acceso}}", description: "Hora de acceso" },
+  { token: "{{hora_acceso}}", description: "Hora de acceso (apertura de puertas)" },
+  { token: "{{hora_inicio}}", description: "Hora de inicio de la sesión" },
+  { token: "{{hora_fin}}", description: "Hora aproximada de finalización" },
   { token: "{{ubicacion}}", description: "Lugar / dirección" },
   { token: "{{direccion}}", description: "Dirección completa (calle, ciudad)" },
   { token: "{{enlace_confirmacion}}", description: "Enlace para confirmar asistencia" },
@@ -100,6 +102,8 @@ export interface RenderContext {
   sesion?: string | null;
   fecha?: string | null;
   hora_acceso?: string | null;
+  hora_inicio?: string | null;
+  hora_fin?: string | null;
   ubicacion?: string | null;
   direccion?: string | null;
   enlace_confirmacion?: string | null;
