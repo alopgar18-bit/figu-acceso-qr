@@ -291,10 +291,10 @@ function BulkSendPage() {
     }
     const effIdSet = new Set(effectiveParticipants.map((p) => p.id));
     const alreadyQueued = (sentQ.data ?? []).filter(
-      (r) => effIdSet.has(r.participant_id) && (r.status === "pendiente" || r.status === "programado"),
+      (r) => r.participant_id != null && effIdSet.has(r.participant_id) && (r.status === "pendiente" || r.status === "programado"),
     ).length;
     const alreadySent = (sentQ.data ?? []).filter(
-      (r) => effIdSet.has(r.participant_id) && r.status === "enviado",
+      (r) => r.participant_id != null && effIdSet.has(r.participant_id) && r.status === "enviado",
     ).length;
     return {
       total: effectiveParticipants.length,
