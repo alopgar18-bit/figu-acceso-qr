@@ -4,16 +4,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
 
 const rowSchema = z.object({
-  email: z.string().trim().max(255).optional().nullable(),
-  dni: z.string().trim().max(20).optional().nullable(),
+  email: z.string().trim().optional().nullable(),
+  dni: z.string().trim().optional().nullable(),
   tipo: z.enum(["titular", "acompanante"]).optional().nullable(),
-  first_name: z.string().trim().max(150).optional().nullable(),
-  last_name: z.string().trim().max(150).optional().nullable(),
-  titular_full_name: z.string().trim().max(300).optional().nullable(),
-  session_name: z.string().trim().max(200).optional().nullable(),
-  seat_zone: z.string().trim().max(40).optional().nullable(),
-  seat_row: z.string().trim().max(20).optional().nullable(),
-  seat_number: z.string().trim().max(20).optional().nullable(),
+  first_name: z.string().trim().optional().nullable(),
+  last_name: z.string().trim().optional().nullable(),
+  titular_full_name: z.string().trim().optional().nullable(),
+  session_name: z.string().trim().optional().nullable(),
+  seat_zone: z.string().trim().optional().nullable(),
+  seat_row: z.string().trim().optional().nullable(),
+  seat_number: z.string().trim().optional().nullable(),
 });
 
 export const bulkAssignSeats = createServerFn({ method: "POST" })
