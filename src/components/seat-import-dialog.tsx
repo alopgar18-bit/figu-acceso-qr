@@ -80,7 +80,6 @@ function rowsFromRecords(records: Array<Record<string, unknown>>): SeatRow[] {
       seat_number: get(kSeat) || undefined,
     };
     if (!row.email && !row.dni && !row.first_name && !row.titular_full_name) continue;
-    if (!row.seat_zone && !row.seat_row && !row.seat_number) continue;
     out.push(row);
   }
   return out;
@@ -129,7 +128,7 @@ export function SeatImportDialog({ eventId }: { eventId: string }) {
       const ext = file.name.split(".").pop()?.toLowerCase();
       const rows = ext === "csv" ? parseCsv(await file.text()) : await parseExcel(file);
       if (rows.length === 0) {
-        toast.error("No se han encontrado filas con email/DNI y asiento en el archivo.");
+        toast.error("No se han encontrado filas con email/DNI o nombre en el archivo.");
         return;
       }
       setFileRows(rows);
