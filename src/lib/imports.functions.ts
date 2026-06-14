@@ -10,7 +10,11 @@ const rowSchema = z.object({
   dni: z.string().trim().max(30).optional().nullable(),
   email: z.string().trim().max(255).optional().nullable(),
   phone: z.string().trim().max(40).optional().nullable(),
-  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  birth_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
   city: z.string().trim().max(120).optional().nullable(),
   province: z.string().trim().max(120).optional().nullable(),
   gender: z.string().trim().max(40).optional().nullable(),
@@ -19,7 +23,9 @@ const rowSchema = z.object({
   instagram: z.string().trim().max(150).optional().nullable(),
   tiktok: z.string().trim().max(150).optional().nullable(),
   notes: z.string().trim().max(1000).optional().nullable(),
-  attendee_type: z.enum(["publico","figurante","casting","vip","prensa","equipo","acompanante","otro"]).optional(),
+  attendee_type: z
+    .enum(["publico", "figurante", "casting", "vip", "prensa", "equipo", "acompanante", "otro"])
+    .optional(),
   initial_status: z
     .enum([
       "pendiente_revision",
@@ -52,12 +58,18 @@ const commitSchema = z.object({
     "acceso_validado",
   ]),
   defaultAttendeeType: z
-    .enum(["publico","figurante","casting","vip","prensa","equipo","acompanante","otro"])
+    .enum(["publico", "figurante", "casting", "vip", "prensa", "equipo", "acompanante", "otro"])
     .default("publico"),
-  duplicateStrategy: z.enum(["skip","update_person","new_participation"]),
-  mappings: z.array(
-    z.object({ source_column: z.string().min(1).max(200), target_field: z.string().min(1).max(80), transform: z.string().max(120).nullable().optional() })
-  ).max(60),
+  duplicateStrategy: z.enum(["skip", "update_person", "new_participation"]),
+  mappings: z
+    .array(
+      z.object({
+        source_column: z.string().min(1).max(200),
+        target_field: z.string().min(1).max(80),
+        transform: z.string().max(120).nullable().optional(),
+      }),
+    )
+    .max(60),
   rows: z.array(rowSchema).min(1).max(5000),
 });
 
@@ -73,11 +85,7 @@ export const commitImport = createServerFn({ method: "POST" })
   .inputValidator((input) => commitSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context;
-    await requireRole(supabase, userId, [
-      "superadmin",
-      "admin_figurarte",
-      "coordinador",
-    ]);
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
     const actorEmail = (claims as { email?: string } | undefined)?.email ?? null;
 
     // 1. Create batch
@@ -169,13 +177,9 @@ export const commitImport = createServerFn({ method: "POST" })
             .from("event_participants")
             .update({
               import_batch_id: batch.id,
-              ...(row.seat_zone || row.seat_row || row.seat_number
-                ? {
-                    seat_zone: row.seat_zone ?? null,
-                    seat_row: row.seat_row ?? null,
-                    seat_number: row.seat_number ?? null,
-                  }
-                : {}),
+              seat_zone: row.seat_zone?.trim() || null,
+              seat_row: row.seat_row?.trim() || null,
+              seat_number: row.seat_number?.trim() || null,
             })
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId);
@@ -186,28 +190,29 @@ export const commitImport = createServerFn({ method: "POST" })
         // Not a duplicate → always create a brand-new person. Email or phone
         // collisions with other people are allowed on purpose.
         const { data: created, error: pErr } = await supabase
-            .from("people")
-            .insert({
-              first_name: row.first_name,
-              last_name: row.last_name ?? null,
-              dni: row.dni ?? null,
-              email: row.email ?? null,
-              phone: row.phone ?? null,
-              birth_date: row.birth_date ?? null,
-              city: row.city ?? null,
-              province: row.province ?? null,
-              gender: row.gender ?? null,
-              notes: row.notes ?? null,
-              source: data.source ?? `import:${data.filename}`,
-              created_by: userId,
-            })
-            .select("id")
-            .single();
+          .from("people")
+          .insert({
+            first_name: row.first_name,
+            last_name: row.last_name ?? null,
+            dni: row.dni ?? null,
+            email: row.email ?? null,
+            phone: row.phone ?? null,
+            birth_date: row.birth_date ?? null,
+            city: row.city ?? null,
+            province: row.province ?? null,
+            gender: row.gender ?? null,
+            notes: row.notes ?? null,
+            source: data.source ?? `import:${data.filename}`,
+            created_by: userId,
+          })
+          .select("id")
+          .single();
         if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
         const personId = created.id;
 
         const status = row.initial_status ?? data.defaultStatus;
-        const approvedLike = status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
+        const approvedLike =
+          status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
         const attendeeType = row.attendee_type ?? data.defaultAttendeeType;
 
         const { data: participant, error: partErr } = await supabase
@@ -221,7 +226,10 @@ export const commitImport = createServerFn({ method: "POST" })
             companions_count: row.companions_count ?? 0,
             approved_by: approvedLike ? userId : null,
             approved_at: approvedLike ? new Date().toISOString() : null,
-            confirmed_at: status === "confirmado" || status === "acceso_validado" ? new Date().toISOString() : null,
+            confirmed_at:
+              status === "confirmado" || status === "acceso_validado"
+                ? new Date().toISOString()
+                : null,
             import_batch_id: batch.id,
             seat_zone: row.seat_zone ?? null,
             seat_row: row.seat_row ?? null,
@@ -239,18 +247,22 @@ export const commitImport = createServerFn({ method: "POST" })
         // Generate ticket/QR only for statuses that need one ready to send.
         if (QR_STATES.has(status)) {
           const token = genToken();
-          const { data: ticket, error: tErr } = await supabase.from("tickets").insert({
-            event_id: data.eventId,
-            session_id: data.sessionId,
-            participant_id: participant.id,
-            qr_token: token,
-            qr_payload: {
-              token,
+          const { data: ticket, error: tErr } = await supabase
+            .from("tickets")
+            .insert({
               event_id: data.eventId,
               session_id: data.sessionId,
               participant_id: participant.id,
-            },
-          }).select("id").single();
+              qr_token: token,
+              qr_payload: {
+                token,
+                event_id: data.eventId,
+                session_id: data.sessionId,
+                participant_id: participant.id,
+              },
+            })
+            .select("id")
+            .single();
           if (tErr) throw new Error(`No se pudo crear el ticket (${tErr.message})`);
           qrGenerated++;
 
@@ -285,11 +297,12 @@ export const commitImport = createServerFn({ method: "POST" })
         imported_rows: imported,
         error_rows: errored,
         errors: errors.slice(0, 200),
-        status: errored > 0 && imported === 0
-          ? "fallida"
-          : errored > 0
-          ? "completada_con_errores"
-          : "completada",
+        status:
+          errored > 0 && imported === 0
+            ? "fallida"
+            : errored > 0
+              ? "completada_con_errores"
+              : "completada",
         completed_at: new Date().toISOString(),
       })
       .eq("id", batch.id)

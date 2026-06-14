@@ -4,16 +4,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
 
 const rowSchema = z.object({
-  email: z.string().trim().email().optional().nullable(),
-  dni: z.string().trim().max(20).optional().nullable(),
+  email: z.string().trim().optional().nullable(),
+  dni: z.string().trim().optional().nullable(),
   tipo: z.enum(["titular", "acompanante"]).optional().nullable(),
-  first_name: z.string().trim().max(150).optional().nullable(),
-  last_name: z.string().trim().max(150).optional().nullable(),
-  titular_full_name: z.string().trim().max(300).optional().nullable(),
-  session_name: z.string().trim().max(200).optional().nullable(),
-  seat_zone: z.string().trim().max(40).optional().nullable(),
-  seat_row: z.string().trim().max(20).optional().nullable(),
-  seat_number: z.string().trim().max(20).optional().nullable(),
+  first_name: z.string().trim().optional().nullable(),
+  last_name: z.string().trim().optional().nullable(),
+  titular_full_name: z.string().trim().optional().nullable(),
+  session_name: z.string().trim().optional().nullable(),
+  seat_zone: z.string().trim().optional().nullable(),
+  seat_row: z.string().trim().optional().nullable(),
+  seat_number: z.string().trim().optional().nullable(),
 });
 
 export const bulkAssignSeats = createServerFn({ method: "POST" })
@@ -36,8 +36,15 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const norm = (s: string | null | undefined) =>
-      (s ?? "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
-    const nameKey = (f: string | null | undefined, l: string | null | undefined) => `${norm(f)}|${norm(l)}`;
+      (s ?? "")
+        .toString()
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ");
+    const nameKey = (f: string | null | undefined, l: string | null | undefined) =>
+      `${norm(f)}|${norm(l)}`;
     const fullNameKey = (s: string | null | undefined) => {
       const cleaned = norm(s);
       if (!cleaned) return "";
@@ -77,8 +84,10 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
     const participantIds: string[] = [];
     for (const p of participants ?? []) {
       const person = p.people as {
-        email: string | null; dni: string | null;
-        first_name: string | null; last_name: string | null;
+        email: string | null;
+        dni: string | null;
+        first_name: string | null;
+        last_name: string | null;
       } | null;
       if (person?.email) emailMap.set(person.email.toLowerCase(), p.id);
       if (person?.dni) dniMap.set(person.dni.toUpperCase(), p.id);
@@ -119,6 +128,22 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
       }
     }
 
+    // Importing replaces the current seating plan for the selected scope.
+    for (let i = 0; i < participantIds.length; i += 300) {
+      const chunk = participantIds.slice(i, i + 300);
+      const clearPatch = { seat_zone: null, seat_row: null, seat_number: null };
+      const { error: pClearErr } = await supabaseAdmin
+        .from("event_participants")
+        .update(clearPatch as never)
+        .in("id", chunk);
+      if (pClearErr) throw new Error(pClearErr.message);
+      const { error: cClearErr } = await supabaseAdmin
+        .from("companions")
+        .update(clearPatch as never)
+        .in("participant_id", chunk);
+      if (cClearErr) throw new Error(cClearErr.message);
+    }
+
     const results = {
       updated: 0,
       updated_titulares: 0,
@@ -137,9 +162,13 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
         if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
         if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
         if (!companionId && rowNameK) {
-          if (titularK && rowSessionId) companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+          if (titularK && rowSessionId) {
+            companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+          }
           if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
-          if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+          if (!companionId && rowSessionId) {
+            companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+          }
           if (!companionId) companionId = compNameMap.get(rowNameK);
         }
       } else {
@@ -154,9 +183,13 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
           if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
           if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
           if (!companionId && rowNameK) {
-            if (titularK && rowSessionId) companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+            if (titularK && rowSessionId) {
+              companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+            }
             if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
-            if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+            if (!companionId && rowSessionId) {
+              companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+            }
             if (!companionId) companionId = compNameMap.get(rowNameK);
           }
         }
@@ -169,9 +202,10 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
         continue;
       }
       const patch = {
-        seat_zone: row.seat_zone || null,
-        seat_row: row.seat_row || null,
-        seat_number: row.seat_number || null,
+        // Always overwrite the previous assignment with the imported values.
+        seat_zone: row.seat_zone?.trim() || null,
+        seat_row: row.seat_row?.trim() || null,
+        seat_number: row.seat_number?.trim() || null,
       };
       if (companionId) {
         const { error: upErr } = await supabaseAdmin
@@ -179,14 +213,20 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
           .update(patch as never)
           .eq("id", companionId);
         if (upErr) results.errors.push(`${row.email ?? row.dni}: ${upErr.message}`);
-        else { results.updated_acompanantes++; results.updated++; }
+        else {
+          results.updated_acompanantes++;
+          results.updated++;
+        }
       } else if (participantId) {
         const { error: upErr } = await supabaseAdmin
           .from("event_participants")
           .update(patch as never)
           .eq("id", participantId);
         if (upErr) results.errors.push(`${row.email ?? row.dni}: ${upErr.message}`);
-        else { results.updated_titulares++; results.updated++; }
+        else {
+          results.updated_titulares++;
+          results.updated++;
+        }
       }
     }
 
