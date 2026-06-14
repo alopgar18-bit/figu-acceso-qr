@@ -21,6 +21,10 @@ type SeatRow = {
   email?: string;
   dni?: string;
   tipo?: "titular" | "acompanante";
+  first_name?: string;
+  last_name?: string;
+  titular_full_name?: string;
+  session_name?: string;
   seat_zone?: string;
   seat_row?: string;
   seat_number?: string;
@@ -44,6 +48,12 @@ function rowsFromRecords(records: Array<Record<string, unknown>>): SeatRow[] {
   const kEmail = find(["email", "correo", "e-mail"]);
   const kDni = find(["dni", "nie", "documento", "pasaporte"]);
   const kRol = find(["rol", "tipo", "role"]);
+  const kFirst = find(["nombre"]);
+  const kLast = find(["apellidos", "apellido", "surname"]);
+  const kTitular = find([
+    "solicitante (titular)", "solicitante titular", "solicitante", "titular",
+  ]);
+  const kSession = find(["sesion", "sesión", "session"]);
   const kZone = find(["zona", "sector", "zone"]);
   const kRow = find(["fila", "row"]);
   const kSeat = find(["asiento", "butaca", "seat", "numero"]);
@@ -61,11 +71,15 @@ function rowsFromRecords(records: Array<Record<string, unknown>>): SeatRow[] {
       email: get(kEmail) || undefined,
       dni: get(kDni).toUpperCase() || undefined,
       tipo,
+      first_name: get(kFirst) || undefined,
+      last_name: get(kLast) || undefined,
+      titular_full_name: get(kTitular) || undefined,
+      session_name: get(kSession) || undefined,
       seat_zone: get(kZone) || undefined,
       seat_row: get(kRow) || undefined,
       seat_number: get(kSeat) || undefined,
     };
-    if (!row.email && !row.dni) continue;
+    if (!row.email && !row.dni && !row.first_name && !row.titular_full_name) continue;
     if (!row.seat_zone && !row.seat_row && !row.seat_number) continue;
     out.push(row);
   }

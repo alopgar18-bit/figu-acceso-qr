@@ -7,6 +7,10 @@ const rowSchema = z.object({
   email: z.string().trim().email().optional().nullable(),
   dni: z.string().trim().max(20).optional().nullable(),
   tipo: z.enum(["titular", "acompanante"]).optional().nullable(),
+  first_name: z.string().trim().max(150).optional().nullable(),
+  last_name: z.string().trim().max(150).optional().nullable(),
+  titular_full_name: z.string().trim().max(300).optional().nullable(),
+  session_name: z.string().trim().max(200).optional().nullable(),
   seat_zone: z.string().trim().max(40).optional().nullable(),
   seat_row: z.string().trim().max(20).optional().nullable(),
   seat_number: z.string().trim().max(20).optional().nullable(),
@@ -31,10 +35,32 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
     ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    const norm = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+    const nameKey = (f: string | null | undefined, l: string | null | undefined) => `${norm(f)}|${norm(l)}`;
+    const fullNameKey = (s: string | null | undefined) => {
+      const cleaned = norm(s);
+      if (!cleaned) return "";
+      // Heurística: primer token = nombre, resto = apellidos
+      const parts = cleaned.split(" ");
+      const first = parts.shift() ?? "";
+      return `${first}|${parts.join(" ")}`;
+    };
+
+    // Session-name → id map (to scope name matches per session when the row says so)
+    const { data: sessRows } = await supabaseAdmin
+      .from("event_sessions")
+      .select("id, name")
+      .eq("event_id", data.event_id);
+    const sessionByName = new Map<string, string>();
+    for (const s of sessRows ?? []) {
+      if (s.name) sessionByName.set(norm(s.name), s.id);
+    }
+
     // Fetch all participants for the event with their person details
     let q = supabaseAdmin
       .from("event_participants")
-      .select("id, session_id, person_id, people(email, dni)")
+      .select("id, session_id, person_id, people(email, dni, first_name, last_name)")
       .eq("event_id", data.event_id);
     if (data.session_id) q = q.eq("session_id", data.session_id);
     const { data: participants, error } = await q;
@@ -42,26 +68,54 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
 
     const emailMap = new Map<string, string>();
     const dniMap = new Map<string, string>();
+    // name keys: "first|last" and scoped "first|last::sessionId"
+    const titularNameMap = new Map<string, string>();
+    // participantId → name key (for companion scoping)
+    const titularKeyOf = new Map<string, string>();
+    // participantId → sessionId
+    const titularSession = new Map<string, string>();
     const participantIds: string[] = [];
     for (const p of participants ?? []) {
-      const person = p.people as { email: string | null; dni: string | null } | null;
+      const person = p.people as {
+        email: string | null; dni: string | null;
+        first_name: string | null; last_name: string | null;
+      } | null;
       if (person?.email) emailMap.set(person.email.toLowerCase(), p.id);
       if (person?.dni) dniMap.set(person.dni.toUpperCase(), p.id);
+      if (person?.first_name) {
+        const k = nameKey(person.first_name, person.last_name);
+        titularNameMap.set(k, p.id);
+        titularNameMap.set(`${k}::${p.session_id}`, p.id);
+        titularKeyOf.set(p.id, k);
+        titularSession.set(p.id, p.session_id as string);
+      }
       participantIds.push(p.id);
     }
 
     // Companions for the same event
     const compEmailMap = new Map<string, string>();
     const compDniMap = new Map<string, string>();
+    // key: "compFirst|compLast" OR "titularKey::compFirst|compLast" OR scoped per session
+    const compNameMap = new Map<string, string>();
     if (participantIds.length > 0) {
       const { data: comps, error: cErr } = await supabaseAdmin
         .from("companions")
-        .select("id, participant_id, email, dni")
+        .select("id, participant_id, email, dni, first_name, last_name")
         .in("participant_id", participantIds);
       if (cErr) throw new Error(cErr.message);
       for (const c of comps ?? []) {
         if (c.email) compEmailMap.set(c.email.toLowerCase(), c.id);
         if (c.dni) compDniMap.set(c.dni.toUpperCase(), c.id);
+        if (c.first_name) {
+          const k = nameKey(c.first_name, c.last_name);
+          // Plain (last write wins for collisions — titular scoping below disambiguates)
+          compNameMap.set(k, c.id);
+          const tKey = titularKeyOf.get(c.participant_id);
+          const sId = titularSession.get(c.participant_id);
+          if (tKey) compNameMap.set(`${tKey}::${k}`, c.id);
+          if (sId) compNameMap.set(`${k}::${sId}`, c.id);
+          if (tKey && sId) compNameMap.set(`${tKey}::${k}::${sId}`, c.id);
+        }
       }
     }
 
@@ -76,21 +130,42 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
       const wantsCompanion = row.tipo === "acompanante";
       let companionId: string | undefined;
       let participantId: string | undefined;
+      const rowSessionId = row.session_name ? sessionByName.get(norm(row.session_name)) : undefined;
+      const rowNameK = row.first_name ? nameKey(row.first_name, row.last_name) : "";
+      const titularK = row.titular_full_name ? fullNameKey(row.titular_full_name) : "";
       if (wantsCompanion) {
         if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
         if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
+        if (!companionId && rowNameK) {
+          if (titularK && rowSessionId) companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+          if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
+          if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+          if (!companionId) companionId = compNameMap.get(rowNameK);
+        }
       } else {
         if (row.email) participantId = emailMap.get(row.email.toLowerCase());
         if (!participantId && row.dni) participantId = dniMap.get(row.dni.toUpperCase());
+        if (!participantId && rowNameK) {
+          if (rowSessionId) participantId = titularNameMap.get(`${rowNameK}::${rowSessionId}`);
+          if (!participantId) participantId = titularNameMap.get(rowNameK);
+        }
         // If tipo not set, fall back to companion lookup
         if (!row.tipo && !participantId) {
           if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
           if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
+          if (!companionId && rowNameK) {
+            if (titularK && rowSessionId) companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+            if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
+            if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+            if (!companionId) companionId = compNameMap.get(rowNameK);
+          }
         }
       }
       if (!participantId && !companionId) {
         results.skipped++;
-        results.errors.push(`No encontrado: ${row.email ?? row.dni ?? "(sin id)"}`);
+        results.errors.push(
+          `No encontrado: ${row.email ?? row.dni ?? [row.first_name, row.last_name].filter(Boolean).join(" ") ?? "(sin id)"}`,
+        );
         continue;
       }
       const patch = {
