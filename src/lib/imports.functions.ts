@@ -85,11 +85,7 @@ export const commitImport = createServerFn({ method: "POST" })
   .inputValidator((input) => commitSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context;
-    await requireRole(supabase, userId, [
-      "superadmin",
-      "admin_figurarte",
-      "coordinador",
-    ]);
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
     const actorEmail = (claims as { email?: string } | undefined)?.email ?? null;
 
     // 1. Create batch
@@ -194,28 +190,29 @@ export const commitImport = createServerFn({ method: "POST" })
         // Not a duplicate → always create a brand-new person. Email or phone
         // collisions with other people are allowed on purpose.
         const { data: created, error: pErr } = await supabase
-            .from("people")
-            .insert({
-              first_name: row.first_name,
-              last_name: row.last_name ?? null,
-              dni: row.dni ?? null,
-              email: row.email ?? null,
-              phone: row.phone ?? null,
-              birth_date: row.birth_date ?? null,
-              city: row.city ?? null,
-              province: row.province ?? null,
-              gender: row.gender ?? null,
-              notes: row.notes ?? null,
-              source: data.source ?? `import:${data.filename}`,
-              created_by: userId,
-            })
-            .select("id")
-            .single();
+          .from("people")
+          .insert({
+            first_name: row.first_name,
+            last_name: row.last_name ?? null,
+            dni: row.dni ?? null,
+            email: row.email ?? null,
+            phone: row.phone ?? null,
+            birth_date: row.birth_date ?? null,
+            city: row.city ?? null,
+            province: row.province ?? null,
+            gender: row.gender ?? null,
+            notes: row.notes ?? null,
+            source: data.source ?? `import:${data.filename}`,
+            created_by: userId,
+          })
+          .select("id")
+          .single();
         if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
         const personId = created.id;
 
         const status = row.initial_status ?? data.defaultStatus;
-        const approvedLike = status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
+        const approvedLike =
+          status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
         const attendeeType = row.attendee_type ?? data.defaultAttendeeType;
 
         const { data: participant, error: partErr } = await supabase
@@ -229,7 +226,8 @@ export const commitImport = createServerFn({ method: "POST" })
             companions_count: row.companions_count ?? 0,
             approved_by: approvedLike ? userId : null,
             approved_at: approvedLike ? new Date().toISOString() : null,
-            confirmed_at: status === "confirmado" || status === "acceso_validado" ? new Date().toISOString() : null,
+            confirmed_at:
+              status === "confirmado" || status === "acceso_validado" ? new Date().toISOString() : null,
             import_batch_id: batch.id,
             seat_zone: row.seat_zone ?? null,
             seat_row: row.seat_row ?? null,
