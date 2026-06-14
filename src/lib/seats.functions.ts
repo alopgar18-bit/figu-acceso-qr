@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
 
 const rowSchema = z.object({
-  email: z.string().trim().email().optional().nullable(),
+  email: z.string().trim().max(255).optional().nullable(),
   dni: z.string().trim().max(20).optional().nullable(),
   tipo: z.enum(["titular", "acompanante"]).optional().nullable(),
   first_name: z.string().trim().max(150).optional().nullable(),
@@ -169,9 +169,10 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
         continue;
       }
       const patch = {
-        seat_zone: row.seat_zone || null,
-        seat_row: row.seat_row || null,
-        seat_number: row.seat_number || null,
+        // Always overwrite the previous assignment with the imported values.
+        seat_zone: row.seat_zone?.trim() || null,
+        seat_row: row.seat_row?.trim() || null,
+        seat_number: row.seat_number?.trim() || null,
       };
       if (companionId) {
         const { error: upErr } = await supabaseAdmin
