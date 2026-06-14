@@ -164,7 +164,9 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
         if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
         if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
         if (!companionId && rowNameK) {
-          if (titularK && rowSessionId) companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+          if (titularK && rowSessionId) {
+            companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+          }
           if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
           if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
           if (!companionId) companionId = compNameMap.get(rowNameK);
@@ -181,7 +183,9 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
           if (row.email) companionId = compEmailMap.get(row.email.toLowerCase());
           if (!companionId && row.dni) companionId = compDniMap.get(row.dni.toUpperCase());
           if (!companionId && rowNameK) {
-            if (titularK && rowSessionId) companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+            if (titularK && rowSessionId) {
+              companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
+            }
             if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
             if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
             if (!companionId) companionId = compNameMap.get(rowNameK);
@@ -207,14 +211,20 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
           .update(patch as never)
           .eq("id", companionId);
         if (upErr) results.errors.push(`${row.email ?? row.dni}: ${upErr.message}`);
-        else { results.updated_acompanantes++; results.updated++; }
+        else {
+          results.updated_acompanantes++;
+          results.updated++;
+        }
       } else if (participantId) {
         const { error: upErr } = await supabaseAdmin
           .from("event_participants")
           .update(patch as never)
           .eq("id", participantId);
         if (upErr) results.errors.push(`${row.email ?? row.dni}: ${upErr.message}`);
-        else { results.updated_titulares++; results.updated++; }
+        else {
+          results.updated_titulares++;
+          results.updated++;
+        }
       }
     }
 
