@@ -12,9 +12,13 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 import { updatePublicForm } from "@/lib/forms.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { useEventSessions } from "@/lib/use-events";
 
 type FieldKey =
   | "dni" | "phone" | "birthDate" | "gender" | "profession"
@@ -50,6 +54,7 @@ type FormRow = {
   field_config: Record<string, { visible?: boolean; required?: boolean }> | null;
   requires_image_consent?: boolean;
   offers_future_processes_consent?: boolean;
+  session_id?: string | null;
 };
 
 export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: string }) {
@@ -57,6 +62,7 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
   const update = useServerFn(updatePublicForm);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(form.title);
+  const [sessionId, setSessionId] = useState<string>(form.session_id ?? "all");
   const [intro, setIntro] = useState(form.intro_text ?? "");
   const [header, setHeader] = useState(form.header_image_url ?? "");
   const [cfg, setCfg] = useState<Record<string, { visible?: boolean; required?: boolean }>>(form.field_config ?? {});
@@ -68,6 +74,8 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
   const [futureText, setFutureText] = useState("");
   const [privacyText, setPrivacyText] = useState("");
 
+  const { data: sessions = [] } = useEventSessions(eventId);
+
   const DEFAULTS = {
     attendance: "Confirmo mi compromiso de asistencia y participación si soy seleccionado/a.",
     image: "Autorizo la captación, grabación y difusión de mi imagen y voz en el contexto de este evento.",
@@ -78,6 +86,7 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
   useEffect(() => {
     if (open) {
       setTitle(form.title);
+      setSessionId(form.session_id ?? "all");
       setIntro(form.intro_text ?? "");
       setHeader(form.header_image_url ?? "");
       setCfg(form.field_config ?? {});
@@ -105,6 +114,7 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
         data: {
           id: form.id,
           title: title.trim(),
+          session_id: sessionId === "all" ? null : sessionId,
           intro_text: intro.trim() || null,
           header_image_url: header.trim() || null,
           field_config: nextCfg as Record<string, { visible?: boolean; required?: boolean }>,
@@ -160,6 +170,22 @@ export function FormEditorDialog({ form, eventId }: { form: FormRow; eventId: st
           <div>
             <Label>Título *</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} />
+          </div>
+
+          <div>
+            <Label>Sesión asociada</Label>
+            <Select value={sessionId} onValueChange={setSessionId}>
+              <SelectTrigger><SelectValue placeholder="Todas las sesiones" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las sesiones del evento</SelectItem>
+                {sessions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Si seleccionas "Todas", el usuario podrá elegir sesión en el formulario (si el evento lo permite).
+            </p>
           </div>
 
           <div>
