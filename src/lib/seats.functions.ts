@@ -36,8 +36,15 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const norm = (s: string | null | undefined) =>
-      (s ?? "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
-    const nameKey = (f: string | null | undefined, l: string | null | undefined) => `${norm(f)}|${norm(l)}`;
+      (s ?? "")
+        .toString()
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ");
+    const nameKey = (f: string | null | undefined, l: string | null | undefined) =>
+      `${norm(f)}|${norm(l)}`;
     const fullNameKey = (s: string | null | undefined) => {
       const cleaned = norm(s);
       if (!cleaned) return "";
@@ -77,8 +84,10 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
     const participantIds: string[] = [];
     for (const p of participants ?? []) {
       const person = p.people as {
-        email: string | null; dni: string | null;
-        first_name: string | null; last_name: string | null;
+        email: string | null;
+        dni: string | null;
+        first_name: string | null;
+        last_name: string | null;
       } | null;
       if (person?.email) emailMap.set(person.email.toLowerCase(), p.id);
       if (person?.dni) dniMap.set(person.dni.toUpperCase(), p.id);
@@ -146,7 +155,9 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
       const wantsCompanion = row.tipo === "acompanante";
       let companionId: string | undefined;
       let participantId: string | undefined;
-      const rowSessionId = row.session_name ? sessionByName.get(norm(row.session_name)) : undefined;
+      const rowSessionId = row.session_name
+        ? sessionByName.get(norm(row.session_name))
+        : undefined;
       const rowNameK = row.first_name ? nameKey(row.first_name, row.last_name) : "";
       const titularK = row.titular_full_name ? fullNameKey(row.titular_full_name) : "";
       if (wantsCompanion) {
