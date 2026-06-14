@@ -10,7 +10,11 @@ const rowSchema = z.object({
   dni: z.string().trim().max(30).optional().nullable(),
   email: z.string().trim().max(255).optional().nullable(),
   phone: z.string().trim().max(40).optional().nullable(),
-  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  birth_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
   city: z.string().trim().max(120).optional().nullable(),
   province: z.string().trim().max(120).optional().nullable(),
   gender: z.string().trim().max(40).optional().nullable(),
@@ -19,7 +23,9 @@ const rowSchema = z.object({
   instagram: z.string().trim().max(150).optional().nullable(),
   tiktok: z.string().trim().max(150).optional().nullable(),
   notes: z.string().trim().max(1000).optional().nullable(),
-  attendee_type: z.enum(["publico","figurante","casting","vip","prensa","equipo","acompanante","otro"]).optional(),
+  attendee_type: z
+    .enum(["publico", "figurante", "casting", "vip", "prensa", "equipo", "acompanante", "otro"])
+    .optional(),
   initial_status: z
     .enum([
       "pendiente_revision",
@@ -52,12 +58,18 @@ const commitSchema = z.object({
     "acceso_validado",
   ]),
   defaultAttendeeType: z
-    .enum(["publico","figurante","casting","vip","prensa","equipo","acompanante","otro"])
+    .enum(["publico", "figurante", "casting", "vip", "prensa", "equipo", "acompanante", "otro"])
     .default("publico"),
-  duplicateStrategy: z.enum(["skip","update_person","new_participation"]),
-  mappings: z.array(
-    z.object({ source_column: z.string().min(1).max(200), target_field: z.string().min(1).max(80), transform: z.string().max(120).nullable().optional() })
-  ).max(60),
+  duplicateStrategy: z.enum(["skip", "update_person", "new_participation"]),
+  mappings: z
+    .array(
+      z.object({
+        source_column: z.string().min(1).max(200),
+        target_field: z.string().min(1).max(80),
+        transform: z.string().max(120).nullable().optional(),
+      }),
+    )
+    .max(60),
   rows: z.array(rowSchema).min(1).max(5000),
 });
 
