@@ -213,8 +213,8 @@ export function SeatImportDialog({ eventId }: { eventId: string }) {
             Sube el <strong>Excel del informe</strong> (hoja <code>Detalle</code>) con las columnas
             <code> Zona</code>, <code>Fila</code> y <code>Asiento</code> rellenas a mano, o pega un
             CSV con cabeceras <code>email</code>/<code>dni</code>, <code>rol</code>
-            (Solicitante/Acompañante), <code>zona</code>, <code>fila</code>, <code>asiento</code>. Si no
-            indicas el rol, se busca primero entre titulares y luego entre acompañantes.
+            (Solicitante/Acompañante), <code>zona</code>, <code>fila</code>, <code>asiento</code>.
+            Si no indicas el rol, se busca primero entre titulares y luego entre acompañantes.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
