@@ -227,7 +227,9 @@ export const commitImport = createServerFn({ method: "POST" })
             approved_by: approvedLike ? userId : null,
             approved_at: approvedLike ? new Date().toISOString() : null,
             confirmed_at:
-              status === "confirmado" || status === "acceso_validado" ? new Date().toISOString() : null,
+              status === "confirmado" || status === "acceso_validado"
+                ? new Date().toISOString()
+                : null,
             import_batch_id: batch.id,
             seat_zone: row.seat_zone ?? null,
             seat_row: row.seat_row ?? null,
@@ -245,18 +247,22 @@ export const commitImport = createServerFn({ method: "POST" })
         // Generate ticket/QR only for statuses that need one ready to send.
         if (QR_STATES.has(status)) {
           const token = genToken();
-          const { data: ticket, error: tErr } = await supabase.from("tickets").insert({
-            event_id: data.eventId,
-            session_id: data.sessionId,
-            participant_id: participant.id,
-            qr_token: token,
-            qr_payload: {
-              token,
+          const { data: ticket, error: tErr } = await supabase
+            .from("tickets")
+            .insert({
               event_id: data.eventId,
               session_id: data.sessionId,
               participant_id: participant.id,
-            },
-          }).select("id").single();
+              qr_token: token,
+              qr_payload: {
+                token,
+                event_id: data.eventId,
+                session_id: data.sessionId,
+                participant_id: participant.id,
+              },
+            })
+            .select("id")
+            .single();
           if (tErr) throw new Error(`No se pudo crear el ticket (${tErr.message})`);
           qrGenerated++;
 
@@ -291,11 +297,12 @@ export const commitImport = createServerFn({ method: "POST" })
         imported_rows: imported,
         error_rows: errored,
         errors: errors.slice(0, 200),
-        status: errored > 0 && imported === 0
-          ? "fallida"
-          : errored > 0
-          ? "completada_con_errores"
-          : "completada",
+        status:
+          errored > 0 && imported === 0
+            ? "fallida"
+            : errored > 0
+              ? "completada_con_errores"
+              : "completada",
         completed_at: new Date().toISOString(),
       })
       .eq("id", batch.id)
