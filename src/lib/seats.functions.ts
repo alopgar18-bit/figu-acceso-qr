@@ -119,6 +119,22 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
       }
     }
 
+    // Importing replaces the current seating plan for the selected scope.
+    for (let i = 0; i < participantIds.length; i += 300) {
+      const chunk = participantIds.slice(i, i + 300);
+      const clearPatch = { seat_zone: null, seat_row: null, seat_number: null };
+      const { error: pClearErr } = await supabaseAdmin
+        .from("event_participants")
+        .update(clearPatch as never)
+        .in("id", chunk);
+      if (pClearErr) throw new Error(pClearErr.message);
+      const { error: cClearErr } = await supabaseAdmin
+        .from("companions")
+        .update(clearPatch as never)
+        .in("participant_id", chunk);
+      if (cClearErr) throw new Error(cClearErr.message);
+    }
+
     const results = {
       updated: 0,
       updated_titulares: 0,
