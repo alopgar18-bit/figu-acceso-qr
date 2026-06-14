@@ -155,9 +155,7 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
       const wantsCompanion = row.tipo === "acompanante";
       let companionId: string | undefined;
       let participantId: string | undefined;
-      const rowSessionId = row.session_name
-        ? sessionByName.get(norm(row.session_name))
-        : undefined;
+      const rowSessionId = row.session_name ? sessionByName.get(norm(row.session_name)) : undefined;
       const rowNameK = row.first_name ? nameKey(row.first_name, row.last_name) : "";
       const titularK = row.titular_full_name ? fullNameKey(row.titular_full_name) : "";
       if (wantsCompanion) {
@@ -168,7 +166,9 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
             companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
           }
           if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
-          if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+          if (!companionId && rowSessionId) {
+            companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+          }
           if (!companionId) companionId = compNameMap.get(rowNameK);
         }
       } else {
@@ -187,7 +187,9 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
               companionId = compNameMap.get(`${titularK}::${rowNameK}::${rowSessionId}`);
             }
             if (!companionId && titularK) companionId = compNameMap.get(`${titularK}::${rowNameK}`);
-            if (!companionId && rowSessionId) companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+            if (!companionId && rowSessionId) {
+              companionId = compNameMap.get(`${rowNameK}::${rowSessionId}`);
+            }
             if (!companionId) companionId = compNameMap.get(rowNameK);
           }
         }
