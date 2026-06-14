@@ -169,13 +169,9 @@ export const commitImport = createServerFn({ method: "POST" })
             .from("event_participants")
             .update({
               import_batch_id: batch.id,
-              ...(row.seat_zone || row.seat_row || row.seat_number
-                ? {
-                    seat_zone: row.seat_zone ?? null,
-                    seat_row: row.seat_row ?? null,
-                    seat_number: row.seat_number ?? null,
-                  }
-                : {}),
+              seat_zone: row.seat_zone?.trim() || null,
+              seat_row: row.seat_row?.trim() || null,
+              seat_number: row.seat_number?.trim() || null,
             })
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId);
