@@ -32,6 +32,9 @@ const rowSchema = z.object({
     ])
     .optional(),
   companions_count: z.number().int().min(0).max(20).optional(),
+  seat_zone: z.string().trim().max(40).optional().nullable(),
+  seat_row: z.string().trim().max(20).optional().nullable(),
+  seat_number: z.string().trim().max(20).optional().nullable(),
 });
 
 const commitSchema = z.object({
@@ -164,7 +167,16 @@ export const commitImport = createServerFn({ method: "POST" })
           // appears when filtering "Ver solicitudes" by this import.
           await supabase
             .from("event_participants")
-            .update({ import_batch_id: batch.id })
+            .update({
+              import_batch_id: batch.id,
+              ...(row.seat_zone || row.seat_row || row.seat_number
+                ? {
+                    seat_zone: row.seat_zone ?? null,
+                    seat_row: row.seat_row ?? null,
+                    seat_number: row.seat_number ?? null,
+                  }
+                : {}),
+            })
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId);
           updated++;
@@ -211,6 +223,9 @@ export const commitImport = createServerFn({ method: "POST" })
             approved_at: approvedLike ? new Date().toISOString() : null,
             confirmed_at: status === "confirmado" || status === "acceso_validado" ? new Date().toISOString() : null,
             import_batch_id: batch.id,
+            seat_zone: row.seat_zone ?? null,
+            seat_row: row.seat_row ?? null,
+            seat_number: row.seat_number ?? null,
           })
           .select("id")
           .single();

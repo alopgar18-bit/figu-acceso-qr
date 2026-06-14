@@ -182,6 +182,9 @@ function ImportWizardPage() {
         attendee_type: normalizeAttendee(get("attendee_type")),
         initial_status: normalizeStatus(get("initial_status")),
         companions_count: Number(get("companions_count")) || 0,
+        seat_zone: get("seat_zone") || null,
+        seat_row: get("seat_row") || null,
+        seat_number: get("seat_number") || null,
       };
       // Per-event/session required validation
       for (const key of requiredImportTargets) {

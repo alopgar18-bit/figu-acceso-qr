@@ -17,7 +17,10 @@ export type TargetField =
   | "notes"
   | "attendee_type"
   | "initial_status"
-  | "companions_count";
+  | "companions_count"
+  | "seat_zone"
+  | "seat_row"
+  | "seat_number";
 
 export interface TargetFieldDef {
   value: TargetField;
@@ -45,6 +48,9 @@ export const TARGET_FIELDS: TargetFieldDef[] = [
   { value: "attendee_type", label: "Tipo de participante", group: "participacion" },
   { value: "initial_status", label: "Estado inicial (por fila)", group: "participacion" },
   { value: "companions_count", label: "Nº de acompañantes", group: "participacion" },
+  { value: "seat_zone", label: "Zona / sector", group: "participacion" },
+  { value: "seat_row", label: "Fila", group: "participacion" },
+  { value: "seat_number", label: "Asiento / butaca", group: "participacion" },
 ];
 
 export const IMPORT_STATUS_OPTIONS: { value: ParticipantStatus; label: string; description: string }[] = [
@@ -158,6 +164,14 @@ export function guessTarget(header: string): TargetField | null {
     acompanantes: "companions_count",
     acompañantes: "companions_count",
     companions: "companions_count",
+    zona: "seat_zone",
+    sector: "seat_zone",
+    zone: "seat_zone",
+    fila: "seat_row",
+    row: "seat_row",
+    asiento: "seat_number",
+    butaca: "seat_number",
+    seat: "seat_number",
   };
   return map[h] ?? null;
 }
