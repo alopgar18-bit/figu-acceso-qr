@@ -1,23 +1,19 @@
+
 ## Objetivo
-Aplicar urgentemente las asignaciones de zona/fila/asiento del Excel `informe-el-perro-andaluz...` directamente en la base de datos, para la sesión **Grabación 17 de junio** del evento **EL PERRO ANDALUZ by Manu Sánchez**, antes de seguir mejorando el importador.
 
-## Lo que voy a hacer
+Asignar zona/fila/asiento a los 65 titulares del Excel `Cadiz_Bus_17_junio.xlsx` que **ya están importados** como participantes en la sesión **Grabación 17 de junio** (`131854a7-1331-403e-9feb-d571b96379cd`). Todos van a zona **Club** con su fila/asiento del Excel.
 
-1. **Borrar las asignaciones actuales** de esa sesión:
-   - `seat_zone / seat_row / seat_number = NULL` en `event_participants` de la sesión (440 titulares).
-   - Lo mismo en `companions` cuyos titulares pertenezcan a esa sesión.
+## Pasos
 
-2. **Aplicar las asignaciones del Excel** (hoja `Detalle`, 890 filas / 358 grupos):
-   - **Titulares (`Rol = Solicitante`)**: localizar el participante por `session_id` + `email` + nombre+apellidos (normalizados, sin tildes y en minúsculas), y actualizar `seat_zone / seat_row / seat_number`.
-   - **Acompañantes (`Rol = Acompañante`)**: localizar el titular del grupo igual que arriba (usando la columna `Solicitante (titular)`), y dentro de sus `companions` localizar el acompañante por nombre+apellidos, actualizando sus asientos.
+1. Leer las 65 filas del Excel.
+2. Localizar a cada participante en `event_participants` (filtrando por esa `session_id`) con esta prioridad:
+   - Email normalizado
+   - Nombre + primer apellido normalizados
+   - Teléfono (últimos 9 dígitos)
+3. `UPDATE event_participants SET seat_zone='Club', seat_row=..., seat_number=...` para los 65 (sin tocar al resto).
+4. Audit log `seats.bulk_assign_manual` con origen `Cadiz_Bus_17_junio`.
+5. Reporte final: cuántos asignados y lista de los que no se hayan podido matchear (si los hubiera) para revisión.
 
-3. **Caso ambiguo conocido**: en el Excel `mariloriasco@gmail.com` aparece como titular en 2 grupos distintos pero en la BBDD solo hay 1 participante con ese email en la sesión. Asignaré los asientos del primer grupo y dejaré aviso del segundo en el informe final. (Si prefieres otra regla, dímelo).
+No se tocan acompañantes, tickets ni checkins. No se modifica código.
 
-4. **Informe al terminar**: número de titulares actualizados, acompañantes actualizados y lista de filas no encontradas (si las hay) para que decidas cómo tratarlas.
-
-## Notas técnicas
-- No toco ni `tickets`, ni `check-ins`, ni estados; solo los 3 campos de asiento.
-- Se queda registrado en `audit_logs` con acción `seats.bulk_assign_manual` indicando evento, sesión y totales.
-- No modifico el importador en este paso (lo dejamos para iterar después con calma).
-
-Confírmame y lo ejecuto.
+Confirma para ejecutar.
