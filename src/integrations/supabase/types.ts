@@ -286,6 +286,11 @@ export type Database = {
           subject: string | null
           template_id: string | null
           to_address: string | null
+          wati_local_message_id: string | null
+          whatsapp_estado: string | null
+          whatsapp_failed_code: string | null
+          whatsapp_failed_detail: string | null
+          whatsapp_last_event_at: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -307,6 +312,11 @@ export type Database = {
           subject?: string | null
           template_id?: string | null
           to_address?: string | null
+          wati_local_message_id?: string | null
+          whatsapp_estado?: string | null
+          whatsapp_failed_code?: string | null
+          whatsapp_failed_detail?: string | null
+          whatsapp_last_event_at?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -328,6 +338,11 @@ export type Database = {
           subject?: string | null
           template_id?: string | null
           to_address?: string | null
+          wati_local_message_id?: string | null
+          whatsapp_estado?: string | null
+          whatsapp_failed_code?: string | null
+          whatsapp_failed_detail?: string | null
+          whatsapp_last_event_at?: string | null
         }
         Relationships: [
           {
