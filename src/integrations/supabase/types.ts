@@ -744,12 +744,14 @@ export type Database = {
       }
       event_sessions: {
         Row: {
+          access_time: string | null
           allow_companions: boolean
           capacity: number
           companions_qr_mode: Database["public"]["Enums"]["companions_qr_mode"]
           created_at: string
           description: string | null
           doors_open_at: string | null
+          end_time_estimate: string | null
           ends_at: string | null
           event_id: string
           field_requirements: Json
@@ -768,15 +770,18 @@ export type Database = {
           status: Database["public"]["Enums"]["session_status"]
           updated_at: string
           user_selectable: boolean
+          venue_address: string | null
           waitlist_enabled: boolean
         }
         Insert: {
+          access_time?: string | null
           allow_companions?: boolean
           capacity?: number
           companions_qr_mode?: Database["public"]["Enums"]["companions_qr_mode"]
           created_at?: string
           description?: string | null
           doors_open_at?: string | null
+          end_time_estimate?: string | null
           ends_at?: string | null
           event_id: string
           field_requirements?: Json
@@ -795,15 +800,18 @@ export type Database = {
           status?: Database["public"]["Enums"]["session_status"]
           updated_at?: string
           user_selectable?: boolean
+          venue_address?: string | null
           waitlist_enabled?: boolean
         }
         Update: {
+          access_time?: string | null
           allow_companions?: boolean
           capacity?: number
           companions_qr_mode?: Database["public"]["Enums"]["companions_qr_mode"]
           created_at?: string
           description?: string | null
           doors_open_at?: string | null
+          end_time_estimate?: string | null
           ends_at?: string | null
           event_id?: string
           field_requirements?: Json
@@ -822,6 +830,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["session_status"]
           updated_at?: string
           user_selectable?: boolean
+          venue_address?: string | null
           waitlist_enabled?: boolean
         }
         Relationships: [
