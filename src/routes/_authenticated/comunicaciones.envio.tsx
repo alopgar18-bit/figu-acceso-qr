@@ -461,6 +461,7 @@ FIGURARTE Casting & Producción`,
   }, [selectedTemplate, effectiveParticipants, isWhatsapp]);
 
   return (
+    <>
     <div className="space-y-6">
       <PageHeader
         eyebrow="Comunicaciones"
@@ -901,7 +902,8 @@ FIGURARTE Casting & Producción`,
         </Card>
       )}
     </div>
-    /* dialog rendered outside the flex container above */
+    <WatiTestSendDialog open={watiTestOpen} onOpenChange={setWatiTestOpen} eventId={eventId} sessionId={sessionId} />
+    </>
   );
 }
 
