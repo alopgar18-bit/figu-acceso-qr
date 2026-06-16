@@ -187,7 +187,12 @@ export function useEventReport(scope: ReportScope | null) {
             .range(from, to) as unknown as PromiseLike<{ data: CheckinRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<CommRow>((from, to) =>
-          supabase.from("communication_logs").select("id, status, session_id").eq("event_id", eventId).range(from, to) as unknown as PromiseLike<{ data: CommRow[] | null; error: { message: string } | null }>,
+          supabase
+            .from("communication_logs")
+            .select("id, status, session_id")
+            .eq("event_id", eventId)
+            .or("metadata->>wati_test.is.null,metadata->>wati_test.neq.true")
+            .range(from, to) as unknown as PromiseLike<{ data: CommRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<IncidentRow>((from, to) =>
           supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions, walk_in_first_name, walk_in_last_name, walk_in_dni, title, description, created_at").eq("event_id", eventId).order("created_at", { ascending: false }).range(from, to) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,

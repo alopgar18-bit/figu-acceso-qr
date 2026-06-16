@@ -3,7 +3,7 @@ import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Send, QrCode, AlertCircle, CheckCircle2, Mail, Search as SearchIcon, Filter, X } from "lucide-react";
+import { ArrowLeft, Send, QrCode, AlertCircle, CheckCircle2, Mail, Search as SearchIcon, Filter, X, FlaskConical } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,6 +23,8 @@ import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
 import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel } from "@/lib/communication-constants";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 import { PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, statusLabel } from "@/lib/participant-constants";
+import { WatiTestSendDialog } from "@/components/wati-test-send-dialog";
+import { useAuth } from "@/hooks/use-auth";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -63,6 +65,8 @@ interface PartRow {
 
 function BulkSendPage() {
   const search = useSearch({ from: Route.id });
+  const { isAdmin } = useAuth();
+  const [watiTestOpen, setWatiTestOpen] = useState(false);
   const [eventId, setEventId] = useState<string | undefined>(search.event_id);
   const [sessionId, setSessionId] = useState<string | undefined>(search.session_id);
   const [templateId, setTemplateId] = useState<string | undefined>();
@@ -457,6 +461,7 @@ FIGURARTE Casting & Producción`,
   }, [selectedTemplate, effectiveParticipants, isWhatsapp]);
 
   return (
+    <>
     <div className="space-y-6">
       <PageHeader
         eyebrow="Comunicaciones"
@@ -469,9 +474,16 @@ FIGURARTE Casting & Producción`,
               : "Selecciona evento, sesión y plantilla."
         }
         actions={
-          <Button variant="outline" asChild>
-            <Link to="/comunicaciones"><ArrowLeft className="h-4 w-4 mr-2" />Volver</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setWatiTestOpen(true)}>
+                <FlaskConical className="h-4 w-4 mr-2" />Prueba Wati (1 número)
+              </Button>
+            )}
+            <Button variant="outline" asChild>
+              <Link to="/comunicaciones"><ArrowLeft className="h-4 w-4 mr-2" />Volver</Link>
+            </Button>
+          </div>
         }
       />
 
@@ -890,6 +902,8 @@ FIGURARTE Casting & Producción`,
         </Card>
       )}
     </div>
+    <WatiTestSendDialog open={watiTestOpen} onOpenChange={setWatiTestOpen} eventId={eventId} sessionId={sessionId} />
+    </>
   );
 }
 

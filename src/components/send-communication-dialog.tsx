@@ -16,6 +16,7 @@ import {
   type RenderContext,
 } from "@/lib/communication-constants";
 import { useTemplates, useCreateLog } from "@/lib/use-communications";
+import { renderInvitacionPreview } from "@/lib/whatsapp-template";
 
 interface Recipient {
   personId?: string | null;
@@ -69,6 +70,21 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
   const preview = recipients[0];
   const previewBody = preview ? renderTemplate(body, { nombre: preview.name, ...preview.context }) : body;
   const previewSubject = preview ? renderTemplate(subject, { nombre: preview.name, ...preview.context }) : subject;
+
+  // Vista previa de la plantilla Wati "invitacion_grabacion_publico" con los
+  // datos del primer destinatario (solo informativa; el envío real usa Wati).
+  const watiPreview = isWhats && preview
+    ? renderInvitacionPreview({
+        nombre: preview.name,
+        programa: (preview.context as Record<string, unknown> | undefined)?.evento as string | undefined,
+        fecha: (preview.context as Record<string, unknown> | undefined)?.fecha as string | undefined,
+        hora_acceso: (preview.context as Record<string, unknown> | undefined)?.hora_acceso as string | undefined,
+        hora_inicio: (preview.context as Record<string, unknown> | undefined)?.hora_inicio as string | undefined,
+        hora_fin: (preview.context as Record<string, unknown> | undefined)?.hora_fin as string | undefined,
+        lugar: (preview.context as Record<string, unknown> | undefined)?.ubicacion as string | undefined,
+        enlace_entrada: (preview.context as Record<string, unknown> | undefined)?.enlace_entrada as string | undefined,
+      })
+    : null;
 
   const handleSendEmail = async () => {
     if (!body.trim()) {
@@ -204,6 +220,17 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
               <Button variant="outline" size="sm" onClick={handleCopy}>
                 <Copy className="h-3 w-3 mr-1" />Copiar mensaje
               </Button>
+            </div>
+          )}
+          {isWhats && watiPreview && (
+            <div className="rounded-md border bg-muted/20 p-3 text-xs">
+              <div className="uppercase tracking-wider text-muted-foreground mb-1">
+                Vista previa plantilla Wati · <code>invitacion_grabacion_publico</code>
+              </div>
+              <div className="text-[11px] text-muted-foreground mb-2">
+                Esto es lo que enviará Wati cuando el flag <code>WHATSAPP_PROVIDER</code> esté en <code>wati</code>. Las variables sin valor se muestran como <code>{"{{var}}"}</code>.
+              </div>
+              <pre className="whitespace-pre-wrap font-sans">{watiPreview}</pre>
             </div>
           )}
           {channel === "email" && (
