@@ -82,6 +82,8 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
       if (filters.eventId) q = q.eq("event_id", filters.eventId);
       if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
       if (!filters.includeArchived) q = q.is("archived_at", null);
+      // Excluir envíos de prueba Wati (metadata.wati_test === true)
+      q = q.or("metadata->>wati_test.is.null,metadata->>wati_test.neq.true");
       const { data, error } = await q;
       if (error) throw error;
       const logs = (data ?? []) as unknown as Log[];
