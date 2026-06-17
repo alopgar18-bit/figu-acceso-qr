@@ -1,6 +1,6 @@
-// Texto LITERAL de la plantilla aprobada (o en aprobación) en Meta:
-// "invitacion_grabacion_publico". Solo se usa para la VISTA PREVIA en el
-// panel. El envío real usa la plantilla por nombre en Wati.
+// Texto LITERAL de la plantilla en Wati: "entrada_grabacin" (Spanish).
+// Solo se usa para la VISTA PREVIA en el panel. El envío real usa la
+// plantilla por nombre en Wati.
 export const INVITACION_GRABACION_PUBLICO_TEXT = `Hola {{nombre}}
 
 ¡Ya queda menos para formar parte de la grabación en directo de {{programa}}!

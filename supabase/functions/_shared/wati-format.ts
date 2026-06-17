@@ -1,5 +1,5 @@
 // Helpers para construir las 11 variables de la plantilla
-// "invitacion_grabacion_publico" y para llamar a la API de Wati.
+// "entrada_grabacin" (Spanish) y para llamar a la API de Wati.
 //
 // IMPORTANTE: las fechas se formatean siempre con timezone Europe/Madrid
 // y locale es-ES, para que coincida con la hora real del show

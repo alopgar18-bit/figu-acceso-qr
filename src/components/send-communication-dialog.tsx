@@ -71,7 +71,7 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
   const previewBody = preview ? renderTemplate(body, { nombre: preview.name, ...preview.context }) : body;
   const previewSubject = preview ? renderTemplate(subject, { nombre: preview.name, ...preview.context }) : subject;
 
-  // Vista previa de la plantilla Wati "invitacion_grabacion_publico" con los
+  // Vista previa de la plantilla Wati "entrada_grabacin" con los
   // datos del primer destinatario (solo informativa; el envío real usa Wati).
   const watiPreview = isWhats && preview
     ? renderInvitacionPreview({
@@ -225,7 +225,7 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
           {isWhats && watiPreview && (
             <div className="rounded-md border bg-muted/20 p-3 text-xs">
               <div className="uppercase tracking-wider text-muted-foreground mb-1">
-                Vista previa plantilla Wati · <code>invitacion_grabacion_publico</code>
+                Vista previa plantilla Wati · <code>entrada_grabacin</code>
               </div>
               <div className="text-[11px] text-muted-foreground mb-2">
                 Esto es lo que enviará Wati cuando el flag <code>WHATSAPP_PROVIDER</code> esté en <code>wati</code>. Las variables sin valor se muestran como <code>{"{{var}}"}</code>.
