@@ -72,7 +72,7 @@ export function WatiTestSendDialog({ open, onOpenChange, eventId, sessionId }: P
           channel: "whatsapp_business",
           status: "pendiente",
           to_address: normalized,
-          body: "(plantilla Wati invitacion_grabacion_publico)",
+          body: "(plantilla Wati entrada_grabacin)",
           participant_id: participantId,
           event_id: eventId,
           session_id: sessionId,
@@ -120,7 +120,7 @@ export function WatiTestSendDialog({ open, onOpenChange, eventId, sessionId }: P
             Envío de prueba Wati (1 número)
           </DialogTitle>
           <DialogDescription>
-            Envío real a través de Wati con la plantilla <code>invitacion_grabacion_publico</code>. No cuenta en estadísticas (marcado como prueba).
+            Envío real a través de Wati con la plantilla <code>entrada_grabacin</code> (Spanish). No cuenta en estadísticas (marcado como prueba).
           </DialogDescription>
         </DialogHeader>
 
