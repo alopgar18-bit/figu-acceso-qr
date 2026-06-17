@@ -71,7 +71,7 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
   const previewBody = preview ? renderTemplate(body, { nombre: preview.name, ...preview.context }) : body;
   const previewSubject = preview ? renderTemplate(subject, { nombre: preview.name, ...preview.context }) : subject;
 
-  // Vista previa de la plantilla Wati "invitacion_grabacion_publico" con los
+  // Vista previa de la plantilla Wati "entrada_grabacin" con los
   // datos del primer destinatario (solo informativa; el envío real usa Wati).
   const watiPreview = isWhats && preview
     ? renderInvitacionPreview({
