@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { APPROVED_LIKE } from "./participant-constants";
 
 export function useAssignedSessions() {
   return useQuery({
@@ -38,11 +39,19 @@ export function useSessionDashboard(sessionId: string | undefined) {
       if (parts.error) throw parts.error;
       if (checkins.error) throw checkins.error;
 
-      const confirmados = (parts.data ?? []).filter((p) =>
-        ["confirmado", "qr_generado", "acceso_validado"].includes(p.status),
+      // "Confirmados" = participantes con plaza asegurada (mismo criterio que el informe).
+      // Incluye aceptado_pendiente_envio, invitacion_enviada, pendiente_confirmacion, etc.
+      const confirmadosParts = (parts.data ?? []).filter((p) =>
+        (APPROVED_LIKE as readonly string[]).includes(p.status),
       );
+      // Personas con plaza = titulares + acompañantes (lo que cuenta contra el aforo).
+      const personasConPlaza = confirmadosParts.reduce(
+        (sum, p) => sum + 1 + (p.companions_count ?? 0),
+        0,
+      );
+      // "Pendientes" = solicitudes aún sin decisión (no aprobadas ni rechazadas).
       const pendientes = (parts.data ?? []).filter((p) =>
-        ["aprobado", "invitacion_enviada", "pendiente_confirmacion"].includes(p.status),
+        ["solicitud_recibida", "pendiente_revision", "lista_espera"].includes(p.status),
       );
       const okCheckins = (checkins.data ?? []).filter((c) => c.result === "ok");
       const totalPersonsCheckedIn = okCheckins.reduce(
@@ -53,7 +62,7 @@ export function useSessionDashboard(sessionId: string | undefined) {
       return {
         session: session.data,
         capacity: session.data?.capacity ?? 0,
-        confirmados: confirmados.length,
+        confirmados: personasConPlaza,
         pendientes: pendientes.length,
         checkins: okCheckins.length,
         totalPersonsCheckedIn,
