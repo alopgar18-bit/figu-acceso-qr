@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
 // WATI
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TEMPLATE_NAME = "invitacion_grabacion_publico";
+const TEMPLATE_NAME = "entrada_grabacin";
 const PUBLIC_SITE_URL_FALLBACK = "https://figurarte.app";
 
 type CommLogRow = {
