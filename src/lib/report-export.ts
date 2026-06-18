@@ -44,7 +44,7 @@ function applyVisibility(rows: ParticipantExportRow[], perms?: VisibilityPermiss
 
 async function logExport(action: string, eventId: string, sessionId: string | undefined, format: "xlsx" | "pdf", rowCount: number) {
   const { data: userData } = await supabase.auth.getUser();
-  await supabase.from("audit_logs").insert({
+  const { error } = await supabase.from("audit_logs").insert({
     action,
     entity_type: "event",
     entity_id: eventId,
@@ -54,6 +54,7 @@ async function logExport(action: string, eventId: string, sessionId: string | un
     actor_email: userData.user?.email ?? null,
     changes: { format, row_count: rowCount } as Json,
   });
+  if (error) console.warn("No se pudo registrar la exportación", error);
 }
 
 export async function exportReportExcel(data: ReportData, opts: { sessionId?: string; perms?: VisibilityPermissions } = {}) {
@@ -435,7 +436,6 @@ type IncidentFull = {
   title: string | null; description: string | null; created_at: string;
   walk_in_first_name: string | null; walk_in_last_name: string | null;
   walk_in_dni: string | null; walk_in_companions: number | null;
-  resolution_action: string | null;
 };
 
 async function fetchPaged<T>(q: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
@@ -519,7 +519,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
   // 4. Incidencias
   const incidents = await fetchPaged<IncidentFull>((from, to) =>
     supabase.from("incidents")
-      .select("id, participant_id, session_id, category, incident_type, title, description, created_at, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions, resolution_action")
+      .select("id, participant_id, session_id, category, incident_type, title, description, created_at, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions")
       .eq("event_id", eventId)
       .range(from, to) as unknown as PromiseLike<{ data: IncidentFull[] | null; error: { message: string } | null }>,
   );
