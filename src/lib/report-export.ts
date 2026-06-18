@@ -394,3 +394,347 @@ export async function exportReportPDF(data: ReportData, opts: { sessionId?: stri
 function slug(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
+
+// =============================================================
+// Informe DETALLADO por sesión: Asistentes, Inscritos, No asistentes, Resumen
+// =============================================================
+
+type PersonFull = {
+  first_name: string | null; last_name: string | null;
+  dni: string | null; email: string | null; phone: string | null;
+  birth_date: string | null; gender: string | null;
+  city: string | null; province: string | null; country: string | null;
+  source: string | null;
+};
+type PartFull = {
+  id: string; status: ParticipantStatusLite; attendee_type: string;
+  session_id: string; companions_count: number | null;
+  submission_id: string | null; public_form_id: string | null; import_batch_id: string | null;
+  seat_zone: string | null; seat_row: string | null; seat_number: string | null;
+  created_at: string; approved_at: string | null; confirmed_at: string | null;
+  internal_notes: string | null;
+  people: PersonFull | null;
+  event_sessions: { id: string; name: string | null } | null;
+};
+type ParticipantStatusLite = string;
+type CompFull = {
+  id: string; participant_id: string;
+  first_name: string | null; last_name: string | null;
+  dni: string | null; email: string | null; phone: string | null;
+  birth_date: string | null;
+  seat_zone: string | null; seat_row: string | null; seat_number: string | null;
+};
+type CheckinFull = {
+  participant_id: string | null; session_id: string;
+  checked_in_at: string; device_info: string | null; result: string | null;
+  validator_id: string | null;
+};
+type IncidentFull = {
+  id: string; participant_id: string | null; session_id: string | null;
+  category: string | null; incident_type: string | null;
+  title: string | null; description: string | null; created_at: string;
+  walk_in_first_name: string | null; walk_in_last_name: string | null;
+  walk_in_dni: string | null; walk_in_companions: number | null;
+  resolution_action: string | null;
+};
+
+async function fetchPaged<T>(q: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
+  const out: T[] = []; const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await q(from, from + size - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) break;
+  }
+  return out;
+}
+
+function originLabel(p: PartFull, formNames: Map<string, string>, batchNames: Map<string, string>): string {
+  if (p.public_form_id) return `Formulario público${formNames.get(p.public_form_id) ? ` · ${formNames.get(p.public_form_id)}` : ""}`;
+  if (p.import_batch_id) return `Importación${batchNames.get(p.import_batch_id) ? ` · ${batchNames.get(p.import_batch_id)}` : ""}`;
+  if (p.submission_id) return "Formulario interno";
+  if (p.people?.source) return `Manual · ${p.people.source}`;
+  return "Manual";
+}
+
+function ageFrom(birth: string | null | undefined): number | string {
+  if (!birth) return "";
+  const d = new Date(birth);
+  if (Number.isNaN(d.getTime())) return "";
+  return Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000));
+}
+
+export async function exportReportDetailExcel(data: ReportData, opts: { sessionId?: string; perms?: VisibilityPermissions } = {}) {
+  const eventId = data.event.id;
+  const perms = opts.perms;
+  const hideNames = perms && !perms.see_names;
+  const hideDni = perms && !perms.see_dni;
+  const hideEmail = perms && !perms.see_email;
+  const hidePhone = perms && !perms.see_phone;
+  const mask = (v: string | null | undefined, hide?: boolean) => hide ? "" : (v ?? "");
+  const fullName = (fn?: string | null, ln?: string | null) => `${fn ?? ""} ${ln ?? ""}`.trim();
+
+  // 1. Participantes con todo el detalle
+  const participants = await fetchPaged<PartFull>((from, to) =>
+    supabase.from("event_participants")
+      .select("id, status, attendee_type, session_id, companions_count, submission_id, public_form_id, import_batch_id, seat_zone, seat_row, seat_number, created_at, approved_at, confirmed_at, internal_notes, people(first_name,last_name,dni,email,phone,birth_date,gender,city,province,country,source), event_sessions(id,name)")
+      .eq("event_id", eventId)
+      .range(from, to) as unknown as PromiseLike<{ data: PartFull[] | null; error: { message: string } | null }>,
+  );
+  const filteredParts = opts.sessionId ? participants.filter((p) => p.session_id === opts.sessionId) : participants;
+  const partIds = filteredParts.map((p) => p.id);
+
+  // 2. Acompañantes
+  const companions: CompFull[] = [];
+  for (let i = 0; i < partIds.length; i += 300) {
+    const chunk = partIds.slice(i, i + 300);
+    const rows = await fetchPaged<CompFull>((from, to) =>
+      supabase.from("companions")
+        .select("id, participant_id, first_name, last_name, dni, email, phone, birth_date, seat_zone, seat_row, seat_number")
+        .in("participant_id", chunk)
+        .range(from, to) as unknown as PromiseLike<{ data: CompFull[] | null; error: { message: string } | null }>,
+    );
+    companions.push(...rows);
+  }
+  const compsByPart = new Map<string, CompFull[]>();
+  for (const c of companions) {
+    const a = compsByPart.get(c.participant_id) ?? [];
+    a.push(c); compsByPart.set(c.participant_id, a);
+  }
+
+  // 3. Check-ins
+  const checkins = await fetchPaged<CheckinFull>((from, to) =>
+    supabase.from("checkins")
+      .select("participant_id, session_id, checked_in_at, device_info, result, validator_id")
+      .eq("event_id", eventId)
+      .range(from, to) as unknown as PromiseLike<{ data: CheckinFull[] | null; error: { message: string } | null }>,
+  );
+  const okCheckins = checkins.filter((c) => (c.result ?? "ok") === "ok" && (!opts.sessionId || c.session_id === opts.sessionId));
+  const checkinByPart = new Map<string, CheckinFull>();
+  for (const c of okCheckins) {
+    if (c.participant_id && !checkinByPart.has(c.participant_id)) checkinByPart.set(c.participant_id, c);
+  }
+
+  // 4. Incidencias
+  const incidents = await fetchPaged<IncidentFull>((from, to) =>
+    supabase.from("incidents")
+      .select("id, participant_id, session_id, category, incident_type, title, description, created_at, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions, resolution_action")
+      .eq("event_id", eventId)
+      .range(from, to) as unknown as PromiseLike<{ data: IncidentFull[] | null; error: { message: string } | null }>,
+  );
+  const filteredIncidents = opts.sessionId ? incidents.filter((i) => i.session_id === opts.sessionId) : incidents;
+
+  // 5. Maps auxiliares (forms / batches / sessions / validators)
+  const formIds = Array.from(new Set(filteredParts.map((p) => p.public_form_id).filter((x): x is string => !!x)));
+  const batchIds = Array.from(new Set(filteredParts.map((p) => p.import_batch_id).filter((x): x is string => !!x)));
+  const formNames = new Map<string, string>();
+  if (formIds.length) {
+    const { data } = await supabase.from("public_forms").select("id, title").in("id", formIds);
+    for (const f of data ?? []) formNames.set(f.id, (f as { title?: string }).title ?? "");
+  }
+  const batchNames = new Map<string, string>();
+  if (batchIds.length) {
+    const { data } = await supabase.from("import_batches").select("id, filename").in("id", batchIds);
+    for (const b of data ?? []) batchNames.set(b.id, (b as { filename?: string }).filename ?? "");
+  }
+  const sessionMap = new Map<string, { name: string }>();
+  for (const s of data.sessions) sessionMap.set(s.id, { name: s.name });
+  const validatorIds = Array.from(new Set(okCheckins.map((c) => c.validator_id).filter((v): v is string => !!v)));
+  const validatorName = new Map<string, string>();
+  if (validatorIds.length) {
+    const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", validatorIds);
+    for (const p of profs ?? []) validatorName.set(p.id, p.full_name ?? p.email ?? "—");
+  }
+
+  // Workbook
+  const wb = XLSX.utils.book_new();
+
+  // ---- Hoja 1: Asistentes (titulares + acompañantes con check-in + walk-ins por incidencia)
+  const asisHeader = [
+    "Sesión", "Rol", "Grupo titular", "Nombre", "Apellidos", "DNI", "Email", "Teléfono",
+    "Edad", "Género", "Ciudad", "Provincia",
+    "Tipo asistente", "Origen", "Estado", "Zona", "Fila", "Asiento",
+    "Hora check-in", "Método", "Validador", "Vía", "Notas",
+  ];
+  const asisAoa: (string | number)[][] = [asisHeader];
+  // Sort by session/apellidos
+  const sortedParts = [...filteredParts].sort((a, b) =>
+    `${a.event_sessions?.name ?? ""}|${a.people?.last_name ?? ""}|${a.people?.first_name ?? ""}`
+      .localeCompare(`${b.event_sessions?.name ?? ""}|${b.people?.last_name ?? ""}|${b.people?.first_name ?? ""}`),
+  );
+  for (const p of sortedParts) {
+    const ci = checkinByPart.get(p.id);
+    if (!ci) continue;
+    const titular = fullName(p.people?.first_name, p.people?.last_name);
+    const method = (ci.device_info ?? "") === "manual_override" ? "Manual" : "QR";
+    asisAoa.push([
+      p.event_sessions?.name ?? "", "Titular", hideNames ? "" : titular,
+      mask(p.people?.first_name, hideNames), mask(p.people?.last_name, hideNames),
+      mask(p.people?.dni, hideDni), mask(p.people?.email, hideEmail), mask(p.people?.phone, hidePhone),
+      ageFrom(p.people?.birth_date), p.people?.gender ?? "", p.people?.city ?? "", p.people?.province ?? "",
+      attendeeLabel(p.attendee_type as never), originLabel(p, formNames, batchNames), statusLabel(p.status as never),
+      p.seat_zone ?? "", p.seat_row ?? "", p.seat_number ?? "",
+      ci.checked_in_at ? new Date(ci.checked_in_at).toLocaleString("es-ES") : "",
+      method, ci.validator_id ? (validatorName.get(ci.validator_id) ?? "") : "",
+      "Check-in", p.internal_notes ?? "",
+    ]);
+    for (const c of compsByPart.get(p.id) ?? []) {
+      asisAoa.push([
+        p.event_sessions?.name ?? "", "Acompañante", hideNames ? "" : titular,
+        mask(c.first_name, hideNames), mask(c.last_name, hideNames),
+        mask(c.dni, hideDni), mask(c.email, hideEmail), mask(c.phone, hidePhone),
+        ageFrom(c.birth_date), "", "", "",
+        "Acompañante", originLabel(p, formNames, batchNames), statusLabel(p.status as never),
+        c.seat_zone ?? p.seat_zone ?? "", c.seat_row ?? "", c.seat_number ?? "",
+        ci.checked_in_at ? new Date(ci.checked_in_at).toLocaleString("es-ES") : "",
+        method, ci.validator_id ? (validatorName.get(ci.validator_id) ?? "") : "",
+        "Check-in titular", "",
+      ]);
+    }
+  }
+  // Walk-ins por incidencia de entrada (sin check-in asociado)
+  for (const inc of filteredIncidents) {
+    if ((inc.category ?? "entrada") !== "entrada") continue;
+    const linkedPart = inc.participant_id ? filteredParts.find((p) => p.id === inc.participant_id) : null;
+    if (linkedPart && checkinByPart.has(linkedPart.id)) continue; // ya contado
+    const sessName = inc.session_id ? sessionMap.get(inc.session_id)?.name ?? "" : "";
+    const personFn = linkedPart?.people?.first_name ?? inc.walk_in_first_name;
+    const personLn = linkedPart?.people?.last_name ?? inc.walk_in_last_name;
+    asisAoa.push([
+      sessName, linkedPart ? "Titular (incidencia)" : "Walk-in",
+      hideNames ? "" : fullName(personFn, personLn),
+      mask(personFn, hideNames), mask(personLn, hideNames),
+      mask(linkedPart?.people?.dni ?? inc.walk_in_dni, hideDni),
+      mask(linkedPart?.people?.email, hideEmail), mask(linkedPart?.people?.phone, hidePhone),
+      ageFrom(linkedPart?.people?.birth_date), linkedPart?.people?.gender ?? "",
+      linkedPart?.people?.city ?? "", linkedPart?.people?.province ?? "",
+      linkedPart ? attendeeLabel(linkedPart.attendee_type as never) : "Walk-in",
+      linkedPart ? originLabel(linkedPart, formNames, batchNames) : "Walk-in",
+      linkedPart ? statusLabel(linkedPart.status as never) : "Incidencia",
+      linkedPart?.seat_zone ?? "", linkedPart?.seat_row ?? "", linkedPart?.seat_number ?? "",
+      new Date(inc.created_at).toLocaleString("es-ES"),
+      "Incidencia", "",
+      `Incidencia · ${inc.title ?? inc.incident_type ?? ""}`,
+      `${inc.description ?? ""}${inc.walk_in_companions ? ` (+${inc.walk_in_companions} acomp.)` : ""}`,
+    ]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(asisAoa), "Asistentes");
+
+  // ---- Hoja 2: Inscritos (todos los titulares + acompañantes inscritos)
+  const inscHeader = [
+    "Sesión", "Rol", "Grupo titular", "Nombre", "Apellidos", "DNI", "Email", "Teléfono",
+    "Fecha nacimiento", "Edad", "Género", "Ciudad", "Provincia", "País",
+    "Tipo asistente", "Origen", "Estado", "Acompañantes (nº)",
+    "Zona", "Fila", "Asiento", "Fecha solicitud", "Fecha aprobación", "Fecha confirmación",
+    "Notas internas",
+  ];
+  const inscAoa: (string | number)[][] = [inscHeader];
+  for (const p of sortedParts) {
+    const titular = fullName(p.people?.first_name, p.people?.last_name);
+    inscAoa.push([
+      p.event_sessions?.name ?? "", "Titular", hideNames ? "" : titular,
+      mask(p.people?.first_name, hideNames), mask(p.people?.last_name, hideNames),
+      mask(p.people?.dni, hideDni), mask(p.people?.email, hideEmail), mask(p.people?.phone, hidePhone),
+      p.people?.birth_date ?? "", ageFrom(p.people?.birth_date), p.people?.gender ?? "",
+      p.people?.city ?? "", p.people?.province ?? "", p.people?.country ?? "",
+      attendeeLabel(p.attendee_type as never), originLabel(p, formNames, batchNames),
+      statusLabel(p.status as never), p.companions_count ?? 0,
+      p.seat_zone ?? "", p.seat_row ?? "", p.seat_number ?? "",
+      p.created_at ? new Date(p.created_at).toLocaleString("es-ES") : "",
+      p.approved_at ? new Date(p.approved_at).toLocaleString("es-ES") : "",
+      p.confirmed_at ? new Date(p.confirmed_at).toLocaleString("es-ES") : "",
+      p.internal_notes ?? "",
+    ]);
+    for (const c of compsByPart.get(p.id) ?? []) {
+      inscAoa.push([
+        p.event_sessions?.name ?? "", "Acompañante", hideNames ? "" : titular,
+        mask(c.first_name, hideNames), mask(c.last_name, hideNames),
+        mask(c.dni, hideDni), mask(c.email, hideEmail), mask(c.phone, hidePhone),
+        c.birth_date ?? "", ageFrom(c.birth_date), "", "", "", "",
+        "Acompañante", originLabel(p, formNames, batchNames), statusLabel(p.status as never), "",
+        c.seat_zone ?? p.seat_zone ?? "", c.seat_row ?? "", c.seat_number ?? "",
+        "", "", "", "",
+      ]);
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inscAoa), "Inscritos");
+
+  // ---- Hoja 3: No asistentes (aprobados/confirmados sin check-in)
+  const noShowHeader = [
+    "Sesión", "Nombre", "Apellidos", "DNI", "Email", "Teléfono",
+    "Tipo asistente", "Estado", "Acompañantes (nº)", "Origen",
+    "Fecha confirmación", "Notas",
+  ];
+  const noShowAoa: (string | number)[][] = [noShowHeader];
+  for (const p of sortedParts) {
+    if (!APPROVED_LIKE.includes(p.status as never)) continue;
+    if (checkinByPart.has(p.id)) continue;
+    // No considerar como "no asistente" los walk-in que entraron por incidencia
+    const viaInc = filteredIncidents.some((i) => i.participant_id === p.id && (i.category ?? "entrada") === "entrada");
+    if (viaInc) continue;
+    noShowAoa.push([
+      p.event_sessions?.name ?? "",
+      mask(p.people?.first_name, hideNames), mask(p.people?.last_name, hideNames),
+      mask(p.people?.dni, hideDni), mask(p.people?.email, hideEmail), mask(p.people?.phone, hidePhone),
+      attendeeLabel(p.attendee_type as never), statusLabel(p.status as never),
+      p.companions_count ?? 0, originLabel(p, formNames, batchNames),
+      p.confirmed_at ? new Date(p.confirmed_at).toLocaleString("es-ES") : "",
+      p.internal_notes ?? "",
+    ]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(noShowAoa), "No asistentes");
+
+  // ---- Hoja 4: Resumen evento
+  const t = data.totals;
+  const resumen: (string | number)[][] = [
+    ["Evento", data.event.name],
+    ["Ubicación", [data.event.location_name, data.event.city].filter(Boolean).join(" · ")],
+    ["Inicio", data.event.starts_at ? new Date(data.event.starts_at).toLocaleString("es-ES") : ""],
+    ["Fecha generación", new Date().toLocaleString("es-ES")],
+    [],
+    ["MÉTRICA", "VALOR"],
+    ["Solicitudes totales", t.solicitudes],
+    ["Pendientes de revisión", t.pendientes],
+    ["Aprobados", t.aprobados],
+    ["Rechazados", t.rechazados],
+    ["Lista de espera", t.listaEspera],
+    ["Confirmados (titulares)", t.confirmados],
+    ["Personas con plaza (titulares + acompañantes)", t.personasConfirmadas],
+    ["Cancelados", t.cancelados],
+    ["Aforo total", t.capacidad],
+    ["Ocupación %", t.ocupacion],
+    [],
+    ["ASISTENCIA REAL", ""],
+    ["Check-ins totales", t.checkins],
+    ["  · Vía QR", t.checkinsQr],
+    ["  · Manuales", t.checkinsManual],
+    ["  · Vía incidencia (walk-in)", t.checkinsViaIncidencia],
+    ["No presentados", t.noPresentados],
+    ["Ratio asistencia %", t.confirmados ? Math.round((t.checkins / t.confirmados) * 100) : 0],
+    [],
+    ["INCIDENCIAS", ""],
+    ["Total incidencias", t.incidents],
+    ["Intentos QR duplicado", t.duplicateAttempts],
+    ["Validadores activos", t.activeValidators],
+    [],
+    ["COMUNICACIONES", ""],
+    ["Enviadas", t.communicationsSent],
+    ["Errores", t.communicationsErrors],
+    [],
+    ["DESGLOSE POR SESIÓN", ""],
+    ["Sesión", "Aforo", "Solic.", "Aprob.", "Conf.", "Personas conf.", "Asist.", "QR", "Manual", "Walk-in", "No-show", "Inc.", "Ocup. %"],
+    ...data.sessions.map((s) => [
+      s.name, s.capacity, s.stats.solicitudes, s.stats.aprobados, s.stats.confirmados,
+      s.stats.personasConfirmadas, s.stats.checkins, s.stats.checkinsQr, s.stats.checkinsManual,
+      s.stats.checkinsViaIncidencia, s.stats.noPresentados, s.stats.incidencias,
+      s.capacity ? Math.round((s.stats.personasConfirmadas / s.capacity) * 100) : 0,
+    ]),
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), "Resumen");
+
+  const filename = `detalle-${slug(data.event.name)}-${Date.now()}.xlsx`;
+  XLSX.writeFile(wb, filename);
+
+  await logExport("report.export.detail.xlsx", eventId, opts.sessionId, "xlsx", asisAoa.length - 1);
+}
