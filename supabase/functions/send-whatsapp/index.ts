@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TEMPLATE_NAME = "entrada_grabacin";
+const TEMPLATE_LANGUAGE = "es"; // Spanish (la plantilla aprobada en Wati es Spanish)
 const PUBLIC_SITE_URL_FALLBACK = "https://figurarte.app";
 
 type CommLogRow = {
@@ -421,6 +422,7 @@ async function runWati(
         broadcastName: broadcast,
         whatsappNumber: p.phone,
         parameters: buildWatiParameters(p.ctx),
+        language: TEMPLATE_LANGUAGE,
       });
       if (res.ok && res.localMessageId) {
         await supabase.from("communication_logs").update({
@@ -466,6 +468,7 @@ async function runWati(
       templateName: TEMPLATE_NAME,
       broadcastName: broadcast,
       receivers,
+      language: TEMPLATE_LANGUAGE,
     });
 
     for (const p of prepared) {
