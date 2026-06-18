@@ -4,7 +4,7 @@ import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { ReportData, ParticipantExportRow } from "./use-reports";
-import { statusLabel, attendeeLabel } from "./participant-constants";
+import { statusLabel, attendeeLabel, APPROVED_LIKE } from "./participant-constants";
 import type { VisibilityPermissions } from "./use-client-portal";
 
 const COLUMN_HEADERS: Array<{ key: keyof ParticipantExportRow; label: string; piiKind?: "names" | "dni" | "email" | "phone" }> = [
