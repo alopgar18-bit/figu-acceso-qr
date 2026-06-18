@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEventReport } from "@/lib/use-reports";
-import { exportReportExcel, exportReportPDF } from "@/lib/report-export";
+import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
 
 export const Route = createFileRoute("/_authenticated/informes/$eventId")({
   component: EventReportPage,
@@ -30,6 +30,10 @@ function EventReportPage() {
   const handleExcel = async () => {
     try { await exportReportExcel(data, { sessionId: scope.sessionId }); toast.success("Excel generado"); }
     catch (e) { toast.error("Error generando Excel"); console.error(e); }
+  };
+  const handleDetail = async () => {
+    try { await exportReportDetailExcel(data, { sessionId: scope.sessionId }); toast.success("Detalle generado"); }
+    catch (e) { toast.error("Error generando detalle"); console.error(e); }
   };
   const handlePDF = async () => {
     try { await exportReportPDF(data, { sessionId: scope.sessionId }); toast.success("PDF generado"); }
@@ -64,6 +68,14 @@ function EventReportPage() {
               title="Incluye hojas: Resumen, Sesiones, Asistentes, Detalle (titulares + acompañantes con nombre, email, teléfono, asiento) e Incidencias"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />Excel completo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDetail}
+              title="Hojas: Asistentes (con check-in + walk-ins), Inscritos (titulares + acompañantes con origen y detalle), No asistentes, Resumen del evento"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Detalle por sesión
             </Button>
             <Button size="sm" onClick={handlePDF}>
               <Download className="h-4 w-4 mr-2" />PDF
