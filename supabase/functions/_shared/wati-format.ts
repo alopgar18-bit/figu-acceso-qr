@@ -84,21 +84,35 @@ export async function watiSendTemplateIndividual(opts: {
   broadcastName: string;
   whatsappNumber: string;
   parameters: Array<{ name: string; value: string }>;
+  language?: string;
 }): Promise<WatiSendResult> {
   const url = `${opts.endpoint.replace(/\/$/, "")}/api/v1/sendTemplateMessage?whatsappNumber=${encodeURIComponent(opts.whatsappNumber)}`;
+  const payload: Record<string, unknown> = {
+    template_name: opts.templateName,
+    broadcast_name: opts.broadcastName,
+    parameters: opts.parameters,
+  };
+  if (opts.language) {
+    // Wati v1 acepta `language` como código (ej. "es"). Lo añadimos por si la
+    // plantilla aprobada requiere especificarlo explícitamente.
+    payload.language = opts.language;
+  }
+  const bodyStr = JSON.stringify(payload);
+  // ─── LOG DIAGNÓSTICO TEMPORAL ────────────────────────────────────────────
+  console.log("[WATI][sendTemplateMessage] URL =", url);
+  console.log("[WATI][sendTemplateMessage] Authorization = Bearer " + (opts.token ? opts.token.slice(0, 8) + "…(" + opts.token.length + " chars)" : "(VACÍO)"));
+  console.log("[WATI][sendTemplateMessage] BODY =", bodyStr);
+  // ─────────────────────────────────────────────────────────────────────────
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${opts.token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      template_name: opts.templateName,
-      broadcast_name: opts.broadcastName,
-      parameters: opts.parameters,
-    }),
+    body: bodyStr,
   });
   const text = await res.text();
+  console.log("[WATI][sendTemplateMessage] RESPONSE", res.status, text.slice(0, 800));
   let json: any = null;
   try { json = JSON.parse(text); } catch { /* keep null */ }
 
@@ -147,21 +161,28 @@ export async function watiSendTemplateBatch(opts: {
   templateName: string;
   broadcastName: string;
   receivers: WatiBatchReceiver[];
+  language?: string;
 }): Promise<WatiBatchResult> {
   const url = `${opts.endpoint.replace(/\/$/, "")}/api/v1/sendTemplateMessages`;
+  const payload: Record<string, unknown> = {
+    template_name: opts.templateName,
+    broadcast_name: opts.broadcastName,
+    receivers: opts.receivers,
+  };
+  if (opts.language) payload.language = opts.language;
+  const bodyStr = JSON.stringify(payload);
+  console.log("[WATI][sendTemplateMessages] URL =", url);
+  console.log("[WATI][sendTemplateMessages] BODY =", bodyStr.slice(0, 1000));
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${opts.token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      template_name: opts.templateName,
-      broadcast_name: opts.broadcastName,
-      receivers: opts.receivers,
-    }),
+    body: bodyStr,
   });
   const text = await res.text();
+  console.log("[WATI][sendTemplateMessages] RESPONSE", res.status, text.slice(0, 800));
   let json: any = null;
   try { json = JSON.parse(text); } catch { /* keep null */ }
 
