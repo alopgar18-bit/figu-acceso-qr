@@ -421,7 +421,7 @@ type CompFull = {
   id: string; participant_id: string;
   first_name: string | null; last_name: string | null;
   dni: string | null; email: string | null; phone: string | null;
-  birth_date: string | null;
+  age: number | null;
   seat_zone: string | null; seat_row: string | null; seat_number: string | null;
 };
 type CheckinFull = {
@@ -491,7 +491,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
     const chunk = partIds.slice(i, i + 300);
     const rows = await fetchPaged<CompFull>((from, to) =>
       supabase.from("companions")
-        .select("id, participant_id, first_name, last_name, dni, email, phone, birth_date, seat_zone, seat_row, seat_number")
+        .select("id, participant_id, first_name, last_name, dni, email, phone, age, seat_zone, seat_row, seat_number")
         .in("participant_id", chunk)
         .range(from, to) as unknown as PromiseLike<{ data: CompFull[] | null; error: { message: string } | null }>,
     );
@@ -584,7 +584,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
         p.event_sessions?.name ?? "", "Acompañante", hideNames ? "" : titular,
         mask(c.first_name, hideNames), mask(c.last_name, hideNames),
         mask(c.dni, hideDni), mask(c.email, hideEmail), mask(c.phone, hidePhone),
-        ageFrom(c.birth_date), "", "", "",
+        c.age ?? "", "", "", "",
         "Acompañante", originLabel(p, formNames, batchNames), statusLabel(p.status as never),
         c.seat_zone ?? p.seat_zone ?? "", c.seat_row ?? "", c.seat_number ?? "",
         ci.checked_in_at ? new Date(ci.checked_in_at).toLocaleString("es-ES") : "",
@@ -651,7 +651,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
         p.event_sessions?.name ?? "", "Acompañante", hideNames ? "" : titular,
         mask(c.first_name, hideNames), mask(c.last_name, hideNames),
         mask(c.dni, hideDni), mask(c.email, hideEmail), mask(c.phone, hidePhone),
-        c.birth_date ?? "", ageFrom(c.birth_date), "", "", "", "",
+        "", c.age ?? "", "", "", "", "",
         "Acompañante", originLabel(p, formNames, batchNames), statusLabel(p.status as never), "",
         c.seat_zone ?? p.seat_zone ?? "", c.seat_row ?? "", c.seat_number ?? "",
         "", "", "", "",
