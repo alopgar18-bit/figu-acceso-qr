@@ -224,24 +224,33 @@ export const deletePublicForm = createServerFn({ method: "POST" })
 export const getPublicFormBySlug = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ slug: z.string().min(1).max(120) }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: form } = await supabaseAdmin
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: form, error: formErr } = await supabaseAdmin
       .from("public_forms")
       .select("id, slug, title, description, intro_text, header_image_url, field_config, attendee_type, status, event_id, session_id, opens_at, closes_at, requires_image_consent, offers_future_processes_consent")
       .eq("slug", data.slug)
       .maybeSingle();
-    if (!form) return { ok: false as const, code: "no_existe" as const };
+      if (formErr) {
+        console.error("[getPublicFormBySlug] form lookup error", formErr);
+        return { ok: false as const, code: "error_temporal" as const };
+      }
+      if (!form) return { ok: false as const, code: "no_existe" as const };
     const now = new Date();
     if (form.status !== "publicado") return { ok: false as const, code: "no_publicado" as const };
     if (form.opens_at && new Date(form.opens_at) > now) return { ok: false as const, code: "no_abierto" as const };
     if (form.closes_at && new Date(form.closes_at) < now) return { ok: false as const, code: "cerrado" as const };
 
-    const { data: event } = await supabaseAdmin
+      const { data: event, error: evErr } = await supabaseAdmin
       .from("events")
       .select("id, slug, name, brand_color, status, requires_image_consent, requires_recording, public_registration_enabled, user_can_choose_session, default_min_age, default_allow_companions, default_max_companions, default_waitlist_enabled")
       .eq("id", form.event_id)
       .maybeSingle();
-    if (!event) return { ok: false as const, code: "no_existe" as const };
+      if (evErr) {
+        console.error("[getPublicFormBySlug] event lookup error", evErr);
+        return { ok: false as const, code: "error_temporal" as const };
+      }
+      if (!event) return { ok: false as const, code: "no_existe" as const };
 
     const sessSelect = "id, name, starts_at, ends_at, capacity, status, location_name, user_selectable, min_age, allow_companions, max_companions_per_participant, waitlist_enabled";
     let sessions: Array<{
@@ -273,5 +282,9 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
     const privacyTexts = (privacyRows ?? []) as Array<{
       id: string; title: string; version: string; body: string; effective_from: string;
     }>;
-    return { ok: true as const, form, event, sessions, privacyTexts };
+      return { ok: true as const, form, event, sessions, privacyTexts };
+    } catch (err) {
+      console.error("[getPublicFormBySlug] unexpected error", err);
+      return { ok: false as const, code: "error_temporal" as const };
+    }
   });

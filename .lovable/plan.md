@@ -1,101 +1,43 @@
+# Por qué aparece "Esta página no se cargó"
 
-# Plan: integración WhatsApp con Wati (revisión final — precedencia de estados ajustada)
+Esa pantalla **no es un diseño nuestro**: es el **fallback de emergencia del servidor** (`src/lib/error-page.ts` + envoltorio en `src/server.ts`). Solo se muestra cuando el worker que sirve la web **no consigue renderizar la página en el servidor** (SSR) y devuelve un HTTP 500. Lo que ves en español ("Esta página no se cargó / Intentar otra vez / Ir a casa") es la traducción automática del navegador del texto inglés original ("This page didn't load / Try again / Go home").
 
-Aprobado el plan anterior con UN ajuste en la lógica del webhook (punto 6). Resto idéntico.
+En los logs del worker de la última hora **no hay ningún 500 registrado** en `/f/...`, todas las peticiones han devuelto 200. Eso, junto con que te ocurre de forma **intermitente**, encaja con una de estas tres causas típicas:
 
-## 1. Secrets
+1. **Cold start / despliegue en curso**: si justo al cargar coincide con un redeploy o el worker arranca en frío, la primera request puede fallar antes de inicializar.
+2. **Red móvil inestable**: una respuesta cortada se interpreta como error de carga.
+3. **Excepción puntual durante el render SSR** del formulario (`/f/$formSlug`) que el sistema engulle sin loguearla porque la ruta **no tiene `loader` ni `errorComponent`**, así que cualquier throw durante el render del servidor llega al fallback del worker sin dejar rastro útil.
 
-- `WATI_API_ENDPOINT` = `https://eu-api.wati.io/1117829`
-- `WATI_ACCESS_TOKEN` = token Bearer (sin "Bearer")
-- `WATI_WEBHOOK_SECRET` = cadena aleatoria
-- `WHATSAPP_PROVIDER` = `wassenger` (default)
-- `WASSENGER_API_KEY` intacto
+La causa #3 es la única sobre la que podemos actuar. Y de paso, conviene asegurarse de que un error futuro **sí quede registrado** para diagnosticarlo si vuelve.
 
-Los pediré con `add_secret` al entrar en build mode.
+## Plan de acción
 
-## 2. Migración Supabase
+### 1. Blindar la ruta `/f/$formSlug`
+- Añadir `errorComponent` y `notFoundComponent` propios (ahora mismo no los tiene), con un mensaje claro en español y botón "Intentar otra vez" + "Ir al inicio". Así, si el render falla, el usuario ve **nuestra** pantalla (con marca FIGURARTE) en lugar del fallback genérico del worker.
+- Envolver el `head()` para que nunca pueda lanzar (params son strings, pero por si acaso).
+- Mover la carga del formulario a un `loader` con `ensureQueryData` (patrón canónico TanStack). Beneficio: si `getPublicFormBySlug` falla, salta a `errorComponent` con stack trace en logs, en vez de pintar y luego romper en cliente.
 
-`communication_logs`: `wati_local_message_id text` (+ índice), `whatsapp_estado text`, `whatsapp_failed_code text`, `whatsapp_failed_detail text`, `whatsapp_last_event_at timestamptz`.
+### 2. Hacer `getPublicFormBySlug` y `submitPublicFormBySlug` defensivos
+- Revisar que ambas server functions **capturen errores externos** (Supabase, validaciones) y devuelvan un shape tipado `{ ok: false, code }` en lugar de hacer throw. Hoy un throw en SSR cae al fallback del worker.
+- Loguear con `console.error(error)` el `Error` crudo dentro del `.handler()` para que aparezca en Server Logs.
 
-`event_sessions`: `access_time text`, `end_time_estimate text`, `venue_address text`.
+### 3. Diagnóstico instantáneo si vuelve a pasar
+- Añadir, dentro del wrapper de SSR (`src/server.ts`), un `console.error` extra con la URL y el `request-id` cuando se devuelva el fallback, para correlacionar el incidente con los logs.
+- Comprobar que el listener global de errores (`src/lib/error-capture.ts`) está armado y consumiendo el último error capturado al construir el fallback.
 
-`fecha`/`hora_inicio` se derivan de `starts_at` (TZ Europe/Madrid, locale es-ES).
+### 4. Verificación
+- `bunx tsc --noEmit` para asegurar tipos.
+- Cargar `/f/<slug-real>` 5-10 veces seguidas en sandbox con Playwright + recargas en frío para forzar cold start y confirmar que devuelve 200 siempre.
+- Si vuelve a aparecer la pantalla, ya tendremos el stack trace en Server Logs y podremos corregir la raíz exacta en el siguiente turno.
 
-## 3. Archivos nuevos
+## Detalle técnico (interno)
 
-- `src/lib/phone.ts` — `normalizarTelefonoES`.
-- `src/lib/whatsapp-template.ts` — `INVITACION_GRABACION_PUBLICO_TEXT` + `renderInvitacionPreview`.
-- `supabase/functions/_shared/phone.ts` — copia Deno.
-- `supabase/functions/_shared/wati-format.ts` — formateo `fecha`/`hora_inicio` con `Intl.DateTimeFormat('es-ES',{ timeZone:'Europe/Madrid' })`, construcción de las 11 variables.
-- `supabase/functions/wati-webhook/index.ts`.
+- Ruta afectada: `src/routes/f.$formSlug.tsx` (sin `loader`, sin `errorComponent`).
+- Wrapper: `src/server.ts` + `src/lib/error-page.ts` (genera el HTML que ves).
+- Server fns a endurecer: `src/lib/forms.functions.ts` (`getPublicFormBySlug`) y `src/lib/public-forms.functions.ts` (`submitPublicFormBySlug`).
+- No tocamos lógica de negocio del formulario ni el envío real; solo capas de carga, error y logging.
 
-## 4. Archivos a editar
-
-- `supabase/functions/send-whatsapp/index.ts` — branch por `WHATSAPP_PROVIDER`; Wassenger intacto.
-- `supabase/config.toml` — `[functions.wati-webhook] verify_jwt = false`.
-- `src/components/send-communication-dialog.tsx` — vista previa de plantilla en canal WhatsApp.
-- `src/routes/_authenticated/comunicaciones.envio.tsx` — botón admin "Envío de prueba (1 número)" + mini-dialog (teléfono + participante con asiento) → crea 1 log con `metadata.wati_test=true` + `metadata.force_resend=true` e invoca `send-whatsapp` con `{ ids:[log.id] }`.
-- Hooks de estadísticas (`use-reports.ts`, `use-comm-summary.ts`) — filtrar `metadata->>'wati_test' is distinct from 'true'`.
-
-## 5. `sendViaWati`
-
-Idéntico al plan anterior:
-- Cargar invitado + sesión + evento.
-- Formatear `fecha`/`hora_inicio` con TZ Europe/Madrid (capitalizar weekday).
-- Validaciones previas sin pegar a Wati: `pendiente_asiento`, `telefono_invalido`.
-- **Idempotencia con excepción de test**: omitir si `whatsapp_estado='sent'` o `wati_local_message_id` no nulo, SALVO que el log tenga `metadata.force_resend=true` o `metadata.wati_test=true` → se permite reenvío (esto cubre el punto 3 del usuario: reenvío de tests).
-- **Endpoint del modo prueba**: el botón de "envío de prueba" siempre invoca el endpoint INDIVIDUAL `sendTemplateMessage?whatsappNumber=...` aunque `ids` tenga 1 elemento (cubre el punto 4). El endpoint de lotes `sendTemplateMessages` solo se usa para envíos masivos reales.
-- Respuesta: guardar `localMessageId`, marcar `whatsapp_estado='sent'`, `status='enviado'`, `sent_at=now()`. Errores → `whatsapp_estado='failed'`.
-
-## 6. Webhook — precedencia de estados (REVISADO)
-
-Reglas (no jerarquía única):
-
-1. **`failed` es terminal**. Si `whatsapp_estado='failed'`, NINGÚN evento posterior lo sobrescribe. (Excepción: si llega un nuevo `failed`, se actualizan `failed_code`/`failed_detail` y `last_event_at` por si añade detalle.)
-
-2. **Cadena de entrega protegida** (`sent` → `delivered`): nunca retroceder a `sent`. Si el estado guardado ya es `delivered`/`read`/`replied`, ignorar un `sent` tardío (solo refrescar `last_event_at`).
-
-3. **Entrega normal**: `sent` puede pasar a `delivered`. `delivered` puede llegar tarde y debe registrarse aunque ya haya `read`/`replied` (refrescar `last_event_at`, no degradar el estado actual a `delivered` si el actual es más informativo).
-
-4. **`read` y `replied` son señales de interacción independientes**:
-   - Pueden registrarse aunque el estado actual sea `delivered`.
-   - No se bloquean entre sí: si llega `replied` antes que `read`, un `read` posterior se registra; y al revés.
-   - Para no perder esa información, además del campo `whatsapp_estado` se guardará en `metadata` un objeto `wati_events: { sent_at, delivered_at, read_at, replied_at }` con timestamps por evento (campo aditivo, nunca se borra).
-   - `whatsapp_estado` avanza hacia el más informativo entre `read`/`replied` (el último que llegue queda como estado mostrado), pero ambos quedan registrados en `metadata.wati_events`.
-
-5. `whatsapp_last_event_at` se actualiza SIEMPRE con la hora del evento entrante (salvo si el evento es más antiguo que el guardado, en cuyo caso se ignora).
-
-6. Eventos sin `localMessageId` conocido → 200 + log interno.
-
-7. SIEMPRE responder 200.
-
-Implementación: la edge function lee el log actual, aplica las reglas arriba en código (no en SQL), y hace UN update con el estado resultante + `metadata` mergeado + `last_event_at`.
-
-## 7. Datos sesión 17 junio
-
-Tras migración, actualizar la sesión con `access_time`, `end_time_estimate`, `venue_address`.
-
-## 8. Acompañantes
-
-Código preparado para iterar; envío individual por acompañante queda pendiente del trabajo de QR por acompañante.
-
-## 9. Wassenger
-
-Sin tocar. Flag en `wassenger`. Activación = cambiar secret `WHATSAPP_PROVIDER` a `wati` (las edge functions leen `Deno.env` en cada invocación, no requiere redeploy).
-
-## 10. Verificaciones que confirmaré al implementar (avisaré solo si fallan)
-
-1. `PUBLIC_SITE_URL` = `https://figurarte.app`.
-2. `events.name` de la sesión = `"EL PERRO ANDALUZ by Manu Sánchez"` exacto.
-3. Botón de test permite reenvío repetido (vía `force_resend=true`/`wati_test=true` en metadata).
-4. Modo test usa endpoint individual `sendTemplateMessage`.
-
-## 11. Entregables al terminar
-
-- URL final del webhook con `?key=` ya formada:  
-  `https://oryjxtqfvciwgcjfgxho.supabase.co/functions/v1/wati-webhook?key=<WATI_WEBHOOK_SECRET>`  
-  (te paso el valor final sustituido con el secret real).
-- Instrucción exacta para activar el flag (cambiar el valor de `WHATSAPP_PROVIDER` a `wati` en Secrets; surte efecto en la siguiente invocación).
-- Botón "envío de prueba a 1 número" operativo, con `wati_test=true`, fuera de estadísticas, y reusable.
-
-¿Lo lanzo?
+## Lo que NO voy a hacer
+- No cambiar el diseño del formulario ni los campos.
+- No tocar el flujo de envío ni la validación de datos del solicitante/acompañantes.
+- No modificar nada relacionado con validación de acceso, aforo o exportación de informes.
