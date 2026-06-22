@@ -1,43 +1,46 @@
-# Por qué aparece "Esta página no se cargó"
+## Objetivo
 
-Esa pantalla **no es un diseño nuestro**: es el **fallback de emergencia del servidor** (`src/lib/error-page.ts` + envoltorio en `src/server.ts`). Solo se muestra cuando el worker que sirve la web **no consigue renderizar la página en el servidor** (SSR) y devuelve un HTTP 500. Lo que ves en español ("Esta página no se cargó / Intentar otra vez / Ir a casa") es la traducción automática del navegador del texto inglés original ("This page didn't load / Try again / Go home").
+Asignar directamente en la base de datos las columnas `seat_zone`, `seat_row`, `seat_number` para los 906 invitados (579 solicitantes + 327 acompañantes) de la sesión del 24 de junio (`59f5039a-5392-44fc-a33e-f842d8f2c7b6`), tomando los datos del Excel `total invitados.xlsx`.
 
-En los logs del worker de la última hora **no hay ningún 500 registrado** en `/f/...`, todas las peticiones han devuelto 200. Eso, junto con que te ocurre de forma **intermitente**, encaja con una de estas tres causas típicas:
+Al pulsar el botón "Entrada" del email, la URL `/c/{token}/entrada` lee `seat_zone`, `seat_row`, `seat_number` directamente de BBDD, por lo que **no hay que reenviar correos**: en cuanto se actualicen los registros, el asiento aparecerá correctamente.
 
-1. **Cold start / despliegue en curso**: si justo al cargar coincide con un redeploy o el worker arranca en frío, la primera request puede fallar antes de inicializar.
-2. **Red móvil inestable**: una respuesta cortada se interpreta como error de carga.
-3. **Excepción puntual durante el render SSR** del formulario (`/f/$formSlug`) que el sistema engulle sin loguearla porque la ruta **no tiene `loader` ni `errorComponent`**, así que cualquier throw durante el render del servidor llega al fallback del worker sin dejar rastro útil.
+## Verificación del Excel
 
-La causa #3 es la única sobre la que podemos actuar. Y de paso, conviene asegurarse de que un error futuro **sí quede registrado** para diagnosticarlo si vuelve.
+- 906 filas: 579 Solicitantes + 327 Acompañantes (cuadra exactamente con BBDD).
+- 902 filas con Zona + Fila + Asiento completos.
+- 4 filas sin asiento (Zona/Fila/Asiento vacíos):
+  1. Dionisia María Burguillos García (solicitante) — dioniburgui@gmail.com
+  2. Salvador Martín Artacho (solicitante) — salvador.m.artacho@gmail.com
+  3. Benita Ruiz de Casteo (solicitante) — beniruiz1969@gmail.com
+  4. Mari Carmen Ruiz De Castro Calvo (acompañante de Benita) — beniruiz1969@gmail.com
 
-## Plan de acción
+Estas 4 filas se dejarán con asiento `NULL` (no se sobrescribe nada). El resto de campos (estado, check-in, necesidades especiales) no se tocan.
 
-### 1. Blindar la ruta `/f/$formSlug`
-- Añadir `errorComponent` y `notFoundComponent` propios (ahora mismo no los tiene), con un mensaje claro en español y botón "Intentar otra vez" + "Ir al inicio". Así, si el render falla, el usuario ve **nuestra** pantalla (con marca FIGURARTE) en lugar del fallback genérico del worker.
-- Envolver el `head()` para que nunca pueda lanzar (params son strings, pero por si acaso).
-- Mover la carga del formulario a un `loader` con `ensureQueryData` (patrón canónico TanStack). Beneficio: si `getPublicFormBySlug` falla, salta a `errorComponent` con stack trace en logs, en vez de pintar y luego romper en cliente.
+## Plan de ejecución
 
-### 2. Hacer `getPublicFormBySlug` y `submitPublicFormBySlug` defensivos
-- Revisar que ambas server functions **capturen errores externos** (Supabase, validaciones) y devuelvan un shape tipado `{ ok: false, code }` en lugar de hacer throw. Hoy un throw en SSR cae al fallback del worker.
-- Loguear con `console.error(error)` el `Error` crudo dentro del `.handler()` para que aparezca en Server Logs.
+1. **Script de matching (Python en sandbox, no toca BBDD todavía)**
+   - Cargar Excel y BBDD (`event_participants` + `people` para titulares, `companions` para acompañantes), filtrando por `session_id = 59f5039a-...`.
+   - Match de solicitantes: por `Nombre completo` normalizado (minúsculas, sin tildes, espacios colapsados) contra `people.first_name + ' ' + last_name`; desempate por `email`.
+   - Match de acompañantes: agrupados por titular (mismo Grupo) → contra `companions` del participante titular, por nombre completo normalizado; desempate por email/teléfono.
+   - Generar un informe con: filas matcheadas, filas con match ambiguo, filas sin match. Si hay ambigüedades, se resuelven uno a uno antes de continuar.
 
-### 3. Diagnóstico instantáneo si vuelve a pasar
-- Añadir, dentro del wrapper de SSR (`src/server.ts`), un `console.error` extra con la URL y el `request-id` cuando se devuelva el fallback, para correlacionar el incidente con los logs.
-- Comprobar que el listener global de errores (`src/lib/error-capture.ts`) está armado y consumiendo el último error capturado al construir el fallback.
+2. **Migración SQL (data update) — solo tras revisar el informe**
+   - Dos `UPDATE` mediante `VALUES (...)` o tabla temporal:
+     - `UPDATE event_participants SET seat_zone, seat_row, seat_number WHERE id IN (...)` (575 filas con asiento).
+     - `UPDATE companions SET seat_zone, seat_row, seat_number WHERE id IN (...)` (326 filas con asiento).
+   - No se tocan estados, ni tickets, ni emails, ni QR.
 
-### 4. Verificación
-- `bunx tsc --noEmit` para asegurar tipos.
-- Cargar `/f/<slug-real>` 5-10 veces seguidas en sandbox con Playwright + recargas en frío para forzar cold start y confirmar que devuelve 200 siempre.
-- Si vuelve a aparecer la pantalla, ya tendremos el stack trace en Server Logs y podremos corregir la raíz exacta en el siguiente turno.
+3. **Verificación post-update**
+   - `SELECT count(*) FILTER (WHERE seat_zone IS NOT NULL)` en participants y companions de la sesión → debe dar 575 y 326.
+   - Comprobar 3 URLs `/c/{token}/entrada` (titular con acompañante, titular sin acompañante, acompañante) para confirmar que el asiento aparece.
 
-## Detalle técnico (interno)
+4. **Avisar al usuario** de las 4 filas que han quedado sin asiento, para que decida si las asigna manualmente más adelante.
 
-- Ruta afectada: `src/routes/f.$formSlug.tsx` (sin `loader`, sin `errorComponent`).
-- Wrapper: `src/server.ts` + `src/lib/error-page.ts` (genera el HTML que ves).
-- Server fns a endurecer: `src/lib/forms.functions.ts` (`getPublicFormBySlug`) y `src/lib/public-forms.functions.ts` (`submitPublicFormBySlug`).
-- No tocamos lógica de negocio del formulario ni el envío real; solo capas de carga, error y logging.
+## Lo que NO se hace
 
-## Lo que NO voy a hacer
-- No cambiar el diseño del formulario ni los campos.
-- No tocar el flujo de envío ni la validación de datos del solicitante/acompañantes.
-- No modificar nada relacionado con validación de acceso, aforo o exportación de informes.
+- No se reenvían emails ni WhatsApp.
+- No se regeneran QR ni tickets.
+- No se cambian estados de participantes.
+- No se toca la UI del importador ni se crea un import_batch nuevo.
+
+¿Confirmas para ejecutar el matching y, si no hay ambigüedades, lanzar la migración de datos?
