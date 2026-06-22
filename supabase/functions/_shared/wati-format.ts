@@ -112,7 +112,7 @@ export async function watiSendTemplateIndividual(opts: {
     body: bodyStr,
   });
   const text = await res.text();
-  console.log("[WATI][sendTemplateMessage] RESPONSE", res.status, text.slice(0, 800));
+  console.log("[WATI][sendTemplateMessage] RESPONSE", res.status, text.slice(0, 2000));
   let json: any = null;
   try { json = JSON.parse(text); } catch { /* keep null */ }
 
@@ -124,19 +124,25 @@ export async function watiSendTemplateIndividual(opts: {
   // La respuesta individual puede venir como { result, receivers:[...] }
   // o (según versión) como { result, messages:[...] }. Toleramos ambos.
   const receiver = (json?.receivers?.[0]) ?? (json?.messages?.[0]) ?? null;
-  const localMessageId = receiver?.localMessageId ?? json?.localMessageId ?? null;
+  // Wati EU a veces no devuelve localMessageId en el envío individual; puede venir como
+  // whatsappMessageId / messageId / id. Tomamos cualquiera disponible como id de tracking.
+  const localMessageId =
+    receiver?.localMessageId ?? json?.localMessageId ??
+    receiver?.whatsappMessageId ?? json?.whatsappMessageId ??
+    receiver?.messageId ?? json?.messageId ??
+    receiver?.id ?? json?.id ?? null;
   const isValid = receiver?.isValidWhatsAppNumber !== false;
   const errs: unknown[] = receiver?.errors ?? json?.errors ?? [];
   const hasErrors = Array.isArray(errs) && errs.length > 0;
 
-  if (result === false || !isValid || hasErrors || !localMessageId) {
+  // Si Wati confirma result:true sin errores y el número es válido, consideramos OK
+  // aunque no haya localMessageId (el webhook puede emparejar por número + timestamp).
+  if (result === false || !isValid || hasErrors) {
     const detail = hasErrors
       ? JSON.stringify(errs).slice(0, 500)
       : !isValid
         ? "isValidWhatsAppNumber=false"
-        : !localMessageId
-          ? "Sin localMessageId en respuesta"
-          : "result=false";
+        : "result=false";
     return { ok: false, localMessageId: localMessageId ?? null, errorDetail: detail, raw: json };
   }
   return { ok: true, localMessageId, errorDetail: null, raw: json };
