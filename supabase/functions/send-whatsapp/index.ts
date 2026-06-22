@@ -340,7 +340,7 @@ async function runWati(
     // Cargar sesión + evento
     const { data: sess } = await supabase
       .from("event_sessions")
-      .select("id, starts_at, access_time, end_time_estimate, venue_address, events(name)")
+      .select("id, starts_at, doors_open_at, ends_at, location_name, location_address, events(name)")
       .eq("id", log.session_id)
       .maybeSingle();
     if (!sess) {
@@ -363,14 +363,18 @@ async function runWati(
       continue;
     }
     const programa: string = ((sess.events as unknown as { name?: string })?.name) ?? "";
-    const lugar: string = (sess.venue_address ?? "").toString().trim();
-    const horaAcceso: string = (sess.access_time ?? "").toString().trim();
-    const horaFin: string = (sess.end_time_estimate ?? "").toString().trim();
+    const locName: string = ((sess as unknown as { location_name?: string | null }).location_name ?? "").toString().trim();
+    const locAddr: string = ((sess as unknown as { location_address?: string | null }).location_address ?? "").toString().trim();
+    const lugar: string = [locName, locAddr].filter(Boolean).join(", ");
+    const doorsOpenAt: string | null = (sess as unknown as { doors_open_at?: string | null }).doors_open_at ?? null;
+    const endsAt: string | null = (sess as unknown as { ends_at?: string | null }).ends_at ?? null;
+    const horaAcceso: string = doorsOpenAt ? formatHora(doorsOpenAt) : "";
+    const horaFin: string = endsAt ? formatHora(endsAt) : "";
     if (!programa || !lugar || !horaAcceso || !horaFin) {
       await supabase.from("communication_logs").update({
         status: "fallido", whatsapp_estado: "failed",
         error_message: "sesion_incompleta",
-        whatsapp_failed_detail: `Faltan datos de sesión (programa/lugar/access_time/end_time_estimate)`,
+        whatsapp_failed_detail: `Faltan datos de sesión (programa/lugar/doors_open_at/ends_at)`,
       }).eq("id", log.id);
       errors.push({ id: log.id, error: "sesion_incompleta" });
       failed++;
