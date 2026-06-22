@@ -1378,6 +1378,7 @@ export type Database = {
       public_forms: {
         Row: {
           attendee_type: Database["public"]["Enums"]["attendee_type"]
+          closed_for_capacity: boolean
           closes_at: string | null
           created_at: string
           created_by: string | null
@@ -1401,6 +1402,7 @@ export type Database = {
         }
         Insert: {
           attendee_type?: Database["public"]["Enums"]["attendee_type"]
+          closed_for_capacity?: boolean
           closes_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -1424,6 +1426,7 @@ export type Database = {
         }
         Update: {
           attendee_type?: Database["public"]["Enums"]["attendee_type"]
+          closed_for_capacity?: boolean
           closes_at?: string | null
           created_at?: string
           created_by?: string | null
