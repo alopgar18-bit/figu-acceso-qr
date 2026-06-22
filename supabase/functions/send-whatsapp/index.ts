@@ -428,11 +428,11 @@ async function runWati(
         parameters: buildWatiParameters(p.ctx),
         language: TEMPLATE_LANGUAGE,
       });
-      if (res.ok && res.localMessageId) {
+      if (res.ok) {
         await supabase.from("communication_logs").update({
           status: "enviado",
           sent_at: new Date().toISOString(),
-          wati_local_message_id: res.localMessageId,
+          wati_local_message_id: res.localMessageId ?? null,
           whatsapp_estado: "sent",
           error_message: null,
           metadata: {
@@ -477,11 +477,11 @@ async function runWati(
 
     for (const p of prepared) {
       const r = res.perReceiver[p.phone] ?? { ok: false, localMessageId: null, errorDetail: res.errorDetail ?? "Sin respuesta" };
-      if (r.ok && r.localMessageId) {
+      if (r.ok) {
         await supabase.from("communication_logs").update({
           status: "enviado",
           sent_at: new Date().toISOString(),
-          wati_local_message_id: r.localMessageId,
+          wati_local_message_id: r.localMessageId ?? null,
           whatsapp_estado: "sent",
           error_message: null,
           metadata: {
