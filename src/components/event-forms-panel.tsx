@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Copy, ExternalLink, Trash2, Loader2, Files } from "lucide-react";
+import { Plus, Copy, ExternalLink, Trash2, Loader2, Files, Users } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -99,6 +99,16 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
     mutationFn: ({ id, status }: { id: string; status: "publicado" | "cerrado" }) =>
       update({ data: { id, status } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["public-forms", eventId] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo actualizar"),
+  });
+
+  const toggleCapacity = useMutation({
+    mutationFn: ({ id, closed }: { id: string; closed: boolean }) =>
+      update({ data: { id, closed_for_capacity: closed } }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["public-forms", eventId] });
+      toast.success(vars.closed ? "Formulario marcado como aforo completo" : "Aforo reabierto");
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo actualizar"),
   });
 
@@ -200,7 +210,12 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/f/{f.slug}</code>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_TONE[f.status] ?? "outline"}>{STATUS_LABEL[f.status] ?? f.status}</Badge>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant={STATUS_TONE[f.status] ?? "outline"}>{STATUS_LABEL[f.status] ?? f.status}</Badge>
+                        {(f as { closed_for_capacity?: boolean }).closed_for_capacity && (
+                          <Badge variant="destructive">Aforo completo</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -223,6 +238,16 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
                           onClick={() => toggleStatus.mutate({ id: f.id, status: f.status === "publicado" ? "cerrado" : "publicado" })}
                         >
                           {f.status === "publicado" ? "Cerrar" : "Publicar"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title={(f as { closed_for_capacity?: boolean }).closed_for_capacity ? "Reabrir aforo" : "Marcar aforo completo"}
+                          onClick={() => toggleCapacity.mutate({ id: f.id, closed: !(f as { closed_for_capacity?: boolean }).closed_for_capacity })}
+                          disabled={toggleCapacity.isPending}
+                        >
+                          <Users className="h-3.5 w-3.5 mr-1" />
+                          {(f as { closed_for_capacity?: boolean }).closed_for_capacity ? "Reabrir aforo" : "Aforo completo"}
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>

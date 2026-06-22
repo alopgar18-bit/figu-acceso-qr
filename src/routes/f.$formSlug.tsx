@@ -121,6 +121,20 @@ function Page() {
   if (isLoading) return <PublicShell><Skeleton className="h-96" /></PublicShell>;
 
   if (!result || !result.ok) {
+    if (result?.code === "aforo_completo") {
+      return (
+        <PublicShell>
+          <div className="text-xs uppercase tracking-[0.25em] text-primary font-semibold mb-3">Aforo completo</div>
+          <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Lo sentimos mucho</h1>
+          <p className="mt-4 text-muted-foreground">
+            El aforo para esta grabación está completo. Muchas gracias por tu interés.
+          </p>
+          <div className="mt-8">
+            <Button asChild variant="outline"><Link to="/">Volver al inicio</Link></Button>
+          </div>
+        </PublicShell>
+      );
+    }
     const msg: Record<string, string> = {
       no_existe: "Este formulario no existe o ya no está disponible.",
       no_publicado: "Este formulario aún no está publicado.",

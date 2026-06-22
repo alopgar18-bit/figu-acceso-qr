@@ -1,0 +1,1 @@
+ALTER TABLE public.public_forms ADD COLUMN IF NOT EXISTS closed_for_capacity boolean NOT NULL DEFAULT false;
