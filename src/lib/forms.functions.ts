@@ -38,7 +38,7 @@ export const listEventForms = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("public_forms")
-      .select("id, slug, title, attendee_type, status, session_id, opens_at, closes_at, created_at, intro_text, header_image_url, field_config, requires_image_consent, offers_future_processes_consent, event_sessions(name)")
+      .select("id, slug, title, attendee_type, status, closed_for_capacity, session_id, opens_at, closes_at, created_at, intro_text, header_image_url, field_config, requires_image_consent, offers_future_processes_consent, event_sessions(name)")
       .eq("event_id", data.event_id)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -178,6 +178,7 @@ export const updatePublicForm = createServerFn({ method: "POST" })
         field_config: z.record(z.string(), z.any()).optional(),
         requires_image_consent: z.boolean().optional(),
         offers_future_processes_consent: z.boolean().optional(),
+        closed_for_capacity: z.boolean().optional(),
       })
       .parse(d),
   )
@@ -198,6 +199,7 @@ export const updatePublicForm = createServerFn({ method: "POST" })
     if (data.field_config !== undefined) patch.field_config = data.field_config;
     if (data.requires_image_consent !== undefined) patch.requires_image_consent = data.requires_image_consent;
     if (data.offers_future_processes_consent !== undefined) patch.offers_future_processes_consent = data.offers_future_processes_consent;
+    if (data.closed_for_capacity !== undefined) patch.closed_for_capacity = data.closed_for_capacity;
     const { error } = await supabaseAdmin
       .from("public_forms")
       .update(patch as never)
@@ -228,7 +230,7 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: form, error: formErr } = await supabaseAdmin
       .from("public_forms")
-      .select("id, slug, title, description, intro_text, header_image_url, field_config, attendee_type, status, event_id, session_id, opens_at, closes_at, requires_image_consent, offers_future_processes_consent")
+      .select("id, slug, title, description, intro_text, header_image_url, field_config, attendee_type, status, closed_for_capacity, event_id, session_id, opens_at, closes_at, requires_image_consent, offers_future_processes_consent")
       .eq("slug", data.slug)
       .maybeSingle();
       if (formErr) {
@@ -237,6 +239,9 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
       }
       if (!form) return { ok: false as const, code: "no_existe" as const };
     const now = new Date();
+    if ((form as { closed_for_capacity?: boolean }).closed_for_capacity) {
+      return { ok: false as const, code: "aforo_completo" as const };
+    }
     if (form.status !== "publicado") return { ok: false as const, code: "no_publicado" as const };
     if (form.opens_at && new Date(form.opens_at) > now) return { ok: false as const, code: "no_abierto" as const };
     if (form.closes_at && new Date(form.closes_at) < now) return { ok: false as const, code: "cerrado" as const };
