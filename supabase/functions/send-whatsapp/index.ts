@@ -409,12 +409,18 @@ async function runWati(
     }
   }
 
-  // Modo INDIVIDUAL si hay un solo destinatario (o cualquier item marcado como test)
-  // → uno por uno con sendTemplateMessage. Producción masiva → batch.
-  const useBatch = prepared.length > 1 && prepared.every((p) => !p.isTest);
+  // Forzamos SIEMPRE modo individual (sendTemplateMessage uno por uno).
+  // El endpoint batch (sendTemplateMessages) de Wati EU no devuelve
+  // localMessageId de forma fiable y marca todos los envíos como fallidos
+  // ("Sin respuesta de Wati para este número") aunque el mensaje sí se
+  // entregue. Individual es más lento pero 100% fiable.
+  const useBatch = false;
+  const delayMs = 400;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   if (!useBatch) {
-    for (const p of prepared) {
+    for (let i = 0; i < prepared.length; i++) {
+      const p = prepared[i];
       const broadcast = p.log.batch_id
         ? `batch_${p.log.batch_id}`
         : p.isTest
@@ -435,6 +441,7 @@ async function runWati(
           wati_local_message_id: res.localMessageId ?? null,
           whatsapp_estado: "sent",
           error_message: null,
+          whatsapp_failed_detail: null,
           metadata: {
             ...(p.log.metadata ?? {}),
             provider: "wati",
@@ -457,6 +464,7 @@ async function runWati(
         failed++;
         errors.push({ id: p.log.id, error: res.errorDetail ?? "Wati error" });
       }
+      if (i < prepared.length - 1 && delayMs > 0) await sleep(delayMs);
     }
   } else {
     // Batch
