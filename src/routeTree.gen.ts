@@ -57,6 +57,7 @@ import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authe
 import { Route as AuthenticatedControlAccesoSessionIdRouteImport } from './routes/_authenticated/control-acceso.$sessionId'
 import { Route as AuthenticatedComunicacionesEnvioRouteImport } from './routes/_authenticated/comunicaciones.envio'
 import { Route as AuthenticatedComunicacionesColaRouteImport } from './routes/_authenticated/comunicaciones.cola'
+import { Route as AuthenticatedSesionesSessionIdPlanoRouteImport } from './routes/_authenticated/sesiones.$sessionId.plano'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
 import { Route as AuthenticatedEventosEventIdSesionesNuevaRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.nueva'
 import { Route as AuthenticatedEventosEventIdSesionesSessionIdRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.$sessionId'
@@ -316,6 +317,12 @@ const AuthenticatedComunicacionesColaRoute =
     path: '/cola',
     getParentRoute: () => AuthenticatedComunicacionesRoute,
   } as any)
+const AuthenticatedSesionesSessionIdPlanoRoute =
+  AuthenticatedSesionesSessionIdPlanoRouteImport.update({
+    id: '/$sessionId/plano',
+    path: '/$sessionId/plano',
+    getParentRoute: () => AuthenticatedSesionesRoute,
+  } as any)
 const AuthenticatedEventosEventIdEditarRoute =
   AuthenticatedEventosEventIdEditarRouteImport.update({
     id: '/editar',
@@ -352,7 +359,7 @@ export interface FileRoutesByFullPath {
   '/legal': typeof AuthenticatedLegalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
-  '/sesiones': typeof AuthenticatedSesionesRoute
+  '/sesiones': typeof AuthenticatedSesionesRouteWithChildren
   '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
@@ -384,6 +391,7 @@ export interface FileRoutesByFullPath {
   '/eventos/': typeof AuthenticatedEventosIndexRoute
   '/portal/eventos/': typeof PortalEventosIndexRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
+  '/sesiones/$sessionId/plano': typeof AuthenticatedSesionesSessionIdPlanoRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
@@ -403,7 +411,7 @@ export interface FileRoutesByTo {
   '/legal': typeof AuthenticatedLegalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
-  '/sesiones': typeof AuthenticatedSesionesRoute
+  '/sesiones': typeof AuthenticatedSesionesRouteWithChildren
   '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
@@ -434,6 +442,7 @@ export interface FileRoutesByTo {
   '/eventos': typeof AuthenticatedEventosIndexRoute
   '/portal/eventos': typeof PortalEventosIndexRoute
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
+  '/sesiones/$sessionId/plano': typeof AuthenticatedSesionesSessionIdPlanoRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
@@ -456,7 +465,7 @@ export interface FileRoutesById {
   '/_authenticated/legal': typeof AuthenticatedLegalRoute
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
-  '/_authenticated/sesiones': typeof AuthenticatedSesionesRoute
+  '/_authenticated/sesiones': typeof AuthenticatedSesionesRouteWithChildren
   '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/c/$token': typeof CTokenRouteWithChildren
@@ -488,6 +497,7 @@ export interface FileRoutesById {
   '/_authenticated/eventos/': typeof AuthenticatedEventosIndexRoute
   '/portal/eventos/': typeof PortalEventosIndexRoute
   '/_authenticated/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
+  '/_authenticated/sesiones/$sessionId/plano': typeof AuthenticatedSesionesSessionIdPlanoRoute
   '/_authenticated/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/_authenticated/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
@@ -542,6 +552,7 @@ export interface FileRouteTypes {
     | '/eventos/'
     | '/portal/eventos/'
     | '/eventos/$eventId/editar'
+    | '/sesiones/$sessionId/plano'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
   fileRoutesByTo: FileRoutesByTo
@@ -592,6 +603,7 @@ export interface FileRouteTypes {
     | '/eventos'
     | '/portal/eventos'
     | '/eventos/$eventId/editar'
+    | '/sesiones/$sessionId/plano'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
   id:
@@ -645,6 +657,7 @@ export interface FileRouteTypes {
     | '/_authenticated/eventos/'
     | '/portal/eventos/'
     | '/_authenticated/eventos/$eventId/editar'
+    | '/_authenticated/sesiones/$sessionId/plano'
     | '/_authenticated/eventos/$eventId/sesiones/$sessionId'
     | '/_authenticated/eventos/$eventId/sesiones/nueva'
   fileRoutesById: FileRoutesById
@@ -1000,6 +1013,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComunicacionesColaRouteImport
       parentRoute: typeof AuthenticatedComunicacionesRoute
     }
+    '/_authenticated/sesiones/$sessionId/plano': {
+      id: '/_authenticated/sesiones/$sessionId/plano'
+      path: '/$sessionId/plano'
+      fullPath: '/sesiones/$sessionId/plano'
+      preLoaderRoute: typeof AuthenticatedSesionesSessionIdPlanoRouteImport
+      parentRoute: typeof AuthenticatedSesionesRoute
+    }
     '/_authenticated/eventos/$eventId/editar': {
       id: '/_authenticated/eventos/$eventId/editar'
       path: '/editar'
@@ -1086,6 +1106,20 @@ const AuthenticatedInformesRouteWithChildren =
     AuthenticatedInformesRouteChildren,
   )
 
+interface AuthenticatedSesionesRouteChildren {
+  AuthenticatedSesionesSessionIdPlanoRoute: typeof AuthenticatedSesionesSessionIdPlanoRoute
+}
+
+const AuthenticatedSesionesRouteChildren: AuthenticatedSesionesRouteChildren = {
+  AuthenticatedSesionesSessionIdPlanoRoute:
+    AuthenticatedSesionesSessionIdPlanoRoute,
+}
+
+const AuthenticatedSesionesRouteWithChildren =
+  AuthenticatedSesionesRoute._addFileChildren(
+    AuthenticatedSesionesRouteChildren,
+  )
+
 interface AuthenticatedSolicitudesRouteChildren {
   AuthenticatedSolicitudesParticipantIdRoute: typeof AuthenticatedSolicitudesParticipantIdRoute
 }
@@ -1135,7 +1169,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLegalRoute: typeof AuthenticatedLegalRoute
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
   AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
-  AuthenticatedSesionesRoute: typeof AuthenticatedSesionesRoute
+  AuthenticatedSesionesRoute: typeof AuthenticatedSesionesRouteWithChildren
   AuthenticatedSolicitudesRoute: typeof AuthenticatedSolicitudesRouteWithChildren
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
   AuthenticatedEventosEventIdRoute: typeof AuthenticatedEventosEventIdRouteWithChildren
@@ -1157,7 +1191,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedLegalRoute: AuthenticatedLegalRoute,
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
   AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
-  AuthenticatedSesionesRoute: AuthenticatedSesionesRoute,
+  AuthenticatedSesionesRoute: AuthenticatedSesionesRouteWithChildren,
   AuthenticatedSolicitudesRoute: AuthenticatedSolicitudesRouteWithChildren,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
   AuthenticatedEventosEventIdRoute:
