@@ -74,6 +74,12 @@ function QueuePage() {
       if (error) throw error;
       if (data?.configured === false) {
         toast.message(data.message ?? "Wassenger no configurado");
+      } else if (data?.background === true) {
+        toast.success(
+          data.message ??
+            `Procesando ${data.queued ?? ""} envíos en segundo plano. Refresca en 1–2 minutos.`,
+          { duration: 12000 },
+        );
       } else if (data?.error_code === "WATI_NO_CREDITS") {
         toast.error(
           data.message ??
