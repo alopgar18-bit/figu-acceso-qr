@@ -551,6 +551,13 @@ async function runWati(
       configured: true, provider: "wati",
       processed: logs.length, sent, failed, skipped, errors,
       mode: useBatch ? "batch" : "individual",
+      ...(noCreditsAbort
+        ? {
+            error_code: "WATI_NO_CREDITS",
+            message:
+              "Wati ha rechazado los envíos por falta de créditos. Recarga la cuenta y reintenta los fallidos.",
+          }
+        : {}),
     }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
