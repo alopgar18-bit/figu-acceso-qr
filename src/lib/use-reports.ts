@@ -78,6 +78,14 @@ export interface SessionStats {
   checkinsQr: number;
   checkinsManual: number;
   checkinsViaIncidencia: number;
+  // Conteos en PERSONAS (titular + acompañantes) — usados en los KPI del
+  // informe para que cuadre con el total real de invitados.
+  personasSolicitudes: number;
+  personasAprobados: number;
+  personasRechazados: number;
+  personasListaEspera: number;
+  personasCancelados: number;
+  personasNoPresentados: number;
 }
 
 export interface ParticipantExportRow {
@@ -123,6 +131,8 @@ function emptyStats(): SessionStats {
     listaEspera: 0, confirmados: 0, cancelados: 0, checkins: 0,
     noPresentados: 0, incidencias: 0, personasConfirmadas: 0,
     checkinsQr: 0, checkinsManual: 0, checkinsViaIncidencia: 0,
+    personasSolicitudes: 0, personasAprobados: 0, personasRechazados: 0,
+    personasListaEspera: 0, personasCancelados: 0, personasNoPresentados: 0,
   };
 }
 
