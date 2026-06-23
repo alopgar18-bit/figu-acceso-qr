@@ -131,12 +131,13 @@ function Page() {
                   <TableHead>Sesión</TableHead>
                   <TableHead>Aforo</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                       Ninguna sesión coincide con los filtros.
                     </TableCell>
                   </TableRow>
@@ -158,6 +159,15 @@ function Page() {
                         </TableCell>
                         <TableCell className="tabular-nums">{s.capacity}</TableCell>
                         <TableCell><Badge variant="outline">{labelOf(SESSION_STATUS_OPTIONS, s.status)}</Badge></TableCell>
+                        <TableCell className="text-right">
+                          <Link
+                            to="/sesiones/$sessionId/plano"
+                            params={{ sessionId: s.id }}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Ver plano
+                          </Link>
+                        </TableCell>
                       </TableRow>
                     );
                   })
