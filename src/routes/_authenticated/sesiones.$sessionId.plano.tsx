@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -15,6 +15,10 @@ import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,8 +28,20 @@ import {
   setSeatManualClient,
   suggestSeatResolutionLocal,
 } from "@/lib/seats-browser";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
-import type { OccupancyResponse, SeatCell, ResolutionPlan } from "@/lib/seats.functions";
+import {
+  SEAT_OVERRIDE_DEFAULT_COLORS,
+  SEAT_OVERRIDE_LABELS,
+  UNAVAILABLE_OVERRIDE_CATEGORIES,
+} from "@/lib/seats.functions";
+import type {
+  OccupancyResponse,
+  SeatCell,
+  ResolutionPlan,
+  SeatOverrideCategory,
+} from "@/lib/seats.functions";
 
 export const Route = createFileRoute("/_authenticated/sesiones/$sessionId/plano")({
   component: PlanoPage,
@@ -36,6 +52,7 @@ type FilterMode = "todos" | "conflictos" | "libres";
 function PlanoPage() {
   const { sessionId } = Route.useParams();
   const router = useRouter();
+  const { isAdmin } = useAuth();
 
   const occQuery = useQuery({
     queryKey: ["session-occupancy", sessionId],
@@ -161,13 +178,70 @@ function PlanoPage() {
         <Skeleton className="h-96" />
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <KpiCard label="Asignados" value={data.totals.asignados} />
-            <KpiCard label="Personas" value={data.totals.personas} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <KpiCard label="Aforo" value={data.totals.aforo} />
+            <KpiCard label="Butacas ocupadas" value={data.totals.butacas_ocupadas} />
+            <KpiCard label="Personas" value={data.totals.personas_ocupadas} />
+            <KpiCard label="Reservados" value={data.totals.reservados_no_disponibles} tone={data.totals.reservados_no_disponibles > 0 ? "warn" : undefined} />
+            <KpiCard
+              label="Libres"
+              value={data.totals.libres_estimadas}
+              tone={data.totals.overbooking > 0 ? "danger" : "ok"}
+              hint={
+                data.totals.overbooking > 0
+                  ? `Overbooking: ${data.totals.overbooking} butacas asignadas por encima del aforo`
+                  : undefined
+              }
+            />
             <KpiCard label="Conflictos" value={data.totals.conflictos} tone={data.totals.conflictos > 0 ? "warn" : "ok"} />
-            <KpiCard label="Huecos visibles" value={data.totals.huecos_estimados} />
-            <KpiCard label="Datos incompletos" value={data.totals.fantasmas} tone={data.totals.fantasmas > 0 ? "warn" : "ok"} />
           </div>
+          {data.totals.overbooking > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Hay más butacas asignadas que aforo</AlertTitle>
+              <AlertDescription>
+                Aforo configurado: {data.totals.aforo}. Butacas ocupadas: {data.totals.butacas_ocupadas}.
+                {data.totals.reservados_no_disponibles > 0 && (
+                  <> Reservadas (cámaras / bloqueadas): {data.totals.reservados_no_disponibles}.</>
+                )}{" "}
+                Sobran {data.totals.overbooking} asignaciones. Revisa conflictos o ajusta el aforo.
+              </AlertDescription>
+            </Alert>
+          )}
+          {data.totals.excluidos_por_estado > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {data.totals.excluidos_por_estado} titular(es) cancelados con butaca conservada no se cuentan como ocupantes. Limpia sus asientos cuando puedas.
+            </p>
+          )}
+
+          {(data.overrides_summary.length > 0 || isAdmin) && (
+            <Card>
+              <CardContent className="p-3 flex flex-wrap items-center gap-3">
+                <span className="text-xs font-medium text-muted-foreground">Leyenda:</span>
+                <LegendDot tone="free" label="Libre" />
+                <LegendDot tone="occ" label="Ocupado" />
+                <LegendDot tone="conflict" label="Conflicto" />
+                {data.overrides_summary.map((o) => (
+                  <span key={o.category} className="inline-flex items-center gap-1 text-xs">
+                    <span
+                      className="inline-block h-3 w-3 rounded border"
+                      style={{ backgroundColor: o.color, borderColor: o.color }}
+                    />
+                    {SEAT_OVERRIDE_LABELS[o.category]} ({o.count})
+                  </span>
+                ))}
+                {isAdmin && (
+                  <div className="ml-auto">
+                    <MarkSeatsDialog
+                      sessionId={sessionId}
+                      zones={zones.map((z) => z.zone)}
+                      onSaved={() => occQuery.refetch()}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-3 flex flex-wrap gap-2 items-center">
@@ -246,12 +320,19 @@ function PlanoPage() {
   );
 }
 
-function KpiCard({ label, value, tone }: { label: string; value: number; tone?: "ok" | "warn" }) {
-  const cls = tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-emerald-600" : "";
+function KpiCard({
+  label, value, tone, hint,
+}: { label: string; value: number; tone?: "ok" | "warn" | "danger"; hint?: string }) {
+  const cls =
+    tone === "danger" ? "text-rose-600"
+    : tone === "warn" ? "text-amber-600"
+    : tone === "ok" ? "text-emerald-600"
+    : "";
   return (
     <Card><CardContent className="p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-2xl font-semibold ${cls}`}>{value}</div>
+      {hint && <div className="text-[10px] text-rose-600 mt-1 leading-tight">{hint}</div>}
     </CardContent></Card>
   );
 }
@@ -291,10 +372,11 @@ function ZoneBlock({
                 <div className="w-12 shrink-0 text-xs text-muted-foreground text-right pr-1">F{r.row}</div>
                 <div className="flex flex-wrap gap-[3px]">
                   {r.seats.map((s) => {
+                    const isUnavail = !!s.category && UNAVAILABLE_OVERRIDE_CATEGORIES.has(s.category);
                     const visible =
                       (mode === "todos") ||
                       (mode === "conflictos" && s.occupants.length > 1) ||
-                      (mode === "libres" && s.occupants.length === 0);
+                      (mode === "libres" && s.occupants.length === 0 && !isUnavail);
                     const matches = matchesSearch(s);
                     if (!visible || !matches) {
                       return <Seat key={s.number} dim cell={s} onClick={() => onSeatClick(s)} />;
@@ -314,21 +396,57 @@ function ZoneBlock({
 function Seat({ cell, dim, onClick }: { cell: SeatCell; dim?: boolean; onClick: () => void }) {
   const conflict = cell.occupants.length > 1;
   const occupied = cell.occupants.length === 1;
-  const cls = conflict
-    ? "bg-rose-400 border-rose-600 text-rose-950 hover:bg-rose-500"
-    : occupied
-    ? "bg-sky-300 border-sky-500 text-sky-950 hover:bg-sky-400"
-    : "bg-emerald-200 border-emerald-400 text-emerald-900 hover:bg-emerald-300";
+  const isUnavailable = !!cell.category && UNAVAILABLE_OVERRIDE_CATEGORIES.has(cell.category);
+  const hasOverride = !!cell.category;
+  let cls = "";
+  let style: React.CSSProperties | undefined;
+  if (hasOverride && cell.color) {
+    // pintamos con el color del override; texto oscuro/claro según luminosidad simple
+    style = {
+      backgroundColor: cell.color,
+      borderColor: cell.color,
+      color: "#fff",
+    };
+    cls = "transition";
+  } else if (conflict) {
+    cls = "bg-rose-400 border-rose-600 text-rose-950 hover:bg-rose-500";
+  } else if (occupied) {
+    cls = "bg-sky-300 border-sky-500 text-sky-950 hover:bg-sky-400";
+  } else {
+    cls = "bg-emerald-200 border-emerald-400 text-emerald-900 hover:bg-emerald-300";
+  }
   const dimCls = dim ? "opacity-30" : "";
+  const disabled = isUnavailable && cell.occupants.length === 0;
   const label = (
     <button
       type="button"
-      onClick={onClick}
-      className={`h-6 min-w-[26px] px-1 text-[10px] font-medium rounded border ${cls} ${dimCls} transition`}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      style={style}
+      className={`h-6 min-w-[26px] px-1 text-[10px] font-medium rounded border ${cls} ${dimCls} ${disabled ? "cursor-not-allowed" : ""}`}
     >
       {cell.number}
     </button>
   );
+  if (hasOverride) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{label}</TooltipTrigger>
+        <TooltipContent>
+          <div className="text-xs space-y-1 max-w-xs">
+            <div className="font-medium">F{cell.row} · Asiento {cell.number}</div>
+            <div>{SEAT_OVERRIDE_LABELS[cell.category!]}</div>
+            {cell.notes && <div className="text-muted-foreground">{cell.notes}</div>}
+            {cell.occupants.map((o) => (
+              <div key={o.id}>
+                {o.kind === "titular" ? "👤" : "👥"} {o.full_name}
+              </div>
+            ))}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
   if (cell.occupants.length === 0) return label;
   return (
     <Tooltip>
@@ -347,6 +465,205 @@ function Seat({ cell, dim, onClick }: { cell: SeatCell; dim?: boolean; onClick: 
         </div>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+// ── Diálogo: marcar butacas con categoría (overrides) ────────────────────────
+
+function parseSeatRange(input: string): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const part of input.split(/[,;\s]+/).filter(Boolean)) {
+    const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m) {
+      const a = Math.min(Number(m[1]), Number(m[2]));
+      const b = Math.max(Number(m[1]), Number(m[2]));
+      for (let n = a; n <= b; n++) {
+        const k = String(n);
+        if (!seen.has(k)) { seen.add(k); result.push(k); }
+      }
+    } else if (/^\d+$/.test(part)) {
+      if (!seen.has(part)) { seen.add(part); result.push(part); }
+    }
+  }
+  return result;
+}
+
+function MarkSeatsDialog({
+  sessionId, zones, onSaved,
+}: { sessionId: string; zones: string[]; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [zoneMode, setZoneMode] = useState<"existing" | "manual">("existing");
+  const [zoneSel, setZoneSel] = useState<string>(zones[0] ?? "");
+  const [zoneManual, setZoneManual] = useState("");
+  const [row, setRow] = useState("");
+  const [seats, setSeats] = useState("");
+  const [category, setCategory] = useState<SeatOverrideCategory>("reservado_camaras");
+  const [color, setColor] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const finalZone = (zoneMode === "existing" ? zoneSel : zoneManual).trim();
+  const parsed = parseSeatRange(seats);
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!finalZone) throw new Error("Selecciona una zona");
+      if (!row.trim()) throw new Error("Indica la fila");
+      if (parsed.length === 0) throw new Error("Indica al menos un asiento (ej: 12-18, 20)");
+      const rows = parsed.map((n) => ({
+        session_id: sessionId,
+        seat_zone: finalZone,
+        seat_row: row.trim(),
+        seat_number: n,
+        category,
+        color: color.trim() || null,
+        notes: notes.trim() || null,
+      }));
+      const { error } = await supabase
+        .from("session_seat_overrides")
+        .upsert(rows, { onConflict: "session_id,seat_zone,seat_row,seat_number" });
+      if (error) throw new Error(error.message);
+      return rows.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`${count} butaca(s) marcadas como ${SEAT_OVERRIDE_LABELS[category]}`);
+      setSeats("");
+      setNotes("");
+      onSaved();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Error al guardar"),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async () => {
+      if (!finalZone || !row.trim() || parsed.length === 0) {
+        throw new Error("Indica zona, fila y asientos a desmarcar");
+      }
+      const { error } = await supabase
+        .from("session_seat_overrides")
+        .delete()
+        .eq("session_id", sessionId)
+        .eq("seat_zone", finalZone)
+        .eq("seat_row", row.trim())
+        .in("seat_number", parsed);
+      if (error) throw new Error(error.message);
+      return parsed.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`${count} butaca(s) desmarcadas`);
+      onSaved();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Error al borrar"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Plus className="h-3 w-3 mr-1" /> Marcar butacas
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Marcar butacas con categoría</DialogTitle>
+          <DialogDescription>
+            Marca butacas reservadas para cámaras, bloqueadas, MR o VR. Se pintarán con su color en el plano y los reservados/bloqueados dejarán de contar como libres.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Zona</label>
+            <div className="flex gap-2">
+              <Select value={zoneMode} onValueChange={(v) => setZoneMode(v as "existing" | "manual")}>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="existing">Existente</SelectItem>
+                  <SelectItem value="manual">Otra…</SelectItem>
+                </SelectContent>
+              </Select>
+              {zoneMode === "existing" ? (
+                <Select value={zoneSel} onValueChange={setZoneSel}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Selecciona zona" /></SelectTrigger>
+                  <SelectContent>
+                    {zones.map((z) => (
+                      <SelectItem key={z} value={z}>{z}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={zoneManual} onChange={(e) => setZoneManual(e.target.value)} placeholder="Nombre exacto de la zona" />
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Fila</label>
+              <Input value={row} onChange={(e) => setRow(e.target.value)} placeholder="Ej: 8" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Asientos</label>
+              <Input value={seats} onChange={(e) => setSeats(e.target.value)} placeholder="12-18, 20" />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Categoría</label>
+            <Select value={category} onValueChange={(v) => {
+              setCategory(v as SeatOverrideCategory);
+              setColor("");
+            }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SEAT_OVERRIDE_LABELS) as SeatOverrideCategory[]).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-3 w-3 rounded border" style={{ backgroundColor: SEAT_OVERRIDE_DEFAULT_COLORS[k] }} />
+                      {SEAT_OVERRIDE_LABELS[k]}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Color (opcional)</label>
+              <Input value={color} onChange={(e) => setColor(e.target.value)} placeholder={SEAT_OVERRIDE_DEFAULT_COLORS[category]} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Notas (opcional)</label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={1} placeholder="Ej: cámara central" />
+            </div>
+          </div>
+
+          {parsed.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Se aplicará a {parsed.length} butaca(s): {parsed.join(", ")}
+            </p>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => deleteMut.mutate()}
+            disabled={deleteMut.isPending || saveMut.isPending}
+          >
+            {deleteMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Desmarcar"}
+          </Button>
+          <Button
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending || deleteMut.isPending}
+          >
+            {saveMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

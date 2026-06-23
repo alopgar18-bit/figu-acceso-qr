@@ -21,6 +21,44 @@ const normZone = (s: string | null | undefined) => normName(s).replace(/\s+/g, "
 const seatKey = (zone: string | null | undefined, row: string | null | undefined, num: string | null | undefined) =>
   `${normZone(zone)}||${(row ?? "").toString().trim()}||${(num ?? "").toString().trim()}`;
 
+// Estados de titular que NO cuentan como ocupante de la butaca.
+// Los acompañantes heredan: si el titular es inválido, sus acompañantes tampoco cuentan.
+export const INVALID_OCCUPANT_STATUSES = new Set<string>([
+  "cancelado_asistente",
+  "no_asistira",
+  "baja",
+  "rechazado",
+]);
+
+export type SeatOverrideCategory =
+  | "reservado_camaras"
+  | "bloqueado"
+  | "movilidad_reducida"
+  | "acompanante_mr"
+  | "visibilidad_reducida";
+
+export const SEAT_OVERRIDE_LABELS: Record<SeatOverrideCategory, string> = {
+  reservado_camaras: "Reservado cámaras",
+  bloqueado: "Bloqueado",
+  movilidad_reducida: "Movilidad reducida",
+  acompanante_mr: "Acompañante MR",
+  visibilidad_reducida: "Visibilidad reducida",
+};
+
+export const SEAT_OVERRIDE_DEFAULT_COLORS: Record<SeatOverrideCategory, string> = {
+  reservado_camaras: "#6b7280", // gris
+  bloqueado: "#374151", // gris oscuro
+  movilidad_reducida: "#0ea5e9", // azul
+  acompanante_mr: "#22c55e", // verde
+  visibilidad_reducida: "#a855f7", // morado
+};
+
+// Categorías que retiran la butaca del aforo disponible (no ocupada, no libre).
+export const UNAVAILABLE_OVERRIDE_CATEGORIES = new Set<SeatOverrideCategory>([
+  "reservado_camaras",
+  "bloqueado",
+]);
+
 export type Occupant = {
   kind: "titular" | "acompanante";
   id: string;
@@ -37,6 +75,9 @@ export type SeatCell = {
   row: string;
   number: string;
   occupants: Occupant[];
+  category?: SeatOverrideCategory;
+  color?: string | null;
+  notes?: string | null;
 };
 
 export type ZoneInventory = {
@@ -55,10 +96,18 @@ export type OccupancyResponse = {
     asignados: number; // butacas ocupadas (únicas)
     personas: number; // suma de ocupantes (cuenta conflictos)
     conflictos: number; // butacas con >1 ocupante
-    huecos_estimados: number; // dentro de los rangos vistos
+    huecos_estimados: number; // dentro de los rangos vistos (legacy, no fiable)
     fantasmas: number; // asientos con datos incompletos
+    aforo: number; // capacidad de la sesión
+    butacas_ocupadas: number; // alias de asignados con ocupantes válidos
+    personas_ocupadas: number; // alias de personas con ocupantes válidos
+    reservados_no_disponibles: number; // butacas marcadas reservadas/bloqueadas
+    libres_estimadas: number; // aforo - butacas_ocupadas - reservados_no_disponibles
+    overbooking: number; // exceso sobre aforo
+    excluidos_por_estado: number; // titulares ignorados por estado inválido
   };
   conflicts: SeatCell[]; // butacas con 2+ ocupantes
+  overrides_summary: Array<{ category: SeatOverrideCategory; count: number; color: string }>;
 };
 
 export const getSessionOccupancy = createServerFn({ method: "POST" })
@@ -81,6 +130,36 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
       )
       .eq("session_id", data.session_id);
     if (pErr) throw new Error(pErr.message);
+
+    // Cargar overrides de butacas para esta sesión
+    const { data: overridesData, error: oErr } = await sb
+      .from("session_seat_overrides")
+      .select("seat_zone, seat_row, seat_number, category, color, notes")
+      .eq("session_id", data.session_id);
+    if (oErr) throw new Error(oErr.message);
+    type OverrideRow = {
+      seat_zone: string;
+      seat_row: string;
+      seat_number: string;
+      category: SeatOverrideCategory;
+      color: string | null;
+      notes: string | null;
+    };
+    const overrides = (overridesData ?? []) as OverrideRow[];
+    const overrideByKey = new Map<string, OverrideRow>();
+    for (const o of overrides) {
+      overrideByKey.set(seatKey(o.seat_zone, o.seat_row, o.seat_number), o);
+    }
+
+    // Pre-cálculo: titulares cuyo estado los descarta como ocupantes
+    const invalidParticipantIds = new Set<string>();
+    let excluidos_por_estado = 0;
+    for (const p of parts ?? []) {
+      if (p.status && INVALID_OCCUPANT_STATUSES.has(p.status)) {
+        invalidParticipantIds.add(p.id);
+        if (p.seat_zone && p.seat_row && p.seat_number) excluidos_por_estado++;
+      }
+    }
 
     const participantIds = (parts ?? []).map((p) => p.id);
     let comps: Array<{
@@ -109,6 +188,7 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
     const occupants: Array<Occupant & { zone: string; row: string; number: string }> = [];
     let fantasmas = 0;
     for (const p of parts ?? []) {
+      if (invalidParticipantIds.has(p.id)) continue;
       const person = p.people as { first_name: string | null; last_name: string | null; dni: string | null } | null;
       const name = [person?.first_name, person?.last_name].filter(Boolean).join(" ").trim() || "(sin nombre)";
       if (!p.seat_zone || !p.seat_row || !p.seat_number) {
@@ -130,6 +210,7 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
       });
     }
     for (const c of comps) {
+      if (invalidParticipantIds.has(c.participant_id)) continue;
       const name = [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || "(acompañante)";
       if (!c.seat_zone || !c.seat_row || !c.seat_number) {
         if (c.seat_zone || c.seat_row || c.seat_number) fantasmas++;
@@ -167,13 +248,27 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
       void _z; void _r; void _n;
       bySeat.push(rest);
     }
+    // Asegurar que las butacas con override existan como celdas aunque no tengan ocupantes
+    for (const o of overrides) {
+      const z = (o.seat_zone ?? "").trim();
+      const r = (o.seat_row ?? "").trim();
+      const n = (o.seat_number ?? "").trim();
+      if (!z || !r || !n) continue;
+      let byZone = acc.get(z);
+      if (!byZone) acc.set(z, (byZone = new Map()));
+      let byRow = byZone.get(r);
+      if (!byRow) byZone.set(r, (byRow = new Map()));
+      if (!byRow.has(n)) byRow.set(n, []);
+    }
 
     const zones: ZoneInventory[] = [];
-    let asignados = 0;
-    let personas = 0;
+    let butacas_ocupadas = 0;
+    let personas_ocupadas = 0;
     let conflictos = 0;
     const conflicts: SeatCell[] = [];
     let huecos = 0;
+    let reservados_no_disponibles = 0;
+    const overridesCount: Record<string, number> = {};
 
     for (const [zone, byZone] of acc) {
       const rows: ZoneInventory["rows"] = [];
@@ -193,12 +288,29 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
         for (let n = minRange; n <= maxN; n++) {
           const key = String(n);
           const occ = byRow.get(key) ?? [];
-          const cell: SeatCell = { zone, row, number: key, occupants: occ };
+          const ov = overrideByKey.get(seatKey(zone, row, key));
+          const cell: SeatCell = {
+            zone,
+            row,
+            number: key,
+            occupants: occ,
+            ...(ov
+              ? {
+                  category: ov.category,
+                  color: ov.color ?? SEAT_OVERRIDE_DEFAULT_COLORS[ov.category],
+                  notes: ov.notes ?? null,
+                }
+              : {}),
+          };
           seats.push(cell);
-          if (occ.length === 0) huecos++;
-          else {
-            asignados++;
-            personas += occ.length;
+          if (ov) overridesCount[ov.category] = (overridesCount[ov.category] ?? 0) + 1;
+          const isUnavailable = ov && UNAVAILABLE_OVERRIDE_CATEGORIES.has(ov.category);
+          if (occ.length === 0) {
+            if (isUnavailable) reservados_no_disponibles++;
+            else huecos++;
+          } else {
+            butacas_ocupadas++;
+            personas_ocupadas += occ.length;
             if (occ.length > 1) {
               conflictos++;
               conflicts.push(cell);
@@ -211,17 +323,40 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
     }
     zones.sort((a, b) => a.zone.localeCompare(b.zone));
 
+    const aforo = session.capacity ?? 0;
+    const libres_estimadas = Math.max(0, aforo - butacas_ocupadas - reservados_no_disponibles);
+    const overbooking = Math.max(0, butacas_ocupadas + reservados_no_disponibles - aforo);
+    const overrides_summary = (Object.keys(overridesCount) as SeatOverrideCategory[]).map((cat) => ({
+      category: cat,
+      count: overridesCount[cat],
+      color: SEAT_OVERRIDE_DEFAULT_COLORS[cat],
+    }));
+
     return {
       session: {
         id: session.id,
         name: session.name,
         event_id: session.event_id,
         starts_at: session.starts_at,
-        capacity: session.capacity ?? 0,
+        capacity: aforo,
       },
       zones,
-      totals: { asignados, personas, conflictos, huecos_estimados: huecos, fantasmas },
+      totals: {
+        asignados: butacas_ocupadas,
+        personas: personas_ocupadas,
+        conflictos,
+        huecos_estimados: huecos,
+        fantasmas,
+        aforo,
+        butacas_ocupadas,
+        personas_ocupadas,
+        reservados_no_disponibles,
+        libres_estimadas,
+        overbooking,
+        excluidos_por_estado,
+      },
       conflicts,
+      overrides_summary,
     };
   });
 

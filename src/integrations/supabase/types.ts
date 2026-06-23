@@ -1472,6 +1472,63 @@ export type Database = {
           },
         ]
       }
+      session_seat_overrides: {
+        Row: {
+          category: Database["public"]["Enums"]["seat_override_category"]
+          color: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          seat_number: string
+          seat_row: string
+          seat_zone: string
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["seat_override_category"]
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          seat_number: string
+          seat_row: string
+          seat_zone: string
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["seat_override_category"]
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          seat_number?: string
+          seat_row?: string
+          seat_zone?: string
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_seat_overrides_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_seat_overrides_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_designs: {
         Row: {
           created_at: string
@@ -1889,6 +1946,12 @@ export type Database = {
         | "incidencia"
         | "bloqueado"
         | "aceptado_pendiente_envio"
+      seat_override_category:
+        | "reservado_camaras"
+        | "bloqueado"
+        | "movilidad_reducida"
+        | "acompanante_mr"
+        | "visibilidad_reducida"
       session_status:
         | "programada"
         | "abierta"
@@ -2139,6 +2202,13 @@ export const Constants = {
         "incidencia",
         "bloqueado",
         "aceptado_pendiente_envio",
+      ],
+      seat_override_category: [
+        "reservado_camaras",
+        "bloqueado",
+        "movilidad_reducida",
+        "acompanante_mr",
+        "visibilidad_reducida",
       ],
       session_status: [
         "programada",
