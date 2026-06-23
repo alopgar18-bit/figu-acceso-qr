@@ -23,7 +23,7 @@ import {
   fetchSessionOccupancyClient,
   setSeatManualClient,
   suggestSeatResolutionLocal,
-} from "@/lib/seats.client";
+} from "@/lib/seats-browser";
 
 import type { OccupancyResponse, SeatCell, ResolutionPlan } from "@/lib/seats.functions";
 
