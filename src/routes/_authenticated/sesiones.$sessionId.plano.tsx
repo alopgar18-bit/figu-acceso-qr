@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -15,6 +15,10 @@ import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,8 +28,20 @@ import {
   setSeatManualClient,
   suggestSeatResolutionLocal,
 } from "@/lib/seats-browser";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
-import type { OccupancyResponse, SeatCell, ResolutionPlan } from "@/lib/seats.functions";
+import {
+  SEAT_OVERRIDE_DEFAULT_COLORS,
+  SEAT_OVERRIDE_LABELS,
+  UNAVAILABLE_OVERRIDE_CATEGORIES,
+} from "@/lib/seats.functions";
+import type {
+  OccupancyResponse,
+  SeatCell,
+  ResolutionPlan,
+  SeatOverrideCategory,
+} from "@/lib/seats.functions";
 
 export const Route = createFileRoute("/_authenticated/sesiones/$sessionId/plano")({
   component: PlanoPage,
@@ -36,6 +52,7 @@ type FilterMode = "todos" | "conflictos" | "libres";
 function PlanoPage() {
   const { sessionId } = Route.useParams();
   const router = useRouter();
+  const { isAdmin } = useAuth();
 
   const occQuery = useQuery({
     queryKey: ["session-occupancy", sessionId],
