@@ -46,6 +46,11 @@ function Page() {
         description="Edita los datos operativos de la sesión."
         actions={
           <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link to="/sesiones/$sessionId/plano" params={{ sessionId }}>
+                Ver plano
+              </Link>
+            </Button>
             <Button asChild>
               <Link
                 to="/comunicaciones/envio"
