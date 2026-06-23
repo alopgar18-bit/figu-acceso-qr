@@ -74,6 +74,12 @@ function QueuePage() {
       if (error) throw error;
       if (data?.configured === false) {
         toast.message(data.message ?? "Wassenger no configurado");
+      } else if (data?.error_code === "WATI_NO_CREDITS") {
+        toast.error(
+          data.message ??
+            "Wati ha rechazado los envíos por falta de créditos. Recarga tu cuenta de Wati y vuelve a intentarlo.",
+          { duration: 15000 },
+        );
       } else {
         toast.success(`WhatsApps enviados: ${data?.sent ?? 0} · Fallidos: ${data?.failed ?? 0}`);
       }
@@ -83,6 +89,37 @@ function QueuePage() {
       toast.error((e as Error).message);
     } finally {
       setSendingWa(false);
+    }
+  };
+
+  const retryNoCreditsFailures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("communication_logs")
+        .select("id")
+        .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+        .eq("status", "fallido")
+        .contains("metadata", { wati_error_code: "WATI_NO_CREDITS" });
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ id: string }>;
+      if (rows.length === 0) {
+        toast.message("No hay envíos de WhatsApp fallidos por falta de créditos.");
+        return;
+      }
+      let ok = 0;
+      let ko = 0;
+      for (const r of rows) {
+        try {
+          await retryFn({ data: { log_id: r.id } });
+          ok++;
+        } catch {
+          ko++;
+        }
+      }
+      toast.success(`${ok} reencolados${ko ? ` · ${ko} con error` : ""}`);
+      await refetch();
+    } catch (e) {
+      toast.error((e as Error).message);
     }
   };
 
@@ -213,6 +250,10 @@ function QueuePage() {
             <Button onClick={sendPendingWhatsapps} disabled={sendingWa} variant="secondary">
               <MessageCircle className="h-4 w-4 mr-2" />
               {sendingWa ? "Enviando WhatsApps…" : "Enviar WhatsApps pendientes"}
+            </Button>
+            <Button onClick={retryNoCreditsFailures} variant="outline" title="Vuelve a poner en cola los WhatsApps fallidos por falta de créditos de Wati. Úsalo tras recargar saldo en Wati.">
+              <RotateCw className="h-4 w-4 mr-2" />
+              Reintentar fallidos sin créditos
             </Button>
             <Button onClick={exportEmlZip}>
               <Mail className="h-4 w-4 mr-2" />Descargar .eml para Gmail
