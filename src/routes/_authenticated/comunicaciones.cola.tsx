@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send, MessageCircle } from "lucide-react";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { useCommunicationLogs } from "@/lib/use-communications";
 import { COMM_STATUS_OPTIONS, COMM_CHANNEL_OPTIONS, type CommStatus, type CommChannel, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
 import { retryCommunication } from "@/lib/bulk-send.functions";
@@ -41,6 +42,56 @@ function QueuePage() {
   const [sendingWa, setSendingWa] = useState(false);
   const [senderValue, setSenderValue] = useState<string>(DEFAULT_SENDER.value);
   const [detailLog, setDetailLog] = useState<CommLogDetail | null>(null);
+  const [bgBatch, setBgBatch] = useState<{
+    ids: string[];
+    total: number;
+    sent: number;
+    failed: number;
+    pending: number;
+    startedAt: number;
+  } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const pollBatchProgress = async (ids: string[]) => {
+    const { data, error } = await supabase
+      .from("communication_logs")
+      .select("id, status")
+      .in("id", ids);
+    if (error) return;
+    let sent = 0, failed = 0, pending = 0;
+    for (const r of data ?? []) {
+      if (r.status === "enviado") sent++;
+      else if (r.status === "fallido") failed++;
+      else pending++;
+    }
+    setBgBatch((prev) => prev ? { ...prev, sent, failed, pending } : prev);
+    if (pending === 0 && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+      toast.success(`Lote completado: ${sent} enviados · ${failed} fallidos`);
+      await refetch();
+    }
+  };
+
+  const startBatchTracking = (ids: string[]) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setBgBatch({
+      ids,
+      total: ids.length,
+      sent: 0,
+      failed: 0,
+      pending: ids.length,
+      startedAt: Date.now(),
+    });
+    void pollBatchProgress(ids);
+    pollRef.current = setInterval(() => { void pollBatchProgress(ids); }, 2500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const sendPendingEmails = async () => {
     setSending(true);
@@ -80,6 +131,8 @@ function QueuePage() {
             `Procesando ${data.queued ?? ""} envíos en segundo plano. Refresca en 1–2 minutos.`,
           { duration: 12000 },
         );
+        const ids: string[] = Array.isArray(data.queued_ids) ? data.queued_ids : [];
+        if (ids.length > 0) startBatchTracking(ids);
       } else if (data?.error_code === "WATI_NO_CREDITS") {
         toast.error(
           data.message ??
