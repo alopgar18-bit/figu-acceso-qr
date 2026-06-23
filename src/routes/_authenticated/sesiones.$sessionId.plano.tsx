@@ -42,6 +42,8 @@ import type {
   ResolutionPlan,
   SeatOverrideCategory,
 } from "@/lib/seats.functions";
+import { ApplySeatCorrectionsDialog } from "@/components/apply-seat-corrections-dialog";
+import { ResolveConflictsPanel } from "@/components/resolve-conflicts-panel";
 
 export const Route = createFileRoute("/_authenticated/sesiones/$sessionId/plano")({
   component: PlanoPage,
@@ -178,29 +180,51 @@ function PlanoPage() {
         <Skeleton className="h-96" />
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <KpiCard label="Aforo" value={data.totals.aforo} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            <KpiCard
+              label="Aforo plano"
+              value={data.totals.aforo_plano}
+              hint="Butacas reales dibujadas — base de cálculo"
+            />
+            <KpiCard
+              label="Aforo sesión"
+              value={data.totals.aforo_sesion}
+              tone={data.totals.desviacion_sesion !== 0 ? "warn" : undefined}
+              hint={
+                data.totals.desviacion_sesion !== 0
+                  ? `Configurado en la sesión (${data.totals.desviacion_sesion > 0 ? "+" : ""}${data.totals.desviacion_sesion} vs plano)`
+                  : "Configurado en la sesión"
+              }
+            />
             <KpiCard label="Butacas ocupadas" value={data.totals.butacas_ocupadas} />
             <KpiCard label="Personas" value={data.totals.personas_ocupadas} />
-            <KpiCard label="Reservados" value={data.totals.reservados_no_disponibles} tone={data.totals.reservados_no_disponibles > 0 ? "warn" : undefined} />
+            <KpiCard
+              label="Reservados"
+              value={data.totals.reservados_no_disponibles}
+              tone={data.totals.reservados_no_disponibles > 0 ? "warn" : undefined}
+            />
             <KpiCard
               label="Libres"
               value={data.totals.libres_estimadas}
               tone={data.totals.overbooking > 0 ? "danger" : "ok"}
               hint={
                 data.totals.overbooking > 0
-                  ? `Overbooking: ${data.totals.overbooking} butacas asignadas por encima del aforo`
-                  : undefined
+                  ? `Overbooking: ${data.totals.overbooking} butacas asignadas por encima del aforo del plano`
+                  : "Aforo plano − ocupadas − reservadas"
               }
             />
-            <KpiCard label="Conflictos" value={data.totals.conflictos} tone={data.totals.conflictos > 0 ? "warn" : "ok"} />
+            <KpiCard
+              label="Conflictos"
+              value={data.totals.conflictos}
+              tone={data.totals.conflictos > 0 ? "warn" : "ok"}
+            />
           </div>
           {data.totals.overbooking > 0 && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Hay más butacas asignadas que aforo</AlertTitle>
+              <AlertTitle>Hay más butacas asignadas que aforo del plano</AlertTitle>
               <AlertDescription>
-                Aforo configurado: {data.totals.aforo}. Butacas ocupadas: {data.totals.butacas_ocupadas}.
+                Aforo plano: {data.totals.aforo_plano}. Butacas ocupadas: {data.totals.butacas_ocupadas}.
                 {data.totals.reservados_no_disponibles > 0 && (
                   <> Reservadas (cámaras / bloqueadas): {data.totals.reservados_no_disponibles}.</>
                 )}{" "}
@@ -214,33 +238,48 @@ function PlanoPage() {
             </p>
           )}
 
-          {(data.overrides_summary.length > 0 || isAdmin) && (
-            <Card>
-              <CardContent className="p-3 flex flex-wrap items-center gap-3">
-                <span className="text-xs font-medium text-muted-foreground">Leyenda:</span>
-                <LegendDot tone="free" label="Libre" />
-                <LegendDot tone="occ" label="Ocupado" />
-                <LegendDot tone="conflict" label="Conflicto" />
-                {data.overrides_summary.map((o) => (
-                  <span key={o.category} className="inline-flex items-center gap-1 text-xs">
+          <Card>
+            <CardContent className="p-3 flex flex-wrap items-center gap-3">
+              <span className="text-xs font-medium text-muted-foreground">Leyenda:</span>
+              <LegendDot tone="free" label="Libre" />
+              <LegendDot tone="occ" label="Ocupado" />
+              <LegendDot tone="conflict" label="Conflicto" />
+              {(Object.keys(SEAT_OVERRIDE_LABELS) as SeatOverrideCategory[]).map((cat) => {
+                const count = data.overrides_summary.find((o) => o.category === cat)?.count ?? 0;
+                return (
+                  <span key={cat} className="inline-flex items-center gap-1 text-xs">
                     <span
                       className="inline-block h-3 w-3 rounded border"
-                      style={{ backgroundColor: o.color, borderColor: o.color }}
+                      style={{
+                        backgroundColor: SEAT_OVERRIDE_DEFAULT_COLORS[cat],
+                        borderColor: SEAT_OVERRIDE_DEFAULT_COLORS[cat],
+                      }}
                     />
-                    {SEAT_OVERRIDE_LABELS[o.category]} ({o.count})
+                    {SEAT_OVERRIDE_LABELS[cat]} ({count})
                   </span>
-                ))}
-                {isAdmin && (
-                  <div className="ml-auto">
-                    <MarkSeatsDialog
-                      sessionId={sessionId}
-                      zones={zones.map((z) => z.zone)}
-                      onSaved={() => occQuery.refetch()}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                );
+              })}
+              {isAdmin && (
+                <div className="ml-auto flex gap-2">
+                  <ApplySeatCorrectionsDialog
+                    sessionId={sessionId}
+                    onApplied={() => occQuery.refetch()}
+                  />
+                  <MarkSeatsDialog
+                    sessionId={sessionId}
+                    zones={zones.map((z) => z.zone)}
+                    onSaved={() => occQuery.refetch()}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {isAdmin && (
+            <ResolveConflictsPanel
+              sessionId={sessionId}
+              onRefresh={() => occQuery.refetch()}
+            />
           )}
 
           <Card>

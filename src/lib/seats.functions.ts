@@ -98,12 +98,15 @@ export type OccupancyResponse = {
     conflictos: number; // butacas con >1 ocupante
     huecos_estimados: number; // dentro de los rangos vistos (legacy, no fiable)
     fantasmas: number; // asientos con datos incompletos
-    aforo: number; // capacidad de la sesión
+    aforo: number; // alias retrocompatible = aforo_sesion
+    aforo_sesion: number; // capacidad configurada en la sesión
+    aforo_plano: number; // butacas reales dibujadas (ocupadas + reservadas + huecos visibles)
+    desviacion_sesion: number; // aforo_plano - aforo_sesion
     butacas_ocupadas: number; // alias de asignados con ocupantes válidos
     personas_ocupadas: number; // alias de personas con ocupantes válidos
     reservados_no_disponibles: number; // butacas marcadas reservadas/bloqueadas
-    libres_estimadas: number; // aforo - butacas_ocupadas - reservados_no_disponibles
-    overbooking: number; // exceso sobre aforo
+    libres_estimadas: number; // aforo_plano - butacas_ocupadas - reservados_no_disponibles
+    overbooking: number; // exceso sobre aforo_plano
     excluidos_por_estado: number; // titulares ignorados por estado inválido
   };
   conflicts: SeatCell[]; // butacas con 2+ ocupantes
@@ -323,9 +326,11 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
     }
     zones.sort((a, b) => a.zone.localeCompare(b.zone));
 
-    const aforo = session.capacity ?? 0;
-    const libres_estimadas = Math.max(0, aforo - butacas_ocupadas - reservados_no_disponibles);
-    const overbooking = Math.max(0, butacas_ocupadas + reservados_no_disponibles - aforo);
+    const aforo_sesion = session.capacity ?? 0;
+    const aforo_plano = butacas_ocupadas + reservados_no_disponibles + huecos;
+    const aforo_base = aforo_plano > 0 ? aforo_plano : aforo_sesion;
+    const libres_estimadas = Math.max(0, aforo_base - butacas_ocupadas - reservados_no_disponibles);
+    const overbooking = Math.max(0, butacas_ocupadas + reservados_no_disponibles - aforo_base);
     const overrides_summary = (Object.keys(overridesCount) as SeatOverrideCategory[]).map((cat) => ({
       category: cat,
       count: overridesCount[cat],
@@ -338,7 +343,7 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
         name: session.name,
         event_id: session.event_id,
         starts_at: session.starts_at,
-        capacity: aforo,
+        capacity: aforo_sesion,
       },
       zones,
       totals: {
@@ -347,7 +352,10 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
         conflictos,
         huecos_estimados: huecos,
         fantasmas,
-        aforo,
+        aforo: aforo_sesion,
+        aforo_sesion,
+        aforo_plano,
+        desviacion_sesion: aforo_plano - aforo_sesion,
         butacas_ocupadas,
         personas_ocupadas,
         reservados_no_disponibles,
