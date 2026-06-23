@@ -320,12 +320,19 @@ function PlanoPage() {
   );
 }
 
-function KpiCard({ label, value, tone }: { label: string; value: number; tone?: "ok" | "warn" }) {
-  const cls = tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-emerald-600" : "";
+function KpiCard({
+  label, value, tone, hint,
+}: { label: string; value: number; tone?: "ok" | "warn" | "danger"; hint?: string }) {
+  const cls =
+    tone === "danger" ? "text-rose-600"
+    : tone === "warn" ? "text-amber-600"
+    : tone === "ok" ? "text-emerald-600"
+    : "";
   return (
     <Card><CardContent className="p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-2xl font-semibold ${cls}`}>{value}</div>
+      {hint && <div className="text-[10px] text-rose-600 mt-1 leading-tight">{hint}</div>}
     </CardContent></Card>
   );
 }
