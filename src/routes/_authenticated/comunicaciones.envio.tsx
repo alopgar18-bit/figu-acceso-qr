@@ -415,7 +415,7 @@ FIGURARTE Casting & Producción`,
           only_with_email: !isWhatsapp,
           only_with_ticket: true,
           skip_already_queued: true,
-          send_per_companion: !isWhatsapp && sendPerCompanion,
+          send_per_companion: sendPerCompanion,
           include_companions_in_titular: includeCompanionsInTitular,
           from: isWhatsapp ? undefined : senderValue,
         },
@@ -856,8 +856,7 @@ FIGURARTE Casting & Producción`,
                 )}
               </AlertDescription>
             </Alert>
-            {!isWhatsapp && (
-              <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
+            <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4"
@@ -865,16 +864,16 @@ FIGURARTE Casting & Producción`,
                   onChange={(e) => setIncludeCompanionsInTitular(e.target.checked)}
                 />
                 <span>
-                  <strong>Incluir acompañantes (nombre + QR) en el email del titular</strong>
+                  <strong>
+                    Incluir acompañantes (nombre + QR/enlace) en el {isWhatsapp ? "WhatsApp" : "email"} del titular
+                  </strong>
                   <br />
                   <span className="text-xs text-muted-foreground">
-                    Añade al final del email del titular un bloque con el nombre y el QR de cada acompañante. Solo se añade si la plantilla no incluye ya las variables {"{{acompanantes_html}}"} o {"{{acompanantes}}"}.
+                    Añade al final del mensaje del titular un bloque con el nombre y el enlace/QR de cada acompañante. Solo se añade si la plantilla no incluye ya las variables {"{{acompanantes_html}}"} o {"{{acompanantes}}"}.
                   </span>
                 </span>
-              </label>
-            )}
-            {!isWhatsapp && (
-              <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
+            </label>
+            <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4"
@@ -882,14 +881,17 @@ FIGURARTE Casting & Producción`,
                   onChange={(e) => setSendPerCompanion(e.target.checked)}
                 />
                 <span>
-                  <strong>Enviar también un correo individual por cada acompañante</strong>
+                  <strong>
+                    Enviar también un {isWhatsapp ? "WhatsApp" : "correo"} individual por cada acompañante
+                  </strong>
                   <br />
                   <span className="text-xs text-muted-foreground">
-                    Se manda al email del titular un correo extra por cada acompañante con su nombre, asiento y QR/enlace individual. Requiere que el acompañante tenga su QR generado (modo "QR individual por acompañante" en la sesión).
+                    {isWhatsapp
+                      ? "Se envía un WhatsApp adicional por cada acompañante con su nombre, asiento y enlace/QR individual. Si el acompañante no tiene teléfono propio, se usa el del titular como fallback. Requiere que el acompañante tenga su QR generado (modo 'QR individual por acompañante' en la sesión)."
+                      : "Se manda al email del titular un correo extra por cada acompañante con su nombre, asiento y QR/enlace individual. Si el acompañante no tiene email propio, se usa el del titular. Requiere que el acompañante tenga su QR generado (modo 'QR individual por acompañante' en la sesión)."}
                   </span>
                 </span>
-              </label>
-            )}
+            </label>
             <div className="flex gap-2">
               <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : stats.withEmail === 0}>
                 <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : stats.withEmail} destinatarios)
