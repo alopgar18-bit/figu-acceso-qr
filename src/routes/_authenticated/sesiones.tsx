@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { Clock, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/sesiones")({
 function Page() {
   const [searchText, setSearchText] = useState("");
   const [selectedEventId, setSelectedEventId] = useState<string>("all");
+  const matches = useMatches();
 
   const { data, isLoading } = useQuery({
     queryKey: ["all-sessions"],
@@ -64,6 +65,9 @@ function Page() {
   }, [data, searchText, selectedEventId]);
 
   const hasFilters = searchText || selectedEventId !== "all";
+  const hasChild = matches.some((m) => m.routeId === "/_authenticated/sesiones/$sessionId/plano");
+
+  if (hasChild) return <Outlet />;
 
   return (
     <div>
