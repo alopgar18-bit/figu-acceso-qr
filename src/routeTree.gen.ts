@@ -47,6 +47,7 @@ import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
 import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
 import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
 import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
+import { Route as CTokenCanceladaRouteImport } from './routes/c.$token.cancelada'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
 import { Route as AuthenticatedInformesEventIdRouteImport } from './routes/_authenticated/informes.$eventId'
 import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
@@ -256,6 +257,11 @@ const CTokenCancelarRoute = CTokenCancelarRouteImport.update({
   path: '/cancelar',
   getParentRoute: () => CTokenRoute,
 } as any)
+const CTokenCanceladaRoute = CTokenCanceladaRouteImport.update({
+  id: '/cancelada',
+  path: '/cancelada',
+  getParentRoute: () => CTokenRoute,
+} as any)
 const AuthenticatedSolicitudesParticipantIdRoute =
   AuthenticatedSolicitudesParticipantIdRouteImport.update({
     id: '/$participantId',
@@ -366,6 +372,7 @@ export interface FileRoutesByFullPath {
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/cancelada': typeof CTokenCanceladaRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -415,6 +422,7 @@ export interface FileRoutesByTo {
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/cancelada': typeof CTokenCanceladaRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -468,6 +476,7 @@ export interface FileRoutesById {
   '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/_authenticated/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
+  '/c/$token/cancelada': typeof CTokenCanceladaRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
   '/c/$token/entrada': typeof CTokenEntradaRoute
   '/e/$slug/cerrado': typeof ESlugCerradoRoute
@@ -521,6 +530,7 @@ export interface FileRouteTypes {
     | '/importaciones/nueva'
     | '/informes/$eventId'
     | '/solicitudes/$participantId'
+    | '/c/$token/cancelada'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -570,6 +580,7 @@ export interface FileRouteTypes {
     | '/importaciones/nueva'
     | '/informes/$eventId'
     | '/solicitudes/$participantId'
+    | '/c/$token/cancelada'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -622,6 +633,7 @@ export interface FileRouteTypes {
     | '/_authenticated/importaciones/nueva'
     | '/_authenticated/informes/$eventId'
     | '/_authenticated/solicitudes/$participantId'
+    | '/c/$token/cancelada'
     | '/c/$token/cancelar'
     | '/c/$token/entrada'
     | '/e/$slug/cerrado'
@@ -918,6 +930,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CTokenCancelarRouteImport
       parentRoute: typeof CTokenRoute
     }
+    '/c/$token/cancelada': {
+      id: '/c/$token/cancelada'
+      path: '/cancelada'
+      fullPath: '/c/$token/cancelada'
+      preLoaderRoute: typeof CTokenCanceladaRouteImport
+      parentRoute: typeof CTokenRoute
+    }
     '/_authenticated/solicitudes/$participantId': {
       id: '/_authenticated/solicitudes/$participantId'
       path: '/$participantId'
@@ -1183,11 +1202,13 @@ const PortalRouteWithChildren =
   PortalRoute._addFileChildren(PortalRouteChildren)
 
 interface CTokenRouteChildren {
+  CTokenCanceladaRoute: typeof CTokenCanceladaRoute
   CTokenCancelarRoute: typeof CTokenCancelarRoute
   CTokenEntradaRoute: typeof CTokenEntradaRoute
 }
 
 const CTokenRouteChildren: CTokenRouteChildren = {
+  CTokenCanceladaRoute: CTokenCanceladaRoute,
   CTokenCancelarRoute: CTokenCancelarRoute,
   CTokenEntradaRoute: CTokenEntradaRoute,
 }
