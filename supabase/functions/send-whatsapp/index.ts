@@ -205,7 +205,7 @@ type CommLogRow = {
 
 async function runWati(
   supabase: ReturnType<typeof createClient>,
-  body: { limit?: number; ids?: string[] },
+  body: { limit?: number; ids?: string[]; background?: boolean },
 ) {
   const endpoint = Deno.env.get("WATI_API_ENDPOINT");
   const token = Deno.env.get("WATI_ACCESS_TOKEN");
@@ -245,6 +245,54 @@ async function runWati(
   const { data: rawLogs, error: fetchErr } = await query;
   if (fetchErr) throw fetchErr;
   const logs = (rawLogs ?? []) as unknown as CommLogRow[];
+
+  // Si hay más de 20 logs a procesar, lanzamos en background y devolvemos 202
+  // para evitar timeout de la edge function (la conexión se cierra a los ~60s).
+  // El frontend debe refrescar la cola para ver el progreso.
+  const BACKGROUND_THRESHOLD = 20;
+  if (logs.length > BACKGROUND_THRESHOLD) {
+    // Marcamos todos como "encolado_envio" para feedback inmediato
+    const ids = logs.map((l) => l.id);
+    await supabase
+      .from("communication_logs")
+      .update({ status: "pendiente", error_message: null })
+      .in("id", ids);
+
+    // Lanzar procesamiento en background sin bloquear la respuesta
+    // deno-lint-ignore no-explicit-any
+    const ctx = globalThis as any;
+    const bgPromise = processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl)
+      .catch((e) => console.error("[send-whatsapp][bg] error", e));
+    if (ctx.EdgeRuntime?.waitUntil) {
+      ctx.EdgeRuntime.waitUntil(bgPromise);
+    }
+
+    return new Response(
+      JSON.stringify({
+        configured: true,
+        provider: "wati",
+        background: true,
+        queued: logs.length,
+        message: `Procesando ${logs.length} envíos en segundo plano. Refresca la cola en 1–2 minutos para ver el resultado.`,
+      }),
+      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const result = await processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl);
+  return new Response(
+    JSON.stringify({ configured: true, provider: "wati", ...result }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+async function processWatiBatch(
+  supabase: ReturnType<typeof createClient>,
+  logs: CommLogRow[],
+  endpoint: string,
+  token: string,
+  publicSiteUrl: string,
+) {
 
   let sent = 0;
   let failed = 0;
@@ -546,19 +594,15 @@ async function runWati(
     }
   }
 
-  return new Response(
-    JSON.stringify({
-      configured: true, provider: "wati",
-      processed: logs.length, sent, failed, skipped, errors,
-      mode: useBatch ? "batch" : "individual",
-      ...(noCreditsAbort
-        ? {
-            error_code: "WATI_NO_CREDITS",
-            message:
-              "Wati ha rechazado los envíos por falta de créditos. Recarga la cuenta y reintenta los fallidos.",
-          }
-        : {}),
-    }),
-    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-  );
+  return {
+    processed: logs.length, sent, failed, skipped, errors,
+    mode: useBatch ? "batch" : "individual",
+    ...(noCreditsAbort
+      ? {
+          error_code: "WATI_NO_CREDITS",
+          message:
+            "Wati ha rechazado los envíos por falta de créditos. Recarga la cuenta y reintenta los fallidos.",
+        }
+      : {}),
+  };
 }
