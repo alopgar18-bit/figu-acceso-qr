@@ -21,6 +21,44 @@ const normZone = (s: string | null | undefined) => normName(s).replace(/\s+/g, "
 const seatKey = (zone: string | null | undefined, row: string | null | undefined, num: string | null | undefined) =>
   `${normZone(zone)}||${(row ?? "").toString().trim()}||${(num ?? "").toString().trim()}`;
 
+// Estados de titular que NO cuentan como ocupante de la butaca.
+// Los acompañantes heredan: si el titular es inválido, sus acompañantes tampoco cuentan.
+export const INVALID_OCCUPANT_STATUSES = new Set<string>([
+  "cancelado_asistente",
+  "no_asistira",
+  "baja",
+  "rechazado",
+]);
+
+export type SeatOverrideCategory =
+  | "reservado_camaras"
+  | "bloqueado"
+  | "movilidad_reducida"
+  | "acompanante_mr"
+  | "visibilidad_reducida";
+
+export const SEAT_OVERRIDE_LABELS: Record<SeatOverrideCategory, string> = {
+  reservado_camaras: "Reservado cámaras",
+  bloqueado: "Bloqueado",
+  movilidad_reducida: "Movilidad reducida",
+  acompanante_mr: "Acompañante MR",
+  visibilidad_reducida: "Visibilidad reducida",
+};
+
+export const SEAT_OVERRIDE_DEFAULT_COLORS: Record<SeatOverrideCategory, string> = {
+  reservado_camaras: "#6b7280", // gris
+  bloqueado: "#374151", // gris oscuro
+  movilidad_reducida: "#0ea5e9", // azul
+  acompanante_mr: "#22c55e", // verde
+  visibilidad_reducida: "#a855f7", // morado
+};
+
+// Categorías que retiran la butaca del aforo disponible (no ocupada, no libre).
+export const UNAVAILABLE_OVERRIDE_CATEGORIES = new Set<SeatOverrideCategory>([
+  "reservado_camaras",
+  "bloqueado",
+]);
+
 export type Occupant = {
   kind: "titular" | "acompanante";
   id: string;
@@ -37,6 +75,9 @@ export type SeatCell = {
   row: string;
   number: string;
   occupants: Occupant[];
+  category?: SeatOverrideCategory;
+  color?: string | null;
+  notes?: string | null;
 };
 
 export type ZoneInventory = {
@@ -55,10 +96,18 @@ export type OccupancyResponse = {
     asignados: number; // butacas ocupadas (únicas)
     personas: number; // suma de ocupantes (cuenta conflictos)
     conflictos: number; // butacas con >1 ocupante
-    huecos_estimados: number; // dentro de los rangos vistos
+    huecos_estimados: number; // dentro de los rangos vistos (legacy, no fiable)
     fantasmas: number; // asientos con datos incompletos
+    aforo: number; // capacidad de la sesión
+    butacas_ocupadas: number; // alias de asignados con ocupantes válidos
+    personas_ocupadas: number; // alias de personas con ocupantes válidos
+    reservados_no_disponibles: number; // butacas marcadas reservadas/bloqueadas
+    libres_estimadas: number; // aforo - butacas_ocupadas - reservados_no_disponibles
+    overbooking: number; // exceso sobre aforo
+    excluidos_por_estado: number; // titulares ignorados por estado inválido
   };
   conflicts: SeatCell[]; // butacas con 2+ ocupantes
+  overrides_summary: Array<{ category: SeatOverrideCategory; count: number; color: string }>;
 };
 
 export const getSessionOccupancy = createServerFn({ method: "POST" })
