@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, XCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, XCircle } from "lucide-react";
 
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,9 @@ export const Route = createFileRoute("/c/$token/cancelar")({
 function Page() {
   const { token } = Route.useParams();
   const cancel = useServerFn(cancelAttendance);
+  const navigate = useNavigate();
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function handle(e: FormEvent) {
     e.preventDefault();
@@ -43,29 +43,12 @@ function Page() {
         toast.error("No se pudo cancelar: " + r.code);
         return;
       }
-      setDone(true);
+      navigate({ to: "/c/$token/cancelada", params: { token }, replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error inesperado");
     } finally {
       setSubmitting(false);
     }
-  }
-
-  if (done) {
-    return (
-      <PublicShell>
-        <div className="text-center py-16">
-          <CheckCircle2 className="h-12 w-12 mx-auto text-primary" />
-          <h1 className="mt-6 text-3xl font-black uppercase tracking-tight">Asistencia cancelada</h1>
-          <p className="mt-3 text-muted-foreground max-w-md mx-auto">
-            Gracias por avisarnos. Tu plaza ha sido liberada. Si cambia tu situación, contacta con el equipo de FIGURARTE.
-          </p>
-          <Button asChild variant="outline" className="mt-8 uppercase tracking-wider">
-            <Link to="/">Volver al inicio</Link>
-          </Button>
-        </div>
-      </PublicShell>
-    );
   }
 
   return (
