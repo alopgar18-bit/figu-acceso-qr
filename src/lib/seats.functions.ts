@@ -98,12 +98,15 @@ export type OccupancyResponse = {
     conflictos: number; // butacas con >1 ocupante
     huecos_estimados: number; // dentro de los rangos vistos (legacy, no fiable)
     fantasmas: number; // asientos con datos incompletos
-    aforo: number; // capacidad de la sesión
+    aforo: number; // alias retrocompatible = aforo_sesion
+    aforo_sesion: number; // capacidad configurada en la sesión
+    aforo_plano: number; // butacas reales dibujadas (ocupadas + reservadas + huecos visibles)
+    desviacion_sesion: number; // aforo_plano - aforo_sesion
     butacas_ocupadas: number; // alias de asignados con ocupantes válidos
     personas_ocupadas: number; // alias de personas con ocupantes válidos
     reservados_no_disponibles: number; // butacas marcadas reservadas/bloqueadas
-    libres_estimadas: number; // aforo - butacas_ocupadas - reservados_no_disponibles
-    overbooking: number; // exceso sobre aforo
+    libres_estimadas: number; // aforo_plano - butacas_ocupadas - reservados_no_disponibles
+    overbooking: number; // exceso sobre aforo_plano
     excluidos_por_estado: number; // titulares ignorados por estado inválido
   };
   conflicts: SeatCell[]; // butacas con 2+ ocupantes
