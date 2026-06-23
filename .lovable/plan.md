@@ -1,88 +1,86 @@
+## Objetivo
 
-# Plan urgente para el 24 de junio: libres correctos + leyendas
+Dejar el plano correcto para mañana sin reenviar entradas: aplicar el "Listado corregido" del Excel directamente sobre `event_participants` / `companions` (solo cambian `seat_zone/row/number`; **NO se toca `confirmation_token` ni se regeneran QR**, las URLs ya enviadas siguen válidas). En paralelo, dejar los cambios de UI que pediste (aforo plano vs sesión, leyenda completa, panel global de conflictos).
 
-Alcance mínimo para que mañana el plano y la KPI de libres reflejen la realidad. El módulo completo de venues/planos reutilizables y la mejora de importaciones queda para el plan conjunto del día 25.
+---
 
-## Diagnóstico (verificado contra la BBDD)
+## 1. Aplicar el Excel a la BBDD (lo crítico para mañana)
 
-Sesión `Grabación 24 de junio`, aforo configurado **700**.
+**Flujo:**
 
-| Métrica | Valor real |
-| --- | --- |
-| Titulares con asiento | 576 |
-| Acompañantes con asiento | 326 |
-| **Personas con butaca asignada** | **902** |
-| Butacas únicas ocupadas | 836 |
-| Titulares `cancelado_asistente` (con asiento aún puesto) | 7 |
-| Personas en conflicto (misma butaca, distinta gente) | ~66 |
+1. Subes el Excel desde el plano (admin only) → server fn `applySeatCorrectionsExcel`.
+2. Server fn parsea la hoja **"Listado corregido"** y, por cada fila, busca la persona en la sesión por:
+  - `email` (titular) + `nombre completo` → match en `event_participants` (titular) o `companions` (acompañante).
+  - Si hay match único: actualiza `seat_zone / seat_row / seat_number` con `Fila final` / `Asiento final`.
+  - Si hay 0 o varios matches → fila se devuelve como "no aplicada" en el informe.
+3. Antes de aplicar, devuelve una **vista previa** (totales: a actualizar / sin cambios / no encontrados / conflictos) y solo aplica con confirmación explícita.
+4. Todo el cambio se registra en `audit_logs` (`action='seats.bulk_correction'`, `changes={file, applied, skipped, sample}`).
+5. **No** se tocan: `confirmation_token`, `qr_*`, `status`, `tickets`. Las URLs/QR ya enviadas siguen funcionando.
 
-Por qué el plano dice "muchas libres":
+**Validaciones obligatorias en el server fn:**
 
-1. La KPI "Huecos visibles" no es "libres reales": solo cuenta huecos entre `min..max(asiento)` de las filas que ya tienen alguien, ignorando filas y zonas sin asignar. El usuario la lee como "libres" y no lo es.
-2. `getSessionOccupancy` no filtra por estado → los 7 cancelados aparecen ocupando butaca; en cambio, los acompañantes (status vacío) sí cuentan, bien.
-3. No existe el concepto de butacas reservadas (cámaras), MR ni VR → cualquier resta contra `capacity` sale mal.
+- Solo admin (`is_admin(auth.uid())`).
+- Sesión target = la del plano abierto.
+- Rechazar fila si la butaca destino **no existe** en el plano (cruzando con `event_sessions.theater_layout`/zonas) o **es de cámara/bloqueada** (cruce con `session_seat_overrides`).
+- Rechazar si la butaca destino ya está asignada a otra persona distinta de la del Excel (evita crear nuevos duplicados).
+- Resultado final descargable en Excel: filas aplicadas, filas omitidas con motivo.
 
-## Cambios a entregar antes de mañana
+**Sin migración nueva**: solo updates sobre tablas existentes.
 
-### 1. Corregir `getSessionOccupancy` (servidor y mirror cliente)
+---
 
-Archivos: `src/lib/seats.functions.ts` y `src/lib/seats-browser.ts` (mantener ambos idénticos).
+## 2. Aforo del plano vs aforo de sesión
 
-- Excluir como ocupantes los titulares en estados `cancelado_asistente`, `no_asistira`, `baja`, `rechazado` (lista a confirmar contigo). Sus acompañantes tampoco cuentan aunque tengan butaca.
-- Devolver totales nuevos en `totals`:
-  - `aforo` = `session.capacity`.
-  - `butacas_ocupadas` = butacas únicas con al menos un ocupante válido.
-  - `personas_ocupadas` = ocupantes válidos (titulares + acompañantes).
-  - `conflictos` = butacas con 2+ ocupantes válidos.
-  - `reservados_no_disponibles` = butacas marcadas como `reservado_camaras` o `bloqueado` (ver §2).
-  - `libres_estimadas` = `max(0, aforo − butacas_ocupadas − reservados_no_disponibles)`.
-  - `overbooking` = `max(0, butacas_ocupadas + reservados_no_disponibles − aforo)`.
-- Quitar `huecos_estimados` o renombrarlo a `huecos_dentro_de_rango` y dejar de mostrarlo en pantalla.
+En `seats.functions.ts` + `seats-browser.ts`:
 
-### 2. Leyendas mínimas por sesión (reservados, MR, VR)
+- Nuevo `aforo_plano = Σ butacas reales en zonas` (excluye huecos/pasillos).
+- `totals` añade `aforo_plano`, mantiene `aforo` como `aforo_sesion`.
+- `libres_estimadas = aforo_plano − butacas_ocupadas − reservados_no_disponibles`.
+- `desviacion_sesion = aforo_plano − aforo_sesion`.
 
-Tabla nueva `public.session_seat_overrides`:
+En el KPI panel: dos tarjetas — **"Aforo plano"** (principal) y **"Aforo sesión"** (referencia, badge de aviso si difieren). "Libres" cuelga del aforo del plano.
 
-- Campos: `session_id` (FK `event_sessions`), `seat_zone`, `seat_row`, `seat_number`, `category` enum (`reservado_camaras | bloqueado | movilidad_reducida | acompanante_mr | visibilidad_reducida`), `color` opcional, `notes` opcional, timestamps.
-- UNIQUE(`session_id`, `seat_zone`, `seat_row`, `seat_number`).
-- GRANT a `authenticated` y `service_role`. RLS: lectura para cualquier usuario con acceso a la sesión (mismo patrón que ya usa `event_participants`), escritura solo admin / productora.
+---
 
-Integración en `getSessionOccupancy`:
+## 3. Leyenda completa siempre visible
 
-- Cargar overrides y adjuntar `category` y `color` a cada `SeatCell`.
-- Butacas con `category ∈ {reservado_camaras, bloqueado}`: pintadas en gris, no clicables, no suman a libres y suman a `reservados_no_disponibles`.
-- `movilidad_reducida / acompanante_mr / visibilidad_reducida`: color propio + entrada en la leyenda. Siguen siendo butacas válidas (libres si no hay ocupante).
+En `sesiones.$sessionId.plano.tsx`, renderizar la leyenda iterando sobre `SEAT_OVERRIDE_LABELS` completo (no solo categorías con count>0), mostrando color por defecto y contador (0 si no hay). Tooltip con la descripción funcional de cada una.
 
-### 3. UI del plano (`src/routes/_authenticated/sesiones.$sessionId.plano.tsx`)
+---
 
-- Sustituir las KPIs actuales por: `Aforo · Butacas ocupadas · Personas · Reservados · Libres estimadas · Conflictos`. La de Libres en verde, en rojo si `overbooking > 0` con tooltip explicando que hay más butacas asignadas que aforo.
-- Añadir panel "Leyenda" plegable con las categorías presentes en la sesión (lee de los overrides).
-- Botón "Marcar butacas" visible solo a admin → modal sencillo: seleccionar zona, fila, rango de números (`12-18` o `12,14,16`), elegir categoría, guardar. Suficiente para meter mañana antes del evento los grises de cámaras y las zonas MR/VR del plano que pasaste. Sin editor visual sobre la imagen — eso entra en el plan del día 25.
-- Modo filtro "Sólo libres" deja de incluir reservados/bloqueados.
+## 4. Panel global "Resolver conflictos"
 
-### 4. Limpieza de datos previa al evento
+Bloque colapsable en la cabecera del plano (admin), con tres acciones masivas — todas con **listado previo** antes de actuar (según tus respuestas):
 
-Antes de mañana, un script de mantenimiento (server fn admin) que:
+1. **Duplicados de butaca** → muestra los duplicados; permite marcar/desmarcar y aplicar.
+  - **Por defecto**: marcar manualmente desde la lista (tu opción c). Sin regla automática.
+2. **Cancelados con butaca** → lista los titulares con estado en `INVALID_OCCUPANT_STATUSES` que conservan `seat_*`; botón "Liberar butaca seleccionadas".
+3. **Asignados fuera del plano** → lista de participantes con `seat_*` que no existen en ninguna zona; solo **listar / exportar a Excel** (tu opción 2), no desasigna automáticamente.
 
-- Liste titulares con `status ∈ {cancelado_asistente, no_asistira, baja}` que aún tengan `seat_*` rellenos en la sesión 24-jun.
-- Tras tu OK, vacíe `seat_zone/row/number` en titulares cancelados y en sus acompañantes.
-- Log a `audit_logs`.
+**Exportar conflictos a Excel** (tu opción sí): botón en el panel que descarga un `.xlsx` con tres hojas (duplicados / cancelados con butaca / fuera de plano), mismo formato que el que has usado para tu análisis paralelo.
 
-Esto deja el plano consistente aunque el filtro por estado del §1 ya cubra el cálculo.
+Todo vía server functions con `requireSupabaseAuth` + `is_admin`, registrado en `audit_logs`.
 
-### 5. Validación
+---
 
-- Cuadrar a mano: `butacas_ocupadas + libres_estimadas + reservados_no_disponibles ≈ aforo` (o `overbooking > 0` claro en rojo).
-- Revisar contigo el plano con los reservados de cámaras marcados y confirmar que las cifras coinciden con lo que se espera ver el día del evento.
+## Archivos a tocar / crear
 
-## Fuera de este plan (entra el 25)
+- `src/lib/seats.functions.ts` — `aforo_plano`, `listSeatConflicts`, `clearCanceledSeats`, `applySeatCorrectionsExcel`, `exportConflictsXlsx`.
+- `src/lib/seats-browser.ts` — espejar shape de totals.
+- `src/routes/_authenticated/sesiones.$sessionId.plano.tsx` — KPIs, leyenda completa, panel "Resolver conflictos", botón "Aplicar correcciones desde Excel".
+- Nuevo componente `ApplyCorrectionsDialog` (subir xlsx, preview, confirmar).
 
-- Módulo de venues / planos reutilizables con imagen de fondo y editor visual sobre la imagen.
-- Asignación automática desde plano con perfiles de solicitante y export Excel.
-- Reescritura del módulo de importaciones para alimentar `venue_seats` y validar contra el plano.
+**No se toca**: tabla `tickets`, `confirmation_token`, módulo de importación, módulo de planos físicos (queda para el 25).
 
-## Confirmaciones antes de implementar
+---
 
-1. Lista definitiva de estados que NO cuentan como ocupado (propongo `cancelado_asistente`, `no_asistira`, `baja`, `rechazado` — ¿añadimos/quitamos alguno?).
-2. ¿Te vale el editor por rango numérico para marcar butacas mañana, o lo dejamos solo en "marcar butacas reservadas de cámaras" y MR/VR las gestionas tú con la importación posterior?
-3. ¿Ejecuto la limpieza de los 7 cancelados con asiento en cuanto la migración esté lista, o prefieres revisar la lista uno a uno?
+## Coherencia con tu Excel (revisado)
+
+- Totales cuadran: 763 + 57 reubicadas + 4 sin asignar + algunos no asistirá ≈ 906 asistentes; cuadra con los 902 con asiento en BBDD.
+- 0 butacas de cámara invadidas → coherente con que aún no tienes `session_seat_overrides` cargadas; convendría marcar las casillas grises del plano (cámaras) **antes** de aplicar correcciones para que la validación las rechace si algún destino futuro cae sobre ellas. Mañana basta con que estén marcadas; si quieres lo hago yo desde la imagen del plano que ya pasaste.
+- Matching por `email + nombre completo` es razonable; si una persona aparece con email vacío o nombres con tildes/espacios distintos, caerá en "no encontrada" y la verás en el informe para resolver a mano. Te aviso por si prefieres incluir un fallback por `dni`.
+
+## Preguntas antes de implementar
+
+1. ¿Te marco yo las **butacas de cámara (grises)** desde el plano que pasaste, antes de aplicar el Excel, para que la validación las proteja? (recomendado) si
+2. Para la limpieza de cancelados con butaca: ¿ejecuto la limpieza **a la vez** que aplico el Excel, o lo dejo como acción aparte en el panel? a parte
