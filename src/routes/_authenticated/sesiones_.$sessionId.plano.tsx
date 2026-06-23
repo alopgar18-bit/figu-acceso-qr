@@ -25,7 +25,7 @@ import {
   type OccupancyResponse, type SeatCell, type ResolutionPlan,
 } from "@/lib/seats.functions";
 
-export const Route = createFileRoute("/_authenticated/sesiones/$sessionId/plano")({
+export const Route = createFileRoute("/_authenticated/sesiones_/$sessionId/plano")({
   component: PlanoPage,
 });
 
