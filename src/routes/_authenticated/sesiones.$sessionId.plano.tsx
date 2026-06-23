@@ -146,7 +146,18 @@ function PlanoPage() {
         </AlertDescription>
       </Alert>
 
-      {occQuery.isLoading || !data ? (
+      {occQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>No se pudo cargar el plano</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <div>{occQuery.error instanceof Error ? occQuery.error.message : "Error desconocido"}</div>
+            <Button size="sm" variant="outline" onClick={() => occQuery.refetch()}>
+              Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : occQuery.isLoading || !data ? (
         <Skeleton className="h-96" />
       ) : (
         <>
