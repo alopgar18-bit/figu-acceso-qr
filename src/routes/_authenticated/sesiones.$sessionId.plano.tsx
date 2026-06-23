@@ -372,10 +372,11 @@ function ZoneBlock({
                 <div className="w-12 shrink-0 text-xs text-muted-foreground text-right pr-1">F{r.row}</div>
                 <div className="flex flex-wrap gap-[3px]">
                   {r.seats.map((s) => {
+                    const isUnavail = !!s.category && UNAVAILABLE_OVERRIDE_CATEGORIES.has(s.category);
                     const visible =
                       (mode === "todos") ||
                       (mode === "conflictos" && s.occupants.length > 1) ||
-                      (mode === "libres" && s.occupants.length === 0);
+                      (mode === "libres" && s.occupants.length === 0 && !isUnavail);
                     const matches = matchesSearch(s);
                     if (!visible || !matches) {
                       return <Seat key={s.number} dim cell={s} onClick={() => onSeatClick(s)} />;
