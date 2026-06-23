@@ -273,6 +273,7 @@ async function runWati(
         provider: "wati",
         background: true,
         queued: logs.length,
+        queued_ids: ids,
         message: `Procesando ${logs.length} envíos en segundo plano. Refresca la cola en 1–2 minutos para ver el resultado.`,
       }),
       { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
