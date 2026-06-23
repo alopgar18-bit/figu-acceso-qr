@@ -233,9 +233,11 @@ export async function fetchSessionOccupancyClient(sessionId: string): Promise<Oc
   }
   zones.sort((a, b) => a.zone.localeCompare(b.zone));
 
-  const aforo = session.capacity ?? 0;
-  const libres_estimadas = Math.max(0, aforo - butacas_ocupadas - reservados_no_disponibles);
-  const overbooking = Math.max(0, butacas_ocupadas + reservados_no_disponibles - aforo);
+  const aforo_sesion = session.capacity ?? 0;
+  const aforo_plano = butacas_ocupadas + reservados_no_disponibles + huecos;
+  const aforo_base = aforo_plano > 0 ? aforo_plano : aforo_sesion;
+  const libres_estimadas = Math.max(0, aforo_base - butacas_ocupadas - reservados_no_disponibles);
+  const overbooking = Math.max(0, butacas_ocupadas + reservados_no_disponibles - aforo_base);
   const overrides_summary = (Object.keys(overridesCount) as SeatOverrideCategory[]).map((cat) => ({
     category: cat,
     count: overridesCount[cat],
@@ -248,7 +250,7 @@ export async function fetchSessionOccupancyClient(sessionId: string): Promise<Oc
       name: session.name,
       event_id: session.event_id,
       starts_at: session.starts_at,
-      capacity: aforo,
+      capacity: aforo_sesion,
     },
     zones,
     totals: {
@@ -257,7 +259,10 @@ export async function fetchSessionOccupancyClient(sessionId: string): Promise<Oc
       conflictos,
       huecos_estimados: huecos,
       fantasmas,
-      aforo,
+      aforo: aforo_sesion,
+      aforo_sesion,
+      aforo_plano,
+      desviacion_sesion: aforo_plano - aforo_sesion,
       butacas_ocupadas,
       personas_ocupadas,
       reservados_no_disponibles,
