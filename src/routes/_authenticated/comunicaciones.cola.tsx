@@ -325,6 +325,34 @@ function QueuePage() {
         }
       />
 
+      {bgBatch && (
+        <Card className="mb-4 border-primary/40">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <div className="font-medium">
+                Envío en segundo plano · {bgBatch.total - bgBatch.pending}/{bgBatch.total} procesados
+              </div>
+              <div className="flex gap-3 text-xs">
+                <span className="text-emerald-600">{bgBatch.sent} enviados</span>
+                <span className="text-red-600">{bgBatch.failed} fallidos</span>
+                <span className="text-muted-foreground">{bgBatch.pending} pendientes</span>
+                {bgBatch.pending === 0 && (
+                  <button
+                    className="underline text-muted-foreground"
+                    onClick={() => setBgBatch(null)}
+                  >
+                    Cerrar
+                  </button>
+                )}
+              </div>
+            </div>
+            <Progress
+              value={bgBatch.total > 0 ? ((bgBatch.total - bgBatch.pending) / bgBatch.total) * 100 : 0}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-wrap gap-2">
