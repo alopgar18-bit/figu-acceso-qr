@@ -178,13 +178,70 @@ function PlanoPage() {
         <Skeleton className="h-96" />
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <KpiCard label="Asignados" value={data.totals.asignados} />
-            <KpiCard label="Personas" value={data.totals.personas} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <KpiCard label="Aforo" value={data.totals.aforo} />
+            <KpiCard label="Butacas ocupadas" value={data.totals.butacas_ocupadas} />
+            <KpiCard label="Personas" value={data.totals.personas_ocupadas} />
+            <KpiCard label="Reservados" value={data.totals.reservados_no_disponibles} tone={data.totals.reservados_no_disponibles > 0 ? "warn" : undefined} />
+            <KpiCard
+              label="Libres"
+              value={data.totals.libres_estimadas}
+              tone={data.totals.overbooking > 0 ? "danger" : "ok"}
+              hint={
+                data.totals.overbooking > 0
+                  ? `Overbooking: ${data.totals.overbooking} butacas asignadas por encima del aforo`
+                  : undefined
+              }
+            />
             <KpiCard label="Conflictos" value={data.totals.conflictos} tone={data.totals.conflictos > 0 ? "warn" : "ok"} />
-            <KpiCard label="Huecos visibles" value={data.totals.huecos_estimados} />
-            <KpiCard label="Datos incompletos" value={data.totals.fantasmas} tone={data.totals.fantasmas > 0 ? "warn" : "ok"} />
           </div>
+          {data.totals.overbooking > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Hay más butacas asignadas que aforo</AlertTitle>
+              <AlertDescription>
+                Aforo configurado: {data.totals.aforo}. Butacas ocupadas: {data.totals.butacas_ocupadas}.
+                {data.totals.reservados_no_disponibles > 0 && (
+                  <> Reservadas (cámaras / bloqueadas): {data.totals.reservados_no_disponibles}.</>
+                )}{" "}
+                Sobran {data.totals.overbooking} asignaciones. Revisa conflictos o ajusta el aforo.
+              </AlertDescription>
+            </Alert>
+          )}
+          {data.totals.excluidos_por_estado > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {data.totals.excluidos_por_estado} titular(es) cancelados con butaca conservada no se cuentan como ocupantes. Limpia sus asientos cuando puedas.
+            </p>
+          )}
+
+          {(data.overrides_summary.length > 0 || isAdmin) && (
+            <Card>
+              <CardContent className="p-3 flex flex-wrap items-center gap-3">
+                <span className="text-xs font-medium text-muted-foreground">Leyenda:</span>
+                <LegendDot tone="free" label="Libre" />
+                <LegendDot tone="occ" label="Ocupado" />
+                <LegendDot tone="conflict" label="Conflicto" />
+                {data.overrides_summary.map((o) => (
+                  <span key={o.category} className="inline-flex items-center gap-1 text-xs">
+                    <span
+                      className="inline-block h-3 w-3 rounded border"
+                      style={{ backgroundColor: o.color, borderColor: o.color }}
+                    />
+                    {SEAT_OVERRIDE_LABELS[o.category]} ({o.count})
+                  </span>
+                ))}
+                {isAdmin && (
+                  <div className="ml-auto">
+                    <MarkSeatsDialog
+                      sessionId={sessionId}
+                      zones={zones.map((z) => z.zone)}
+                      onSaved={() => occQuery.refetch()}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-3 flex flex-wrap gap-2 items-center">
