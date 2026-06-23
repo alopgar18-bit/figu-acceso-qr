@@ -323,6 +323,12 @@ export function useEventReport(scope: ReportScope | null) {
         totals.checkinsQr += st.checkinsQr;
         totals.checkinsManual += st.checkinsManual;
         totals.checkinsViaIncidencia += st.checkinsViaIncidencia;
+        totals.personasSolicitudes += st.personasSolicitudes;
+        totals.personasAprobados += st.personasAprobados;
+        totals.personasRechazados += st.personasRechazados;
+        totals.personasListaEspera += st.personasListaEspera;
+        totals.personasCancelados += st.personasCancelados;
+        totals.personasNoPresentados += st.personasNoPresentados;
         totals.capacidad += s.capacity ?? 0;
       }
       totals.ocupacion = totals.capacidad ? Math.round((totals.personasConfirmadas / totals.capacidad) * 100) : 0;
