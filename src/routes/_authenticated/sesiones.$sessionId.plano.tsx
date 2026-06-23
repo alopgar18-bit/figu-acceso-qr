@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,13 +18,16 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
 import {
-  getSessionOccupancy, suggestSeatResolution, applySeatPlan, setSeatManual,
-  type OccupancyResponse, type SeatCell, type ResolutionPlan,
-} from "@/lib/seats.functions";
+  applySeatMovesClient,
+  fetchSessionOccupancyClient,
+  setSeatManualClient,
+  suggestSeatResolutionLocal,
+} from "@/lib/seats.client";
 
-export const Route = createFileRoute("/_authenticated/sesiones_/$sessionId/plano")({
+import type { OccupancyResponse, SeatCell, ResolutionPlan } from "@/lib/seats.functions";
+
+export const Route = createFileRoute("/_authenticated/sesiones/$sessionId/plano")({
   component: PlanoPage,
 });
 
@@ -34,14 +36,11 @@ type FilterMode = "todos" | "conflictos" | "libres";
 function PlanoPage() {
   const { sessionId } = Route.useParams();
   const router = useRouter();
-  const fetchOcc = useServerFn(getSessionOccupancy);
-  const fetchSuggest = useServerFn(suggestSeatResolution);
-  const applyFn = useServerFn(applySeatPlan);
-  const setManual = useServerFn(setSeatManual);
 
   const occQuery = useQuery({
     queryKey: ["session-occupancy", sessionId],
-    queryFn: () => fetchOcc({ data: { session_id: sessionId } }),
+    queryFn: () => fetchSessionOccupancyClient(sessionId),
+    retry: false,
   });
 
   const [zoneFilter, setZoneFilter] = useState<string>("__all__");
@@ -66,13 +65,15 @@ function PlanoPage() {
     );
 
   const suggestMut = useMutation({
-    mutationFn: (cell: SeatCell) =>
-      fetchSuggest({ data: { session_id: sessionId, zone: cell.zone, row: cell.row, number: cell.number } }),
+    mutationFn: (cell: SeatCell) => {
+      if (!data) throw new Error("Plano no cargado");
+      return Promise.resolve(suggestSeatResolutionLocal(data, cell));
+    },
   });
 
   const applyMut = useMutation({
     mutationFn: (vars: { moves: ResolutionPlan["moves"]; allow_cross_zone: boolean }) =>
-      applyFn({ data: { session_id: sessionId, moves: vars.moves, allow_cross_zone: vars.allow_cross_zone } }),
+      applySeatMovesClient(sessionId, vars.moves, vars.allow_cross_zone),
     onSuccess: (res) => {
       toast.success(`${res.applied} cambio(s) aplicados${res.failed ? `, ${res.failed} fallido(s)` : ""}`);
       occQuery.refetch();
@@ -88,16 +89,14 @@ function PlanoPage() {
       const allMoves: ResolutionPlan["moves"] = [];
       for (const cell of data.conflicts) {
         try {
-          const plan = await fetchSuggest({
-            data: { session_id: sessionId, zone: cell.zone, row: cell.row, number: cell.number },
-          });
+          const plan = suggestSeatResolutionLocal(data, cell);
           if (!plan.unsafe && plan.moves.length > 0) allMoves.push(...plan.moves);
         } catch (e) {
           console.error("plan failed for cell", cell, e);
         }
       }
       if (allMoves.length === 0) return { applied: 0, failed: 0 };
-      return applyFn({ data: { session_id: sessionId, moves: allMoves, allow_cross_zone: false } });
+      return applySeatMovesClient(sessionId, allMoves, false);
     },
     onSuccess: (res) => {
       toast.success(`Sugerencias seguras aplicadas: ${res.applied} cambio(s)`);
@@ -108,7 +107,7 @@ function PlanoPage() {
 
   const manualMut = useMutation({
     mutationFn: (vars: { occupant_kind: "titular" | "acompanante"; occupant_id: string; zone: string; row: string; number: string }) =>
-      setManual({ data: { session_id: sessionId, ...vars } }),
+      setSeatManualClient(sessionId, vars),
     onSuccess: () => {
       toast.success("Asiento actualizado");
       occQuery.refetch();
