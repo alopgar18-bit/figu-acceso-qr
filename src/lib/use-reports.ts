@@ -78,6 +78,14 @@ export interface SessionStats {
   checkinsQr: number;
   checkinsManual: number;
   checkinsViaIncidencia: number;
+  // Conteos en PERSONAS (titular + acompañantes) — usados en los KPI del
+  // informe para que cuadre con el total real de invitados.
+  personasSolicitudes: number;
+  personasAprobados: number;
+  personasRechazados: number;
+  personasListaEspera: number;
+  personasCancelados: number;
+  personasNoPresentados: number;
 }
 
 export interface ParticipantExportRow {
@@ -123,6 +131,8 @@ function emptyStats(): SessionStats {
     listaEspera: 0, confirmados: 0, cancelados: 0, checkins: 0,
     noPresentados: 0, incidencias: 0, personasConfirmadas: 0,
     checkinsQr: 0, checkinsManual: 0, checkinsViaIncidencia: 0,
+    personasSolicitudes: 0, personasAprobados: 0, personasRechazados: 0,
+    personasListaEspera: 0, personasCancelados: 0, personasNoPresentados: 0,
   };
 }
 
@@ -241,17 +251,19 @@ export function useEventReport(scope: ReportScope | null) {
       for (const p of parts) {
         const s = statsBySession.get(p.session_id);
         if (!s) continue;
+        const personas = 1 + (p.companions_count ?? 0);
         s.solicitudes += 1;
+        s.personasSolicitudes += personas;
         if (["solicitud_recibida", "pendiente_revision"].includes(p.status)) s.pendientes += 1;
-        if (APPROVED_LIKE.includes(p.status)) s.aprobados += 1;
-        if (p.status === "rechazado") s.rechazados += 1;
-        if (p.status === "lista_espera") s.listaEspera += 1;
+        if (APPROVED_LIKE.includes(p.status)) { s.aprobados += 1; s.personasAprobados += personas; }
+        if (p.status === "rechazado") { s.rechazados += 1; s.personasRechazados += personas; }
+        if (p.status === "lista_espera") { s.listaEspera += 1; s.personasListaEspera += personas; }
         if (CONFIRMED_LIKE.includes(p.status)) {
           s.confirmados += 1;
-          s.personasConfirmadas += 1 + (p.companions_count ?? 0);
+          s.personasConfirmadas += personas;
         }
-        if (CANCELLED_LIKE.includes(p.status)) s.cancelados += 1;
-        if (p.status === "no_presentado") s.noPresentados += 1;
+        if (CANCELLED_LIKE.includes(p.status)) { s.cancelados += 1; s.personasCancelados += personas; }
+        if (p.status === "no_presentado") { s.noPresentados += 1; s.personasNoPresentados += personas; }
         s.incidencias += incidentsByParticipant.get(p.id) ?? 0;
       }
 
@@ -311,6 +323,12 @@ export function useEventReport(scope: ReportScope | null) {
         totals.checkinsQr += st.checkinsQr;
         totals.checkinsManual += st.checkinsManual;
         totals.checkinsViaIncidencia += st.checkinsViaIncidencia;
+        totals.personasSolicitudes += st.personasSolicitudes;
+        totals.personasAprobados += st.personasAprobados;
+        totals.personasRechazados += st.personasRechazados;
+        totals.personasListaEspera += st.personasListaEspera;
+        totals.personasCancelados += st.personasCancelados;
+        totals.personasNoPresentados += st.personasNoPresentados;
         totals.capacidad += s.capacity ?? 0;
       }
       totals.ocupacion = totals.capacidad ? Math.round((totals.personasConfirmadas / totals.capacidad) * 100) : 0;

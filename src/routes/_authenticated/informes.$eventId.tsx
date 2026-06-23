@@ -93,13 +93,13 @@ function EventReportPage() {
         </TabsList>
 
         <TabsContent value="previo" className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat icon={<Users />} label="Solicitudes" value={data.totals.solicitudes} />
-          <Stat label="Pendientes" value={data.totals.pendientes} />
-          <Stat label="Aprobados" value={data.totals.aprobados} />
-          <Stat label="Rechazados" value={data.totals.rechazados} />
-          <Stat label="Lista de espera" value={data.totals.listaEspera} />
-          <Stat icon={<CheckCircle2 />} label="Confirmados" value={data.totals.confirmados} />
-          <Stat label="Cancelados" value={data.totals.cancelados} />
+          <Stat icon={<Users />} label="Solicitudes (personas)" value={data.totals.personasSolicitudes} />
+          <Stat label="Pendientes (titulares)" value={data.totals.pendientes} />
+          <Stat label="Aprobados (personas)" value={data.totals.personasAprobados} />
+          <Stat label="Rechazados (personas)" value={data.totals.personasRechazados} />
+          <Stat label="Lista de espera (personas)" value={data.totals.personasListaEspera} />
+          <Stat icon={<CheckCircle2 />} label="Confirmados (personas)" value={data.totals.personasConfirmadas} />
+          <Stat label="Cancelados (personas)" value={data.totals.personasCancelados} />
           <Stat label="Aforo disponible" value={Math.max(0, data.totals.capacidad - data.totals.personasConfirmadas)} />
           <Stat label="Ocupación" value={`${data.totals.ocupacion}%`} />
           <Stat label="Comunicaciones enviadas" value={data.totals.communicationsSent} />
@@ -109,7 +109,7 @@ function EventReportPage() {
         <TabsContent value="vivo" className="mt-6 space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Stat icon={<CheckCircle2 />} label="Check-ins" value={data.totals.checkins} />
-            <Stat icon={<Clock />} label="Pendientes de llegar" value={Math.max(0, data.totals.confirmados - data.totals.checkins)} />
+            <Stat icon={<Clock />} label="Pendientes de llegar" value={Math.max(0, data.totals.personasConfirmadas - data.totals.checkins)} />
             <Stat label="Aforo actual" value={data.totals.checkins} />
             <Stat icon={<Activity />} label="Validadores activos" value={data.totals.activeValidators} />
             <Stat icon={<AlertTriangle />} label="Incidencias" value={data.totals.incidents} tone={data.totals.incidents > 0 ? "warning" : "neutral"} />
@@ -135,24 +135,24 @@ function EventReportPage() {
         </TabsContent>
 
         <TabsContent value="final" className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Total inscritos" value={data.totals.solicitudes} />
-          <Stat label="Total aprobados" value={data.totals.aprobados} />
-          <Stat label="Total confirmados" value={data.totals.confirmados} />
+          <Stat label="Total inscritos (personas)" value={data.totals.personasSolicitudes} />
+          <Stat label="Total aprobados (personas)" value={data.totals.personasAprobados} />
+          <Stat label="Total confirmados (personas)" value={data.totals.personasConfirmadas} />
           <Stat label="Asistentes reales" value={data.totals.checkins} />
           <Stat label="Entradas con QR" value={data.totals.checkinsQr} />
           <Stat label="Entradas manuales" value={data.totals.checkinsManual} />
           <Stat label="Entradas vía incidencia" value={data.totals.checkinsViaIncidencia} />
-          <Stat label="No presentados" value={data.totals.noPresentados} />
-          <Stat label="Cancelaciones" value={data.totals.cancelados} />
-          <Stat label="Lista de espera" value={data.totals.listaEspera} />
+          <Stat label="No presentados (personas)" value={data.totals.personasNoPresentados} />
+          <Stat label="Cancelaciones (personas)" value={data.totals.personasCancelados} />
+          <Stat label="Lista de espera (personas)" value={data.totals.personasListaEspera} />
           <Stat label="Incidencias" value={data.totals.incidents} />
           <Stat
             label="Ratio confirmación → asistencia"
-            value={data.totals.confirmados ? `${Math.round((data.totals.checkins / data.totals.confirmados) * 100)}%` : "—"}
+            value={data.totals.personasConfirmadas ? `${Math.round((data.totals.checkins / data.totals.personasConfirmadas) * 100)}%` : "—"}
           />
           <Stat
             label="Ratio no-show"
-            value={data.totals.confirmados ? `${Math.round((data.totals.noPresentados / data.totals.confirmados) * 100)}%` : "—"}
+            value={data.totals.personasConfirmadas ? `${Math.round((data.totals.personasNoPresentados / data.totals.personasConfirmadas) * 100)}%` : "—"}
           />
         </TabsContent>
 
@@ -164,9 +164,9 @@ function EventReportPage() {
                   <th className="text-left p-3">Sesión</th>
                   <th className="text-left p-3">Inicio</th>
                   <th className="text-right p-3">Aforo</th>
-                  <th className="text-right p-3">Solic.</th>
-                  <th className="text-right p-3">Aprob.</th>
-                  <th className="text-right p-3">Conf.</th>
+                  <th className="text-right p-3" title="Personas (titular + acompañantes)">Solic.</th>
+                  <th className="text-right p-3" title="Personas (titular + acompañantes)">Aprob.</th>
+                  <th className="text-right p-3" title="Personas confirmadas (titular + acompañantes)">Conf.</th>
                   <th className="text-right p-3">Asist.</th>
                   <th className="text-right p-3">QR</th>
                   <th className="text-right p-3">Manual</th>
@@ -184,14 +184,14 @@ function EventReportPage() {
                       <td className="p-3 font-medium">{s.name}</td>
                       <td className="p-3 text-muted-foreground">{s.starts_at ? new Date(s.starts_at).toLocaleString("es-ES") : "—"}</td>
                       <td className="p-3 text-right">{s.capacity}</td>
-                      <td className="p-3 text-right">{s.stats.solicitudes}</td>
-                      <td className="p-3 text-right">{s.stats.aprobados}</td>
-                      <td className="p-3 text-right">{s.stats.confirmados}</td>
+                      <td className="p-3 text-right">{s.stats.personasSolicitudes}</td>
+                      <td className="p-3 text-right">{s.stats.personasAprobados}</td>
+                      <td className="p-3 text-right">{s.stats.personasConfirmadas}</td>
                       <td className="p-3 text-right">{s.stats.checkins}</td>
                       <td className="p-3 text-right">{s.stats.checkinsQr}</td>
                       <td className="p-3 text-right">{s.stats.checkinsManual}</td>
                       <td className="p-3 text-right">{s.stats.checkinsViaIncidencia}</td>
-                      <td className="p-3 text-right">{s.stats.noPresentados}</td>
+                      <td className="p-3 text-right">{s.stats.personasNoPresentados}</td>
                       <td className="p-3 text-right">{s.stats.incidencias}</td>
                       <td className="p-3 text-right">
                         <Badge variant={occ > 90 ? "destructive" : "outline"}>{occ}%</Badge>
