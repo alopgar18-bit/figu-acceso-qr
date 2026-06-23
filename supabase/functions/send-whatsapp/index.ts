@@ -418,6 +418,11 @@ async function runWati(
   const delayMs = 400;
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+  let noCreditsAbort = false;
+  const NO_CREDITS_MSG = "Sin créditos en Wati — recarga la cuenta antes de reintentar";
+  const isNoCredits = (s: string | null | undefined) =>
+    typeof s === "string" && /not\s+enough\s+credits/i.test(s);
+
   if (!useBatch) {
     for (let i = 0; i < prepared.length; i++) {
       const p = prepared[i];
@@ -450,19 +455,43 @@ async function runWati(
         }).eq("id", p.log.id);
         sent++;
       } else {
+        const noCredits = isNoCredits(res.errorDetail);
+        const detail = noCredits ? NO_CREDITS_MSG : (res.errorDetail ?? "Error desconocido de Wati");
         await supabase.from("communication_logs").update({
           status: "fallido",
           whatsapp_estado: "failed",
-          whatsapp_failed_detail: res.errorDetail ?? "Error desconocido de Wati",
-          error_message: res.errorDetail ?? "Wati error",
+          whatsapp_failed_detail: detail,
+          error_message: noCredits ? "wati_no_credits" : (res.errorDetail ?? "Wati error"),
           metadata: {
             ...(p.log.metadata ?? {}),
             provider: "wati",
             wati_broadcast_name: broadcast,
+            ...(noCredits ? { wati_error_code: "WATI_NO_CREDITS" } : {}),
           },
         }).eq("id", p.log.id);
         failed++;
-        errors.push({ id: p.log.id, error: res.errorDetail ?? "Wati error" });
+        errors.push({ id: p.log.id, error: detail });
+        if (noCredits) {
+          // Circuit breaker: marcar el resto del lote como fallido sin llamar a Wati
+          noCreditsAbort = true;
+          const remaining = prepared.slice(i + 1);
+          for (const r of remaining) {
+            await supabase.from("communication_logs").update({
+              status: "fallido",
+              whatsapp_estado: "failed",
+              whatsapp_failed_detail: NO_CREDITS_MSG,
+              error_message: "wati_no_credits",
+              metadata: {
+                ...(r.log.metadata ?? {}),
+                provider: "wati",
+                wati_error_code: "WATI_NO_CREDITS",
+              },
+            }).eq("id", r.log.id);
+            failed++;
+            errors.push({ id: r.log.id, error: NO_CREDITS_MSG });
+          }
+          break;
+        }
       }
       if (i < prepared.length - 1 && delayMs > 0) await sleep(delayMs);
     }
