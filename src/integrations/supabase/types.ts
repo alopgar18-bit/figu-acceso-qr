@@ -639,6 +639,7 @@ export type Database = {
           internal_notes: string | null
           person_id: string
           public_form_id: string | null
+          seat_locked: boolean
           seat_number: string | null
           seat_row: string | null
           seat_zone: string | null
@@ -664,6 +665,7 @@ export type Database = {
           internal_notes?: string | null
           person_id: string
           public_form_id?: string | null
+          seat_locked?: boolean
           seat_number?: string | null
           seat_row?: string | null
           seat_zone?: string | null
@@ -689,6 +691,7 @@ export type Database = {
           internal_notes?: string | null
           person_id?: string
           public_form_id?: string | null
+          seat_locked?: boolean
           seat_number?: string | null
           seat_row?: string | null
           seat_zone?: string | null
@@ -771,6 +774,7 @@ export type Database = {
           updated_at: string
           user_selectable: boolean
           venue_address: string | null
+          venue_plan_id: string | null
           waitlist_enabled: boolean
         }
         Insert: {
@@ -801,6 +805,7 @@ export type Database = {
           updated_at?: string
           user_selectable?: boolean
           venue_address?: string | null
+          venue_plan_id?: string | null
           waitlist_enabled?: boolean
         }
         Update: {
@@ -831,6 +836,7 @@ export type Database = {
           updated_at?: string
           user_selectable?: boolean
           venue_address?: string | null
+          venue_plan_id?: string | null
           waitlist_enabled?: boolean
         }
         Relationships: [
@@ -839,6 +845,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_sessions_venue_plan_id_fkey"
+            columns: ["venue_plan_id"]
+            isOneToOne: false
+            referencedRelation: "venue_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -1667,6 +1680,172 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      venue_plans: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          updated_at: string
+          venue_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          updated_at?: string
+          venue_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          updated_at?: string
+          venue_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_plans_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_seats: {
+        Row: {
+          col_index: number
+          created_at: string
+          default_category: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          plan_id: string
+          row_index: number
+          row_label: string
+          seat_number: string
+          updated_at: string
+          zone_id: string
+        }
+        Insert: {
+          col_index?: number
+          created_at?: string
+          default_category?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          plan_id: string
+          row_index?: number
+          row_label: string
+          seat_number: string
+          updated_at?: string
+          zone_id: string
+        }
+        Update: {
+          col_index?: number
+          created_at?: string
+          default_category?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          plan_id?: string
+          row_index?: number
+          row_label?: string
+          seat_number?: string
+          updated_at?: string
+          zone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_seats_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "venue_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_seats_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "venue_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_zones: {
+        Row: {
+          color: string
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          plan_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          plan_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          plan_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_zones_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "venue_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venues: {
+        Row: {
+          city: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
