@@ -1,8 +1,10 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search, Plus } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search, Plus, Ticket } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { generateAssignmentProposal } from "@/lib/assignment-engine.functions";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -134,6 +136,16 @@ function PlanoPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Error"),
   });
 
+  const generateUnseatedFn = useServerFn(generateAssignmentProposal);
+  const assignUnseatedMut = useMutation({
+    mutationFn: () => generateUnseatedFn({ data: { session_id: sessionId, only_unseated_qr: true } }),
+    onSuccess: (res) => {
+      toast.success(`Propuesta generada: ${res.total_assigned} asignados · ${res.total_unassigned} sin sitio`);
+      router.navigate({ to: "/sesiones/$sessionId/asignacion", params: { sessionId } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="space-y-4">
       <Button asChild variant="ghost" size="sm" className="-ml-2">
@@ -162,6 +174,33 @@ function PlanoPage() {
           </div>
         }
       />
+
+      {data && data.totals.personas_con_qr_sin_asiento > 0 && data.totals.aforo_plano_fisico !== null && (
+        <Alert>
+          <Ticket className="h-4 w-4" />
+          <AlertTitle>
+            {data.totals.personas_con_qr_sin_asiento} persona(s) con QR sin butaca
+          </AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              Generar una propuesta de asignación únicamente para los invitados con QR emitido que aún no tienen butaca. No
+              tocará a quienes ya están sentados ni reenviará WhatsApp.
+            </span>
+            <Button
+              size="sm"
+              onClick={() => assignUnseatedMut.mutate()}
+              disabled={assignUnseatedMut.isPending}
+            >
+              {assignUnseatedMut.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4 mr-2" />
+              )}
+              Asignar solo a QR sin asiento
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Alert>
         <CheckCircle2 className="h-4 w-4" />
