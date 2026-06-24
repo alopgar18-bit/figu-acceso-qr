@@ -3,6 +3,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
 import { APPROVED_LIKE } from "./participant-constants";
+import type { Database } from "@/integrations/supabase/types";
+
+type ParticipantStatus = Database["public"]["Enums"]["participant_status"];
 
 const ADMIN_ROLES = ["superadmin", "admin_figurarte", "coordinador"] as const;
 
@@ -97,7 +100,7 @@ export const generateAssignmentProposal = createServerFn({ method: "POST" })
         "id, attendee_type, companions_count, seat_locked, seat_zone, seat_row, seat_number, status, created_at",
       )
       .eq("session_id", data.session_id)
-      .in("status", APPROVED_LIKE as unknown as string[]);
+      .in("status", APPROVED_LIKE as ParticipantStatus[]);
     if (pErr) throw new Error(pErr.message);
 
     // 4) rules
@@ -372,6 +375,14 @@ export const getProposalDetail = createServerFn({ method: "GET" })
     if (pErr) throw new Error(pErr.message);
     if (iErr) throw new Error(iErr.message);
 
+    type ParticipantHydrated = {
+      id: string;
+      attendee_type: string;
+      companions_count: number;
+      first_name: string | null;
+      last_name: string | null;
+      dni: string | null;
+    };
     // Hydrate participant names
     const partIds = Array.from(
       new Set((items ?? []).map((i) => i.participant_id)),
@@ -384,8 +395,21 @@ export const getProposalDetail = createServerFn({ method: "GET" })
           )
           .in("id", partIds)
       : { data: [] as never[] };
-    const pMap = new Map(
-      (parts ?? []).map((p) => [p.id, p as Record<string, unknown>]),
+    const pMap = new Map<string, ParticipantHydrated>(
+      (parts ?? []).map((p) => {
+        const person = (p as { people?: { first_name?: string; last_name?: string; dni?: string } }).people;
+        return [
+          p.id,
+          {
+            id: p.id,
+            attendee_type: p.attendee_type as string,
+            companions_count: p.companions_count as number,
+            first_name: person?.first_name ?? null,
+            last_name: person?.last_name ?? null,
+            dni: person?.dni ?? null,
+          },
+        ];
+      }),
     );
 
     return {
