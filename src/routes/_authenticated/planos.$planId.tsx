@@ -18,7 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { importVenueSeats } from "@/lib/venue-seats.functions";
 import { bulkAssignVenuePlanToSessions } from "@/lib/venue-plans.functions";
-import { useServerFn as _useServerFn } from "@tanstack/react-start";
 
 const SEAT_CATEGORIES = [
   { value: "libre", label: "Libre", color: "#e5e7eb" },
