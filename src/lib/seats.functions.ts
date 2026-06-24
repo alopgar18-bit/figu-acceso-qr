@@ -143,7 +143,8 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
       const { count, error: vErr } = await sb
         .from("venue_seats")
         .select("id", { count: "exact", head: true })
-        .eq("venue_plan_id", session.venue_plan_id);
+        .eq("plan_id", session.venue_plan_id)
+        .eq("is_active", true);
       if (vErr) throw new Error(vErr.message);
       aforo_plano_fisico = count ?? 0;
     }
