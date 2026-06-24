@@ -63,7 +63,7 @@ function AsignacionPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("event_sessions")
-        .select("id, event_id, title, venue_plan_id, starts_at")
+        .select("id, event_id, name, venue_plan_id, starts_at")
         .eq("id", sessionId)
         .single();
       if (error) throw new Error(error.message);
@@ -150,7 +150,7 @@ function AsignacionPage() {
       </div>
       <PageHeader
         title="Asignación automática de butacas"
-        description={sessionQuery.data?.title ?? ""}
+          description={sessionQuery.data?.name ?? ""}
       />
 
       {/* Reglas */}
