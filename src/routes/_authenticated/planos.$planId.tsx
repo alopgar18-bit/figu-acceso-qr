@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { ArrowLeft, Plus, Upload } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { importVenueSeats } from "@/lib/venue-seats.functions";
 
 const SEAT_CATEGORIES = [
   { value: "libre", label: "Libre", color: "#e5e7eb" },
