@@ -1,66 +1,70 @@
-## Diagnóstico
+## Objetivo
 
-El plano que ves de "Cartuja Center CITE Sevilla" **no está en `/planos`** porque nunca se creó como plano de recinto. Está guardado como **180 overrides de butacas** dentro de la sesión "Grabación 24 de junio" (tabla `session_seat_overrides`), que es el sistema legacy previo a la Fase 1.
+1. Revertir el flujo confuso de "promover plano".
+2. Dejar **ya cargado** el plano del Cartuja Center (1711 butacas del Excel) vinculado a las sesiones del evento, para que al abrir la app esté listo.
+3. **Añadir** en `/planos/$planId` un **importador visual de Excel reutilizable**, para que en el futuro puedas cargar más planos del mismo modo sin volver a pedírmelo.
 
-Datos reales hoy:
-- `venues`: 0 filas
-- `venue_plans`: 0 filas
-- `venue_seats`: 0 filas
-- `session_seat_overrides` para la sesión del 24 jun: **180 butacas dibujadas**
-- Las sesiones del 10 y 17 jun no tienen plano alguno
+## 1. Revertir el flujo de "promover plano"
 
-Por eso `/planos` aparece vacío y no puedes asignar ese plano a las otras dos sesiones.
+- Borrar `src/lib/venue-plans.functions.ts`.
+- `src/routes/_authenticated/sesiones.$sessionId.plano.tsx`: quitar banner amarillo, botón "Promover a plano de recinto", `promoteInfoQ`, `PromoteToVenuePlanDialog` e imports asociados.
+- `src/routes/_authenticated/planos.$planId.tsx`: quitar `LinkedSessionsCard` y `bulkAssignVenuePlanToSessions`.
+- Esto debería restaurar `/planos` y `/planos/$id` (los 404 vienen del join roto contra sesiones).
 
-## Solución: acción "Promover a plano de recinto"
+## 2. Importador visual de Excel en `/planos/$planId`
 
-Añadir un botón en la vista de plano de sesión (`/sesiones/{id}/plano`) que convierta las butacas dibujadas en un plano de recinto reutilizable, en un solo clic.
+Nuevo botón **"Importar desde Excel"** en la página del plano:
 
-### Flujo
+1. Input file `.xlsx`.
+2. Parseo en el cliente con `xlsx` (`cellStyles: true`) — instalar `xlsx` vía `bun add xlsx`.
+3. Detectar:
+   - **Zonas**: celdas con texto tipo `CLUB`, `PALCO`, `PLATEA`, `PLATEA ALTA`, `PLATEA BAJA`, `PLATEA PREFERENTE` (configurable).
+   - **Filas**: rótulos `F1..F26` a la izquierda de cada bloque (con `F4b` cuando aparece).
+   - **Butacas**: toda celda con un número se importa como butaca con `zona`, `fila`, `numero`, `row_index`, `col_index` y `color` (hex del relleno).
+4. **Diálogo de mapeo de colores**: tabla con los colores detectados y su frecuencia, cada uno con un selector de categoría (`libre`, `reservado_camaras`, `visibilidad_reducida`, `movilidad_reducida`, `acompanante_movilidad_reducida`, `premium`, `bloqueado`).  
+   Defaults pre-cargados según leyenda del Excel:
+   ```text
+   FFFDE8D9  melocotón     → visibilidad_reducida
+   FF002060  azul oscuro   → movilidad_reducida
+   FFB5DDE7  celeste claro → acompanante_movilidad_reducida
+   FF7E7E7E  gris          → reservado_camaras
+   resto                   → libre
+   ```
+5. Al confirmar, llamar a un nuevo server fn `importVenueSeatsBulk({ venue_plan_id, zonas, butacas })` que:
+   - Crea/actualiza `venue_zones`.
+   - Borra `venue_seats` existentes del plano (reimport idempotente).
+   - Hace **un solo `INSERT ... SELECT FROM unnest(...)`** con las 1711 butacas → coste constante, no 1711 round-trips.
+6. Refresca el listado del plano y muestra el total importado.
 
-1. En `/sesiones/{sessionId}/plano`, si la sesión **no tiene `venue_plan_id`** pero **sí tiene overrides**, mostrar un banner: *"Este plano vive solo en esta sesión. Conviértelo en plano de recinto para reutilizarlo en otras sesiones del evento."* con botón **"Promover a plano de recinto"**.
-2. Al pulsarlo se abre un diálogo con:
-   - Nombre del recinto (precargado con `event.location_name` → "Cartuja Center CITE Sevilla")
-   - Ciudad (precargada con `event.city` → "Sevilla")
-   - Nombre del plano (precargado: "Configuración principal")
-   - Checkbox **"Vincular este plano a la sesión actual"** (marcado por defecto)
-3. Al confirmar, un server function `promoteSessionOverridesToVenuePlan`:
-   - Busca o crea el `venue` (case-insensitive por nombre+ciudad).
-   - Crea el `venue_plan`.
-   - Inserta las 180 filas de `session_seat_overrides` como `venue_seats` (zone/row/number/category/color), con `plan_id` apuntando al nuevo plano.
-   - Si el checkbox está marcado, actualiza `event_sessions.venue_plan_id` de la sesión actual.
-   - Devuelve `{ venuePlanId, venueId, seatsCreated }`.
-4. Toast de éxito + invalidación de queries. El plano ya aparece en `/planos`.
+Este importador queda permanente en la UI — no es desechable.
 
-### Asignar a las otras sesiones
+## 3. Carga inicial del Cartuja Center
 
-Una vez promovido, en el formulario de cada sesión (10 y 17 jun) ya existe el selector **"Plano del recinto"** (Fase 1). Bastará con seleccionar el plano recién creado y guardar — los KPIs y la asignación automática usarán las 180 butacas reales.
+Para que cuando entres ya esté listo, usar el **mismo importador desde el lado servidor** una sola vez:
 
-Alternativa rápida: añadir en `/planos/{planId}` un panel **"Sesiones que usan este plano"** con un botón *"Aplicar a otras sesiones del evento"* que permita seleccionar sesiones del mismo evento y setear su `venue_plan_id` en bloque. (Opcional, lo incluyo en el plan.)
+- Migración SQL que crea (si no existen) el `venue` "Cartuja Center CITE Sevilla", el `venue_plan` "Plano principal" y las 5 `venue_zones`.
+- Migración de datos (vía `supabase--insert`) con las 1711 butacas ya parseadas localmente con openpyxl, usando exactamente el mapeo de colores de arriba. Este paso es equivalente a abrir el importador y pulsar "Confirmar" — sirve además como **test real** del formato canónico que produce el importador, así detectamos errores ya en esta entrega.
+- Actualizar `event_sessions.venue_plan_id` para apuntar al nuevo plano en todas las sesiones del evento del Cartuja.
 
-## Detalles técnicos
+## 4. Verificación
 
-**Nuevo archivo:** `src/lib/venue-plans.functions.ts`
-- `promoteSessionOverridesToVenuePlan({ sessionId, venueName, city, planName, linkToSession }) ` — server fn protegida con `requireSupabaseAuth`. Lógica:
-  1. Lee la sesión y su evento.
-  2. `SELECT id FROM venues WHERE lower(name)=lower($1) AND lower(coalesce(city,''))=lower(coalesce($2,''))` → si no existe, `INSERT`.
-  3. `INSERT INTO venue_plans (venue_id, name, is_active, version) VALUES (..., true, 1) RETURNING id`.
-  4. `INSERT INTO venue_seats (plan_id, seat_zone, seat_row, seat_number, category, color) SELECT ... FROM session_seat_overrides WHERE session_id=$1`.
-  5. Si `linkToSession`: `UPDATE event_sessions SET venue_plan_id=$plan WHERE id=$session`.
-  6. Audit log `venue_plan.promote_from_session`.
-- `bulkAssignVenuePlanToSessions({ planId, sessionIds })` — server fn para la asignación masiva opcional.
+- `/planos` → aparece "Cartuja Center CITE Sevilla — Plano principal" con 1711 butacas.
+- `/planos/{id}` → rejilla pintada según `row_index`/`col_index`, con categorías visibles.
+- Sesiones de junio → plano cargado automáticamente.
+- Probar el botón "Importar desde Excel" con el mismo fichero en un plano vacío de prueba para confirmar que el flujo UI también funciona end-to-end.
+- Screenshots con Playwright antes de avisar.
 
-**Edición de `src/routes/_authenticated/sesiones.$sessionId.plano.tsx`:**
-- Query adicional que cuente `session_seat_overrides` y lea `session.venue_plan_id`.
-- Banner + diálogo de promoción descrito arriba.
+## Archivos afectados
 
-**Edición de `src/routes/_authenticated/planos.$planId.tsx`:**
-- Sección **"Sesiones vinculadas"** que lista `event_sessions` con `venue_plan_id = planId` y botón *"Aplicar a otras sesiones del mismo evento"* (multi-select de sesiones sin plano del mismo evento).
+- ❌ `src/lib/venue-plans.functions.ts` (borrar)
+- ✏️ `src/routes/_authenticated/sesiones.$sessionId.plano.tsx`
+- ✏️ `src/routes/_authenticated/planos.$planId.tsx` (añadir botón + diálogo importador)
+- ➕ `src/lib/venue-plan-import.functions.ts` (server fn `importVenueSeatsBulk`)
+- ➕ `src/components/venue-plans/ImportExcelDialog.tsx`
+- 🗄️ Migración: venue + plan + zonas + vinculación a sesiones
+- 🗄️ Insert masivo: 1711 butacas del Cartuja
 
-**Sin migración SQL** — todas las tablas necesarias ya existen.
+## Lo que NO se hace
 
-## Resultado
-
-Después de aplicar este plan:
-- En `/planos` aparecerá la card **"Cartuja Center CITE Sevilla · Configuración principal · 180 butacas"**.
-- En las sesiones del 10 y 17 jun podrás seleccionar ese plano en el formulario, o aplicarlo en bloque desde la vista del plano.
-- Las butacas reservadas/bloqueadas (cámaras, MR, etc.) que ya dibujaste se conservan con su categoría y color en el nuevo plano.
+- No se modifica la estructura de `venues` / `venue_plans` / `venue_zones` / `venue_seats`.
+- No se tocan los `session_seat_overrides` existentes de la sesión del 24.
