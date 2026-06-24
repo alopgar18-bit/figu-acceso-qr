@@ -30,6 +30,15 @@ export const INVALID_OCCUPANT_STATUSES = new Set<string>([
   "rechazado",
 ]);
 
+// Estados que implican QR emitido/utilizable
+export const QR_EMITTED_STATUSES = new Set<string>([
+  "qr_generado",
+  "confirmado",
+  "acceso_validado",
+  "invitacion_enviada",
+  "pendiente_confirmacion",
+]);
+
 export type SeatOverrideCategory =
   | "reservado_camaras"
   | "bloqueado"
@@ -101,6 +110,7 @@ export type OccupancyResponse = {
     aforo: number; // alias retrocompatible = aforo_sesion
     aforo_sesion: number; // capacidad configurada en la sesión
     aforo_plano: number; // butacas reales dibujadas (ocupadas + reservadas + huecos visibles)
+    aforo_plano_fisico: number | null; // butacas del plano físico vinculado (si existe), prioritario
     desviacion_sesion: number; // aforo_plano - aforo_sesion
     butacas_ocupadas: number; // alias de asignados con ocupantes válidos
     personas_ocupadas: number; // alias de personas con ocupantes válidos
@@ -108,6 +118,7 @@ export type OccupancyResponse = {
     libres_estimadas: number; // aforo_plano - butacas_ocupadas - reservados_no_disponibles
     overbooking: number; // exceso sobre aforo_plano
     excluidos_por_estado: number; // titulares ignorados por estado inválido
+    personas_con_qr_sin_asiento: number; // titulares (+ acompañantes) con QR emitido y sin butaca
   };
   conflicts: SeatCell[]; // butacas con 2+ ocupantes
   overrides_summary: Array<{ category: SeatOverrideCategory; count: number; color: string }>;
@@ -120,11 +131,23 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
     const sb = context.supabase;
     const { data: session, error: sErr } = await sb
       .from("event_sessions")
-      .select("id, name, event_id, starts_at, capacity")
+      .select("id, name, event_id, starts_at, capacity, venue_plan_id")
       .eq("id", data.session_id)
       .maybeSingle();
     if (sErr) throw new Error(sErr.message);
     if (!session) throw new Error("Sesión no encontrada");
+
+    // Aforo del plano físico (si la sesión está vinculada a un plano)
+    let aforo_plano_fisico: number | null = null;
+    if (session.venue_plan_id) {
+      const { count, error: vErr } = await sb
+        .from("venue_seats")
+        .select("id", { count: "exact", head: true })
+        .eq("plan_id", session.venue_plan_id)
+        .eq("is_active", true);
+      if (vErr) throw new Error(vErr.message);
+      aforo_plano_fisico = count ?? 0;
+    }
 
     const { data: parts, error: pErr } = await sb
       .from("event_participants")
@@ -327,10 +350,32 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
     zones.sort((a, b) => a.zone.localeCompare(b.zone));
 
     const aforo_sesion = session.capacity ?? 0;
-    const aforo_plano = butacas_ocupadas + reservados_no_disponibles + huecos;
+    const aforo_plano_dibujado = butacas_ocupadas + reservados_no_disponibles + huecos;
+    // Prioridad: plano físico > plano dibujado > capacidad de sesión
+    const aforo_plano = aforo_plano_fisico !== null && aforo_plano_fisico > 0
+      ? aforo_plano_fisico
+      : aforo_plano_dibujado;
     const aforo_base = aforo_plano > 0 ? aforo_plano : aforo_sesion;
     const libres_estimadas = Math.max(0, aforo_base - butacas_ocupadas - reservados_no_disponibles);
     const overbooking = Math.max(0, butacas_ocupadas + reservados_no_disponibles - aforo_base);
+
+    // Personas con QR emitido sin butaca
+    const qrParticipantsNoSeat = new Set<string>();
+    let personas_con_qr_sin_asiento = 0;
+    for (const p of parts ?? []) {
+      if (!p.status || !QR_EMITTED_STATUSES.has(p.status)) continue;
+      if (!p.seat_zone || !p.seat_row || !p.seat_number) {
+        personas_con_qr_sin_asiento++;
+        qrParticipantsNoSeat.add(p.id);
+      }
+    }
+    for (const c of comps) {
+      // Acompañante del titular con QR (heredan), sin asiento
+      if (qrParticipantsNoSeat.has(c.participant_id)) {
+        if (!c.seat_zone || !c.seat_row || !c.seat_number) personas_con_qr_sin_asiento++;
+      }
+    }
+
     const overrides_summary = (Object.keys(overridesCount) as SeatOverrideCategory[]).map((cat) => ({
       category: cat,
       count: overridesCount[cat],
@@ -355,6 +400,7 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
         aforo: aforo_sesion,
         aforo_sesion,
         aforo_plano,
+        aforo_plano_fisico,
         desviacion_sesion: aforo_plano - aforo_sesion,
         butacas_ocupadas,
         personas_ocupadas,
@@ -362,6 +408,7 @@ export const getSessionOccupancy = createServerFn({ method: "POST" })
         libres_estimadas,
         overbooking,
         excluidos_por_estado,
+        personas_con_qr_sin_asiento,
       },
       conflicts,
       overrides_summary,
