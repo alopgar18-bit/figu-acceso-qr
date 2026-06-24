@@ -187,11 +187,15 @@ function PlanoPage() {
         <Skeleton className="h-96" />
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             <KpiCard
               label="Aforo plano"
               value={data.totals.aforo_plano}
-              hint="Butacas reales dibujadas — base de cálculo"
+              hint={
+                data.totals.aforo_plano_fisico !== null
+                  ? `Plano físico vinculado (${data.totals.aforo_plano_fisico} butacas) — base de cálculo`
+                  : "Butacas reales dibujadas — base de cálculo"
+              }
             />
             <KpiCard
               label="Aforo sesión"
@@ -224,6 +228,12 @@ function PlanoPage() {
               label="Conflictos"
               value={data.totals.conflictos}
               tone={data.totals.conflictos > 0 ? "warn" : "ok"}
+            />
+            <KpiCard
+              label="QR sin asiento"
+              value={data.totals.personas_con_qr_sin_asiento}
+              tone={data.totals.personas_con_qr_sin_asiento > 0 ? "warn" : "ok"}
+              hint="Personas con QR emitido pendientes de butaca"
             />
           </div>
           {data.totals.overbooking > 0 && (
