@@ -276,11 +276,21 @@ export const commitImport = createServerFn({ method: "POST" })
             seat_zone: row.seat_zone ?? null,
             seat_row: row.seat_row ?? null,
             seat_number: row.seat_number ?? null,
+            seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
           })
           .select("id")
           .single();
         if (partErr) {
           throw new Error(`No se pudo crear la participación (${partErr.message})`);
+        }
+        if (
+          planSeatKeys &&
+          row.seat_zone &&
+          row.seat_row &&
+          row.seat_number &&
+          !seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number)
+        ) {
+          seatsNotInPlan++;
         }
         // Register so subsequent rows in the same file with the same name
         // are treated as duplicates instead of creating another person.
