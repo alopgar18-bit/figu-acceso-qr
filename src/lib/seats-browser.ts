@@ -9,6 +9,7 @@ import type {
 } from "./seats.functions";
 import {
   INVALID_OCCUPANT_STATUSES,
+  QR_EMITTED_STATUSES,
   SEAT_OVERRIDE_DEFAULT_COLORS,
   UNAVAILABLE_OVERRIDE_CATEGORIES,
 } from "./seats.functions";
@@ -30,11 +31,22 @@ const seatKey = (zone: string | null | undefined, row: string | null | undefined
 export async function fetchSessionOccupancyClient(sessionId: string): Promise<OccupancyResponse> {
   const { data: session, error: sErr } = await supabase
     .from("event_sessions")
-    .select("id, name, event_id, starts_at, capacity")
+    .select("id, name, event_id, starts_at, capacity, venue_plan_id")
     .eq("id", sessionId)
     .maybeSingle();
   if (sErr) throw new Error(sErr.message);
   if (!session) throw new Error("Sesión no encontrada");
+
+  let aforo_plano_fisico: number | null = null;
+  if (session.venue_plan_id) {
+    const { count, error: vErr } = await supabase
+      .from("venue_seats")
+      .select("id", { count: "exact", head: true })
+      .eq("plan_id", session.venue_plan_id)
+      .eq("is_active", true);
+    if (vErr) throw new Error(vErr.message);
+    aforo_plano_fisico = count ?? 0;
+  }
 
   const { data: parts, error: pErr } = await supabase
     .from("event_participants")
@@ -234,10 +246,29 @@ export async function fetchSessionOccupancyClient(sessionId: string): Promise<Oc
   zones.sort((a, b) => a.zone.localeCompare(b.zone));
 
   const aforo_sesion = session.capacity ?? 0;
-  const aforo_plano = butacas_ocupadas + reservados_no_disponibles + huecos;
+  const aforo_plano_dibujado = butacas_ocupadas + reservados_no_disponibles + huecos;
+  const aforo_plano = aforo_plano_fisico !== null && aforo_plano_fisico > 0
+    ? aforo_plano_fisico
+    : aforo_plano_dibujado;
   const aforo_base = aforo_plano > 0 ? aforo_plano : aforo_sesion;
   const libres_estimadas = Math.max(0, aforo_base - butacas_ocupadas - reservados_no_disponibles);
   const overbooking = Math.max(0, butacas_ocupadas + reservados_no_disponibles - aforo_base);
+
+  const qrParticipantsNoSeat = new Set<string>();
+  let personas_con_qr_sin_asiento = 0;
+  for (const p of parts ?? []) {
+    if (!p.status || !QR_EMITTED_STATUSES.has(p.status)) continue;
+    if (!p.seat_zone || !p.seat_row || !p.seat_number) {
+      personas_con_qr_sin_asiento++;
+      qrParticipantsNoSeat.add(p.id);
+    }
+  }
+  for (const c of comps) {
+    if (qrParticipantsNoSeat.has(c.participant_id)) {
+      if (!c.seat_zone || !c.seat_row || !c.seat_number) personas_con_qr_sin_asiento++;
+    }
+  }
+
   const overrides_summary = (Object.keys(overridesCount) as SeatOverrideCategory[]).map((cat) => ({
     category: cat,
     count: overridesCount[cat],
@@ -262,6 +293,7 @@ export async function fetchSessionOccupancyClient(sessionId: string): Promise<Oc
       aforo: aforo_sesion,
       aforo_sesion,
       aforo_plano,
+      aforo_plano_fisico,
       desviacion_sesion: aforo_plano - aforo_sesion,
       butacas_ocupadas,
       personas_ocupadas,
@@ -269,6 +301,7 @@ export async function fetchSessionOccupancyClient(sessionId: string): Promise<Oc
       libres_estimadas,
       overbooking,
       excluidos_por_estado,
+      personas_con_qr_sin_asiento,
     },
     conflicts,
     overrides_summary,
