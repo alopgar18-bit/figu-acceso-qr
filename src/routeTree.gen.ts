@@ -25,6 +25,7 @@ import { Route as CTokenRouteImport } from './routes/c.$token'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedSolicitudesRouteImport } from './routes/_authenticated/solicitudes'
 import { Route as AuthenticatedSesionesRouteImport } from './routes/_authenticated/sesiones'
+import { Route as AuthenticatedPlanosRouteImport } from './routes/_authenticated/planos'
 import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticated/personas'
 import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/logs'
 import { Route as AuthenticatedLegalRouteImport } from './routes/_authenticated/legal'
@@ -140,6 +141,11 @@ const AuthenticatedSolicitudesRoute =
 const AuthenticatedSesionesRoute = AuthenticatedSesionesRouteImport.update({
   id: '/sesiones',
   path: '/sesiones',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPlanosRoute = AuthenticatedPlanosRouteImport.update({
+  id: '/planos',
+  path: '/planos',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedPersonasRoute = AuthenticatedPersonasRouteImport.update({
@@ -359,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/legal': typeof AuthenticatedLegalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
+  '/planos': typeof AuthenticatedPlanosRoute
   '/sesiones': typeof AuthenticatedSesionesRouteWithChildren
   '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -411,6 +418,7 @@ export interface FileRoutesByTo {
   '/legal': typeof AuthenticatedLegalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/personas': typeof AuthenticatedPersonasRoute
+  '/planos': typeof AuthenticatedPlanosRoute
   '/sesiones': typeof AuthenticatedSesionesRouteWithChildren
   '/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -465,6 +473,7 @@ export interface FileRoutesById {
   '/_authenticated/legal': typeof AuthenticatedLegalRoute
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
+  '/_authenticated/planos': typeof AuthenticatedPlanosRoute
   '/_authenticated/sesiones': typeof AuthenticatedSesionesRouteWithChildren
   '/_authenticated/solicitudes': typeof AuthenticatedSolicitudesRouteWithChildren
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
@@ -520,6 +529,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/logs'
     | '/personas'
+    | '/planos'
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
@@ -572,6 +582,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/logs'
     | '/personas'
+    | '/planos'
     | '/sesiones'
     | '/solicitudes'
     | '/usuarios'
@@ -625,6 +636,7 @@ export interface FileRouteTypes {
     | '/_authenticated/legal'
     | '/_authenticated/logs'
     | '/_authenticated/personas'
+    | '/_authenticated/planos'
     | '/_authenticated/sesiones'
     | '/_authenticated/solicitudes'
     | '/_authenticated/usuarios'
@@ -787,6 +799,13 @@ declare module '@tanstack/react-router' {
       path: '/sesiones'
       fullPath: '/sesiones'
       preLoaderRoute: typeof AuthenticatedSesionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/planos': {
+      id: '/_authenticated/planos'
+      path: '/planos'
+      fullPath: '/planos'
+      preLoaderRoute: typeof AuthenticatedPlanosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/personas': {
@@ -1169,6 +1188,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLegalRoute: typeof AuthenticatedLegalRoute
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
   AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
+  AuthenticatedPlanosRoute: typeof AuthenticatedPlanosRoute
   AuthenticatedSesionesRoute: typeof AuthenticatedSesionesRouteWithChildren
   AuthenticatedSolicitudesRoute: typeof AuthenticatedSolicitudesRouteWithChildren
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
@@ -1191,6 +1211,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedLegalRoute: AuthenticatedLegalRoute,
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
   AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
+  AuthenticatedPlanosRoute: AuthenticatedPlanosRoute,
   AuthenticatedSesionesRoute: AuthenticatedSesionesRouteWithChildren,
   AuthenticatedSolicitudesRoute: AuthenticatedSolicitudesRouteWithChildren,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
