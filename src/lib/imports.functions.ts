@@ -212,9 +212,19 @@ export const commitImport = createServerFn({ method: "POST" })
               seat_zone: row.seat_zone?.trim() || null,
               seat_row: row.seat_row?.trim() || null,
               seat_number: row.seat_number?.trim() || null,
+              seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
             })
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId);
+          if (
+            planSeatKeys &&
+            row.seat_zone &&
+            row.seat_row &&
+            row.seat_number &&
+            !seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number)
+          ) {
+            seatsNotInPlan++;
+          }
           updated++;
           continue;
         }
