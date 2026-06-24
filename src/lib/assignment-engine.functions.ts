@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
 import { APPROVED_LIKE } from "./participant-constants";
+import { QR_EMITTED_STATUSES } from "./seats.functions";
 import type { Database } from "@/integrations/supabase/types";
 
 type ParticipantStatus = Database["public"]["Enums"]["participant_status"];
@@ -54,7 +55,12 @@ function seatKey(zone: string, row: string, num: string) {
 export const generateAssignmentProposal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ session_id: z.string().uuid() }).parse(d),
+    z
+      .object({
+        session_id: z.string().uuid(),
+        only_unseated_qr: z.boolean().optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     await requireRole(context.supabase, context.userId, [...ADMIN_ROLES]);
@@ -136,9 +142,15 @@ export const generateAssignmentProposal = createServerFn({ method: "POST" })
       }
     }
 
-    // 6) Sort participants by rule priority, then by created_at
+    // 6) Filter and sort participants by rule priority, then by created_at
     const queue = (parts ?? [])
       .filter((p) => !p.seat_locked)
+      .filter((p) => {
+        if (!data.only_unseated_qr) return true;
+        const hasQr = !!p.status && QR_EMITTED_STATUSES.has(p.status as string);
+        const hasSeat = !!(p.seat_zone && p.seat_row && p.seat_number);
+        return hasQr && !hasSeat;
+      })
       .map((p) => ({
         p,
         rule: ruleFor(p.attendee_type),
@@ -297,6 +309,7 @@ export const generateAssignmentProposal = createServerFn({ method: "POST" })
         return acc;
       }, {}),
       locked_count: (parts ?? []).filter((p) => p.seat_locked).length,
+      scope: data.only_unseated_qr ? "qr_unseated" : "all",
     };
 
     const { data: proposal, error: insErr } = await context.supabase
