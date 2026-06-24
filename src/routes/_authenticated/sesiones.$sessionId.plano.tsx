@@ -147,12 +147,19 @@ function PlanoPage() {
         title={data?.session.name ?? "Cargando…"}
         description="Vista de ocupación en tiempo real. Resuelve conflictos sin reenviar invitaciones."
         actions={
-          data && data.totals.conflictos > 0 ? (
-            <Button onClick={() => applyAllSafeMut.mutate()} disabled={applyAllSafeMut.isPending}>
-              {applyAllSafeMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
-              Aplicar sugerencias seguras
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link to="/sesiones/$sessionId/asignacion" params={{ sessionId }}>
+                <Wand2 className="h-4 w-4 mr-2" /> Asignación automática
+              </Link>
             </Button>
-          ) : undefined
+            {data && data.totals.conflictos > 0 ? (
+              <Button onClick={() => applyAllSafeMut.mutate()} disabled={applyAllSafeMut.isPending}>
+                {applyAllSafeMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                Aplicar sugerencias seguras
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
