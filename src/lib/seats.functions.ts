@@ -30,6 +30,15 @@ export const INVALID_OCCUPANT_STATUSES = new Set<string>([
   "rechazado",
 ]);
 
+// Estados que implican QR emitido/utilizable
+export const QR_EMITTED_STATUSES = new Set<string>([
+  "qr_generado",
+  "confirmado",
+  "acceso_validado",
+  "invitacion_enviada",
+  "pendiente_confirmacion",
+]);
+
 export type SeatOverrideCategory =
   | "reservado_camaras"
   | "bloqueado"
