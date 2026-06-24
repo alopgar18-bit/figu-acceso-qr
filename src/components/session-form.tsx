@@ -197,6 +197,26 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
             <Label>Dirección</Label>
             <Input value={s.location_address} onChange={(e) => update("location_address", e.target.value)} />
           </div>
+          <div className="md:col-span-2">
+            <Label>Plano físico (opcional)</Label>
+            <Select
+              value={s.venue_plan_id ?? "__none__"}
+              onValueChange={(v) => update("venue_plan_id", v === "__none__" ? null : v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Sin plano físico (modo legacy)" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin plano físico (modo legacy)</SelectItem>
+                {(plansQ.data ?? []).map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}{p.venues?.name ? ` — ${p.venues.name}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Vincula esta sesión a un plano del módulo Planos / Recintos. El aforo lo marcará el plano.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
