@@ -1,90 +1,66 @@
+## Diagnóstico
 
-# Plan consolidado tras sesión del 24 de junio
+El plano que ves de "Cartuja Center CITE Sevilla" **no está en `/planos`** porque nunca se creó como plano de recinto. Está guardado como **180 overrides de butacas** dentro de la sesión "Grabación 24 de junio" (tabla `session_seat_overrides`), que es el sistema legacy previo a la Fase 1.
 
-Basado en tus respuestas: grid abstracto puro, aforo del plano manda, solo sesiones nuevas, acompañantes siempre con butaca, orden Plano → Import → Asignación → KPIs, reglas completas de asignación, import masivo desde Excel, validación "avisar pero importar", solo las categorías actuales.
+Datos reales hoy:
+- `venues`: 0 filas
+- `venue_plans`: 0 filas
+- `venue_seats`: 0 filas
+- `session_seat_overrides` para la sesión del 24 jun: **180 butacas dibujadas**
+- Las sesiones del 10 y 17 jun no tienen plano alguno
 
-## Fase 1 — Plano físico reutilizable (base)
+Por eso `/planos` aparece vacío y no puedes asignar ese plano a las otras dos sesiones.
 
-Modelo de datos nuevo (4 tablas en `public`, con GRANT + RLS):
+## Solución: acción "Promover a plano de recinto"
 
-- `venues` — recinto físico (nombre, ciudad, notas).
-- `venue_plans` — un plano por venue (nombre, versión, aforo total calculado, activo sí/no).
-- `venue_zones` — zonas del plano (nombre visible, color por defecto, orden).
-- `venue_seats` — butaca individual (zona, fila como texto, número como texto, categoría por defecto, `is_active`, coordenadas grid `row_index`/`col_index` para render).
+Añadir un botón en la vista de plano de sesión (`/sesiones/{id}/plano`) que convierta las butacas dibujadas en un plano de recinto reutilizable, en un solo clic.
 
-`event_sessions` recibe columna opcional `venue_plan_id`. Las sesiones del 24 y 25 quedan con `venue_plan_id = NULL` (modelo legacy actual sigue funcionando intacto).
+### Flujo
 
-UI nueva bajo `/_authenticated/planos`:
+1. En `/sesiones/{sessionId}/plano`, si la sesión **no tiene `venue_plan_id`** pero **sí tiene overrides**, mostrar un banner: *"Este plano vive solo en esta sesión. Conviértelo en plano de recinto para reutilizarlo en otras sesiones del evento."* con botón **"Promover a plano de recinto"**.
+2. Al pulsarlo se abre un diálogo con:
+   - Nombre del recinto (precargado con `event.location_name` → "Cartuja Center CITE Sevilla")
+   - Ciudad (precargada con `event.city` → "Sevilla")
+   - Nombre del plano (precargado: "Configuración principal")
+   - Checkbox **"Vincular este plano a la sesión actual"** (marcado por defecto)
+3. Al confirmar, un server function `promoteSessionOverridesToVenuePlan`:
+   - Busca o crea el `venue` (case-insensitive por nombre+ciudad).
+   - Crea el `venue_plan`.
+   - Inserta las 180 filas de `session_seat_overrides` como `venue_seats` (zone/row/number/category/color), con `plan_id` apuntando al nuevo plano.
+   - Si el checkbox está marcado, actualiza `event_sessions.venue_plan_id` de la sesión actual.
+   - Devuelve `{ venuePlanId, venueId, seatsCreated }`.
+4. Toast de éxito + invalidación de queries. El plano ya aparece en `/planos`.
 
-- Listado de planos (`/planos`).
-- Detalle/editor (`/planos/$planId`) — grid abstracto puro, sin imagen de fondo. Cada celda muestra fila+nº y se colorea por categoría/zona. Edición de zonas (nombre + color) con picker y reasignación de categoría celda a celda.
-- Botón "Duplicar plano" para versionar.
+### Asignar a las otras sesiones
 
-## Fase 2 — Import masivo de butacas desde Excel
+Una vez promovido, en el formulario de cada sesión (10 y 17 jun) ya existe el selector **"Plano del recinto"** (Fase 1). Bastará con seleccionar el plano recién creado y guardar — los KPIs y la asignación automática usarán las 180 butacas reales.
 
-- Endpoint server function `importVenueSeats` que recibe un Excel con columnas: `zona`, `fila`, `numero`, `categoria`, `row_index`, `col_index`, `activo`.
-- Valida estructura, deduplica (zona+fila+nº), crea zonas que no existan y vuelca a `venue_seats`.
-- Vista previa antes de aplicar: tabla con conteos por zona/categoría y errores de formato.
-- Para importaciones de participantes (Excel de reservas):
-  - Resuelve butaca contra `venue_seats` por zona+fila+nº.
-  - Si la butaca **no existe en el plano**: importa el participante con warning, lo manda al panel "Resolver conflictos" con motivo `butaca_no_existe_en_plano`. **No bloquea.**
-  - Si la butaca existe: marca `seat_locked = true` en `event_participants` (campo nuevo) para que la asignación automática no la mueva.
-  - El participante conserva siempre su `confirmation_token`/QR — nunca se reemiten URLs.
+Alternativa rápida: añadir en `/planos/{planId}` un panel **"Sesiones que usan este plano"** con un botón *"Aplicar a otras sesiones del evento"* que permita seleccionar sesiones del mismo evento y setear su `venue_plan_id` en bloque. (Opcional, lo incluyo en el plan.)
 
-## Fase 3 — Asignación automática (alcance completo v1)
+## Detalles técnicos
 
-Tabla `assignment_rules` (por plan + tipo de solicitante):
+**Nuevo archivo:** `src/lib/venue-plans.functions.ts`
+- `promoteSessionOverridesToVenuePlan({ sessionId, venueName, city, planName, linkToSession }) ` — server fn protegida con `requireSupabaseAuth`. Lógica:
+  1. Lee la sesión y su evento.
+  2. `SELECT id FROM venues WHERE lower(name)=lower($1) AND lower(coalesce(city,''))=lower(coalesce($2,''))` → si no existe, `INSERT`.
+  3. `INSERT INTO venue_plans (venue_id, name, is_active, version) VALUES (..., true, 1) RETURNING id`.
+  4. `INSERT INTO venue_seats (plan_id, seat_zone, seat_row, seat_number, category, color) SELECT ... FROM session_seat_overrides WHERE session_id=$1`.
+  5. Si `linkToSession`: `UPDATE event_sessions SET venue_plan_id=$plan WHERE id=$session`.
+  6. Audit log `venue_plan.promote_from_session`.
+- `bulkAssignVenuePlanToSessions({ planId, sessionIds })` — server fn para la asignación masiva opcional.
 
-- `applicant_type` (productora, prensa, invitado, etc.).
-- `preferred_zones` (array ordenado por prioridad).
-- `priority` (orden de procesamiento entre tipos).
-- Flags: `keep_companions_together`, `respect_mobility_reduced`, `respect_visibility_reduced`.
+**Edición de `src/routes/_authenticated/sesiones.$sessionId.plano.tsx`:**
+- Query adicional que cuente `session_seat_overrides` y lea `session.venue_plan_id`.
+- Banner + diálogo de promoción descrito arriba.
 
-Motor de asignación:
+**Edición de `src/routes/_authenticated/planos.$planId.tsx`:**
+- Sección **"Sesiones vinculadas"** que lista `event_sessions` con `venue_plan_id = planId` y botón *"Aplicar a otras sesiones del mismo evento"* (multi-select de sesiones sin plano del mismo evento).
 
-1. Ordena participantes pendientes por prioridad de tipo y `created_at`.
-2. Para cada uno (con sus acompañantes — **siempre con butaca asignada**):
-   - Busca bloque de N butacas contiguas en zona preferente.
-   - Si MR/VR: filtra solo butacas de esa categoría + acompañante en `acompanante_mr` adyacente.
-   - Nunca toca butacas `reservado_camaras`, `bloqueado` ni `seat_locked = true`.
-3. Genera propuesta en memoria → vista previa con tabla + diff sobre el plano + export a Excel.
-4. Botón "Aplicar definitivamente" → escribe `event_participants.seat_*`, registra en `audit_logs`, no toca tokens/QR.
+**Sin migración SQL** — todas las tablas necesarias ya existen.
 
-## Fase 4 — KPIs sobre plano físico
+## Resultado
 
-Cuando `event_sessions.venue_plan_id IS NOT NULL`:
-
-- **Aforo del plano manda**: el límite es `count(venue_seats WHERE is_active)`, no `aforo_sesion`. Si la sesión tiene un número manual mayor, la UI lo marca como inconsistente y propone ajustar.
-- `libres = venue_seats.is_active AND categoria NOT IN (reservado_camaras, bloqueado) AND no ocupada por participante activo`.
-- `personas_con_qr_sin_asiento` ya parcialmente hecho — integrar al panel KPI.
-- Panel KPI de sesión muestra: aforo plano, ocupados, libres reales, bloqueados/cámaras, MR/VR ocupados vs disponibles, personas con QR sin butaca.
-
-## Categorías de butaca
-
-Sin cambios. Solo las actuales: `libre`, `reservado_camaras`, `bloqueado`, `movilidad_reducida`, `acompanante_mr`, `visibilidad_reducida`.
-
-## Notas técnicas
-
-```text
-venues ──< venue_plans ──< venue_zones
-                       └─< venue_seats (zone_id, row, number, category, row_index, col_index)
-
-event_sessions.venue_plan_id ─→ venue_plans.id   (NULL = legacy session)
-event_participants.seat_locked BOOL DEFAULT false
-assignment_rules (plan_id, applicant_type, preferred_zones[], priority, flags…)
-```
-
-- Toda la lógica de asignación e import en `createServerFn` bajo `src/lib/*.functions.ts`.
-- RLS: lectura para `authenticated` con asignación a evento; escritura solo admins.
-- `audit_logs` para crear/duplicar plano, import masivo, propuesta aplicada.
-- Migraciones no tocan sesiones 24/25 (legacy intacto).
-- Sin reemisión de tokens/QR en ninguna fase.
-
-## Entregables por fase
-
-1. **Fase 1**: migración + rutas `/planos` y `/planos/$planId` + editor visual.
-2. **Fase 2**: server fns `importVenueSeats` e import de participantes reescrito + warnings en panel conflictos + `seat_locked`.
-3. **Fase 3**: tabla `assignment_rules` + UI de reglas + motor + propuesta + apply + export Excel.
-4. **Fase 4**: KPIs recalculados sobre plano + indicador de inconsistencia aforo.
-
-¿Apruebas para empezar por la Fase 1?
+Después de aplicar este plan:
+- En `/planos` aparecerá la card **"Cartuja Center CITE Sevilla · Configuración principal · 180 butacas"**.
+- En las sesiones del 10 y 17 jun podrás seleccionar ese plano en el formulario, o aplicarlo en bloque desde la vista del plano.
+- Las butacas reservadas/bloqueadas (cámaras, MR, etc.) que ya dibujaste se conservan con su categoría y color en el nuevo plano.

@@ -5,12 +5,14 @@ import { ArrowLeft, AlertTriangle, CheckCircle2, Users, Loader2, Wand2, Search, 
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { generateAssignmentProposal } from "@/lib/assignment-engine.functions";
+import { promoteSessionOverridesToVenuePlan } from "@/lib/venue-plans.functions";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -146,6 +148,39 @@ function PlanoPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // ----- Promote session overrides to reusable venue plan -----
+  const promoteInfoQ = useQuery({
+    queryKey: ["session-promote-info", sessionId],
+    queryFn: async () => {
+      const { data: s, error: sErr } = await supabase
+        .from("event_sessions")
+        .select("id, venue_plan_id, event_id, events:event_id(location_name, city, name)")
+        .eq("id", sessionId)
+        .single();
+      if (sErr) throw sErr;
+      const { count, error: cErr } = await supabase
+        .from("session_seat_overrides")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId);
+      if (cErr) throw cErr;
+      return {
+        venue_plan_id: s.venue_plan_id as string | null,
+        event_id: s.event_id as string,
+        location_name: (s.events as any)?.location_name as string | null,
+        city: (s.events as any)?.city as string | null,
+        event_name: (s.events as any)?.name as string | null,
+        overrides_count: count ?? 0,
+      };
+    },
+  });
+
+  const [promoteOpen, setPromoteOpen] = useState(false);
+
+  const promoteEligible =
+    !!promoteInfoQ.data &&
+    !promoteInfoQ.data.venue_plan_id &&
+    promoteInfoQ.data.overrides_count > 0;
+
   return (
     <div className="space-y-4">
       <Button asChild variant="ghost" size="sm" className="-ml-2">
@@ -160,6 +195,11 @@ function PlanoPage() {
         description="Vista de ocupación en tiempo real. Resuelve conflictos sin reenviar invitaciones."
         actions={
           <div className="flex gap-2">
+            {isAdmin && promoteEligible && (
+              <Button variant="outline" onClick={() => setPromoteOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Promover a plano de recinto
+              </Button>
+            )}
             <Button asChild variant="outline">
               <Link to="/sesiones/$sessionId/asignacion" params={{ sessionId }}>
                 <Wand2 className="h-4 w-4 mr-2" /> Asignación automática
@@ -173,6 +213,34 @@ function PlanoPage() {
             ) : null}
           </div>
         }
+      />
+
+      {isAdmin && promoteEligible && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Este plano vive solo en esta sesión</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              Tienes {promoteInfoQ.data?.overrides_count} butacas dibujadas. Conviértelas en un plano de recinto
+              reutilizable para asignarlo a otras sesiones del evento.
+            </span>
+            <Button size="sm" onClick={() => setPromoteOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Promover a plano de recinto
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <PromoteToVenuePlanDialog
+        open={promoteOpen}
+        onOpenChange={setPromoteOpen}
+        sessionId={sessionId}
+        defaultVenueName={promoteInfoQ.data?.location_name ?? ""}
+        defaultCity={promoteInfoQ.data?.city ?? ""}
+        onDone={() => {
+          promoteInfoQ.refetch();
+          occQuery.refetch();
+        }}
       />
 
       {data && data.totals.personas_con_qr_sin_asiento > 0 && data.totals.aforo_plano_fisico !== null && (
@@ -891,4 +959,86 @@ function strategyLabel(s: ResolutionPlan["strategy"]): string {
     case "cross_zone_required": return "Requiere cambio de zona";
     default: return "Sin cambios";
   }
+}
+
+function PromoteToVenuePlanDialog({
+  open, onOpenChange, sessionId, defaultVenueName, defaultCity, onDone,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  sessionId: string;
+  defaultVenueName: string;
+  defaultCity: string;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [venueName, setVenueName] = useState(defaultVenueName);
+  const [city, setCity] = useState(defaultCity);
+  const [planName, setPlanName] = useState("Configuración principal");
+  const [linkToSession, setLinkToSession] = useState(true);
+
+  // Sync defaults when they arrive
+  useMemo(() => { if (defaultVenueName && !venueName) setVenueName(defaultVenueName); }, [defaultVenueName]);
+  useMemo(() => { if (defaultCity && !city) setCity(defaultCity); }, [defaultCity]);
+
+  const promoteFn = useServerFn(promoteSessionOverridesToVenuePlan);
+  const mut = useMutation({
+    mutationFn: () => promoteFn({ data: {
+      sessionId, venueName: venueName.trim(), city: city.trim() || null,
+      planName: planName.trim(), linkToSession,
+    } }),
+    onSuccess: (res) => {
+      toast.success(`Plano creado con ${res.seatsCreated} butacas`);
+      onOpenChange(false);
+      onDone();
+      router.navigate({ to: "/planos/$planId", params: { planId: res.venuePlanId } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Promover a plano de recinto</DialogTitle>
+          <DialogDescription>
+            Las butacas que ya dibujaste en esta sesión se guardarán como un plano reutilizable. Después podrás
+            asignarlo a otras sesiones desde la edición de cada sesión.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Nombre del recinto</Label>
+            <Input value={venueName} onChange={(e) => setVenueName(e.target.value)} placeholder="Cartuja Center CITE Sevilla" />
+          </div>
+          <div>
+            <Label>Ciudad</Label>
+            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Sevilla" />
+          </div>
+          <div>
+            <Label>Nombre del plano</Label>
+            <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="Configuración principal" />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={linkToSession}
+              onChange={(e) => setLinkToSession(e.target.checked)}
+            />
+            Vincular este plano a la sesión actual
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={mut.isPending}>Cancelar</Button>
+          <Button
+            disabled={!venueName.trim() || !planName.trim() || mut.isPending}
+            onClick={() => mut.mutate()}
+          >
+            {mut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            Crear plano de recinto
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
