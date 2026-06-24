@@ -26,6 +26,8 @@ import {
 } from "@/lib/use-events";
 import { FieldRequirementsEditor } from "@/components/field-requirements-editor";
 import type { FieldRequirements } from "@/lib/field-requirements";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 type FormState = {
   name: string;
@@ -48,6 +50,7 @@ type FormState = {
   status: SessionStatus;
   inherit_event_fields: boolean;
   field_requirements: FieldRequirements;
+  venue_plan_id: string | null;
 };
 
 function initial(event: EventRow, session?: SessionRow | null): FormState {
@@ -76,6 +79,7 @@ function initial(event: EventRow, session?: SessionRow | null): FormState {
       (session && typeof (session as { field_requirements?: unknown }).field_requirements === "object"
         ? ((session as { field_requirements?: unknown }).field_requirements as FieldRequirements)
         : {}) ?? {},
+    venue_plan_id: (session as { venue_plan_id?: string | null } | null | undefined)?.venue_plan_id ?? null,
   };
 }
 
@@ -85,6 +89,19 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
   const [s, setS] = useState<FormState>(() => initial(event, session));
   const upsert = useUpsertSession();
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setS((p) => ({ ...p, [k]: v }));
+
+  const plansQ = useQuery({
+    queryKey: ["venue_plans_active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("venue_plans")
+        .select("id, name, venues(name)")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const saveSession = async () => {
     const form = formRef.current;
@@ -117,6 +134,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
         status: s.status,
         inherit_event_fields: s.inherit_event_fields,
         field_requirements: s.inherit_event_fields ? {} : (s.field_requirements ?? {}),
+        venue_plan_id: s.venue_plan_id,
       };
       await upsert.mutateAsync({ id: session?.id, values: payload });
       toast.success(session ? "Sesión actualizada" : "Sesión creada");
@@ -178,6 +196,26 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
           <div>
             <Label>Dirección</Label>
             <Input value={s.location_address} onChange={(e) => update("location_address", e.target.value)} />
+          </div>
+          <div className="md:col-span-2">
+            <Label>Plano físico (opcional)</Label>
+            <Select
+              value={s.venue_plan_id ?? "__none__"}
+              onValueChange={(v) => update("venue_plan_id", v === "__none__" ? null : v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Sin plano físico (modo legacy)" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin plano físico (modo legacy)</SelectItem>
+                {(plansQ.data ?? []).map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}{p.venues?.name ? ` — ${p.venues.name}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Vincula esta sesión a un plano del módulo Planos / Recintos. El aforo lo marcará el plano.
+            </p>
           </div>
         </CardContent>
       </Card>
