@@ -150,6 +150,38 @@ export const commitImport = createServerFn({ method: "POST" })
       nameToPersonId.set(nameKey(ppl.first_name, ppl.last_name), ep.person_id as string);
     }
 
+    // Load physical plan seats (only if the session has one assigned). The
+    // import marks every imported participant whose seat exists in the plan as
+    // seat_locked, so the auto-assigner won't move them. Missing seats stay
+    // unlocked and surface in the conflicts panel — never block the import.
+    let planSeatKeys: Set<string> | null = null;
+    let seatsNotInPlan = 0;
+    const { data: sessionRow } = await supabase
+      .from("event_sessions")
+      .select("venue_plan_id")
+      .eq("id", data.sessionId)
+      .maybeSingle();
+    if (sessionRow?.venue_plan_id) {
+      const { data: planSeats } = await supabase
+        .from("venue_seats")
+        .select("row_label, seat_number, venue_zones!inner(name)")
+        .eq("plan_id", sessionRow.venue_plan_id);
+      planSeatKeys = new Set(
+        (planSeats ?? []).map((s: any) =>
+          `${(s.venue_zones?.name ?? "").trim().toLowerCase()}|${String(s.row_label).trim().toLowerCase()}|${String(s.seat_number).trim().toLowerCase()}`,
+        ),
+      );
+    }
+    const seatKeyOf = (zone?: string | null, row?: string | null, num?: string | null) =>
+      zone && row && num
+        ? `${zone.trim().toLowerCase()}|${row.trim().toLowerCase()}|${num.trim().toLowerCase()}`
+        : null;
+    const seatExistsInPlan = (zone?: string | null, row?: string | null, num?: string | null) => {
+      if (!planSeatKeys) return false;
+      const k = seatKeyOf(zone, row, num);
+      return k ? planSeatKeys.has(k) : false;
+    };
+
     for (const row of data.rows) {
       try {
         const key = nameKey(row.first_name, row.last_name);
