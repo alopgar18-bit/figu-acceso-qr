@@ -90,6 +90,19 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
   const upsert = useUpsertSession();
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setS((p) => ({ ...p, [k]: v }));
 
+  const plansQ = useQuery({
+    queryKey: ["venue_plans_active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("venue_plans")
+        .select("id, name, venues(name)")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const saveSession = async () => {
     const form = formRef.current;
     const currentName = (form?.elements.namedItem("name") as HTMLInputElement | null)?.value ?? s.name;
