@@ -258,3 +258,82 @@ function NewZoneButton({ planId, order }: { planId: string; order: number }) {
     </Dialog>
   );
 }
+
+function ImportSeatsButton({ planId }: { planId: string }) {
+  const qc = useQueryClient();
+  const importFn = useServerFn(importVenueSeats);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [replace, setReplace] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const handleFile = async (file: File) => {
+    setBusy(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: null });
+      if (!rows.length) {
+        toast.error("El archivo no tiene filas.");
+        return;
+      }
+      const result = await importFn({ data: { planId, rows, replace } });
+      toast.success(
+        `${result.inserted} butacas · ${result.zones_created} zonas nuevas${result.errors.length ? ` · ${result.errors.length} errores` : ""}`,
+      );
+      if (result.errors.length) {
+        console.warn("Errores de import:", result.errors);
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["venue_zones", planId] }),
+        qc.invalidateQueries({ queryKey: ["venue_seats", planId] }),
+      ]);
+      setOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al importar");
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Upload className="mr-2 h-4 w-4" /> Importar Excel
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Importar butacas desde Excel</DialogTitle></DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            Columnas esperadas: <code>zona</code>, <code>fila</code>, <code>numero</code>,
+            <code> categoria</code> (opcional), <code>row_index</code>, <code>col_index</code> (opcionales),
+            <code> activo</code> (opcional).
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Categorías válidas: libre, reservado_camaras, bloqueado, movilidad_reducida, acompanante_mr, visibilidad_reducida.
+            Si no indicas índices, se calculan automáticamente por zona y fila.
+          </p>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
+            Reemplazar todas las butacas existentes del plano
+          </label>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            disabled={busy}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:bg-primary file:text-primary-foreground"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancelar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
