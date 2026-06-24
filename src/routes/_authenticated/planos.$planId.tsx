@@ -340,3 +340,114 @@ function ImportSeatsButton({ planId }: { planId: string }) {
     </Dialog>
   );
 }
+
+function LinkedSessionsCard({ planId }: { planId: string }) {
+  const qc = useQueryClient();
+  const bulkFn = useServerFn(bulkAssignVenuePlanToSessions);
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+
+  const linkedQ = useQuery({
+    queryKey: ["plan-linked-sessions", planId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_sessions")
+        .select("id, name, starts_at, event_id, events:event_id(name)")
+        .eq("venue_plan_id", planId)
+        .order("starts_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const eventIds = Array.from(new Set((linkedQ.data ?? []).map((s: any) => s.event_id)));
+  const siblingsQ = useQuery({
+    queryKey: ["plan-sibling-sessions", planId, eventIds.join(",")],
+    enabled: eventIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_sessions")
+        .select("id, name, starts_at, venue_plan_id, event_id, events:event_id(name)")
+        .in("event_id", eventIds)
+        .order("starts_at");
+      if (error) throw error;
+      return (data ?? []).filter((s: any) => s.venue_plan_id !== planId);
+    },
+  });
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const ids = Object.entries(picked).filter(([, v]) => v).map(([k]) => k);
+      if (!ids.length) return { updated: 0 };
+      return bulkFn({ data: { planId, sessionIds: ids } });
+    },
+    onSuccess: (res) => {
+      toast.success(`${res.updated} sesión(es) actualizadas`);
+      setPicked({});
+      setOpen(false);
+      qc.invalidateQueries({ queryKey: ["plan-linked-sessions", planId] });
+      qc.invalidateQueries({ queryKey: ["plan-sibling-sessions", planId] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <Card className="my-4">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-sm">Sesiones vinculadas</CardTitle>
+        {(siblingsQ.data?.length ?? 0) > 0 && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">Aplicar a otras sesiones del evento</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Aplicar plano a sesiones</DialogTitle></DialogHeader>
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {siblingsQ.data?.map((s: any) => (
+                  <label key={s.id} className="flex items-center gap-2 text-sm border rounded p-2">
+                    <input
+                      type="checkbox"
+                      checked={!!picked[s.id]}
+                      onChange={(e) => setPicked((p) => ({ ...p, [s.id]: e.target.checked }))}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium">{s.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {(s.events as any)?.name} · {s.starts_at ? new Date(s.starts_at).toLocaleString() : ""}
+                        {s.venue_plan_id ? " · ya tiene plano" : ""}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setOpen(false)} disabled={mut.isPending}>Cancelar</Button>
+                <Button onClick={() => mut.mutate()} disabled={mut.isPending || !Object.values(picked).some(Boolean)}>
+                  Aplicar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </CardHeader>
+      <CardContent className="text-sm">
+        {linkedQ.isLoading ? (
+          <Skeleton className="h-8" />
+        ) : !linkedQ.data?.length ? (
+          <p className="text-muted-foreground text-xs">Ninguna sesión usa todavía este plano.</p>
+        ) : (
+          <ul className="space-y-1">
+            {linkedQ.data.map((s: any) => (
+              <li key={s.id} className="flex items-center justify-between border rounded px-2 py-1">
+                <span>{s.name} <span className="text-muted-foreground text-xs">· {(s.events as any)?.name}</span></span>
+                <Link to="/sesiones/$sessionId/plano" params={{ sessionId: s.id }} className="text-xs text-primary hover:underline">
+                  Ver plano
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
