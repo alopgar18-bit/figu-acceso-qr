@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { importVenueSeats } from "@/lib/venue-seats.functions";
+import { bulkAssignVenuePlanToSessions } from "@/lib/venue-plans.functions";
 
 const SEAT_CATEGORIES = [
   { value: "libre", label: "Libre", color: "#e5e7eb" },
@@ -117,6 +118,8 @@ function PlanEditor() {
         description={`v${planQ.data.version} · ${planQ.data.venues?.city ?? ""}`}
         actions={<ImportSeatsButton planId={planId} />}
       />
+
+      <LinkedSessionsCard planId={planId} />
 
       <div className="grid gap-6 md:grid-cols-[280px_1fr]">
         {/* Sidebar: zones */}
