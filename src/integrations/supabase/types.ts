@@ -14,6 +14,203 @@ export type Database = {
   }
   public: {
     Tables: {
+      assignment_proposal_items: {
+        Row: {
+          companion_index: number | null
+          created_at: string
+          id: string
+          is_companion: boolean
+          participant_id: string
+          proposal_id: string
+          reason: string | null
+          row_label: string | null
+          seat_id: string | null
+          seat_number: string | null
+          unassigned_reason: string | null
+          zone_id: string | null
+          zone_name: string | null
+        }
+        Insert: {
+          companion_index?: number | null
+          created_at?: string
+          id?: string
+          is_companion?: boolean
+          participant_id: string
+          proposal_id: string
+          reason?: string | null
+          row_label?: string | null
+          seat_id?: string | null
+          seat_number?: string | null
+          unassigned_reason?: string | null
+          zone_id?: string | null
+          zone_name?: string | null
+        }
+        Update: {
+          companion_index?: number | null
+          created_at?: string
+          id?: string
+          is_companion?: boolean
+          participant_id?: string
+          proposal_id?: string
+          reason?: string | null
+          row_label?: string | null
+          seat_id?: string | null
+          seat_number?: string | null
+          unassigned_reason?: string | null
+          zone_id?: string | null
+          zone_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_proposal_items_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "event_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_proposal_items_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_proposal_items_seat_id_fkey"
+            columns: ["seat_id"]
+            isOneToOne: false
+            referencedRelation: "venue_seats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_proposal_items_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "venue_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignment_proposals: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          plan_id: string
+          session_id: string
+          status: string
+          summary: Json
+          total_assigned: number
+          total_participants: number
+          total_unassigned: number
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          plan_id: string
+          session_id: string
+          status?: string
+          summary?: Json
+          total_assigned?: number
+          total_participants?: number
+          total_unassigned?: number
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          plan_id?: string
+          session_id?: string
+          status?: string
+          summary?: Json
+          total_assigned?: number
+          total_participants?: number
+          total_unassigned?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_proposals_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "venue_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_proposals_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_proposals_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignment_rules: {
+        Row: {
+          allow_split_if_full: boolean
+          attendee_type: Database["public"]["Enums"]["attendee_type"]
+          avoid_categories: string[]
+          created_at: string
+          id: string
+          keep_companions_together: boolean
+          notes: string | null
+          plan_id: string
+          preferred_zone_ids: string[]
+          priority: number
+          updated_at: string
+        }
+        Insert: {
+          allow_split_if_full?: boolean
+          attendee_type: Database["public"]["Enums"]["attendee_type"]
+          avoid_categories?: string[]
+          created_at?: string
+          id?: string
+          keep_companions_together?: boolean
+          notes?: string | null
+          plan_id: string
+          preferred_zone_ids?: string[]
+          priority?: number
+          updated_at?: string
+        }
+        Update: {
+          allow_split_if_full?: boolean
+          attendee_type?: Database["public"]["Enums"]["attendee_type"]
+          avoid_categories?: string[]
+          created_at?: string
+          id?: string
+          keep_companions_together?: boolean
+          notes?: string | null
+          plan_id?: string
+          preferred_zone_ids?: string[]
+          priority?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_rules_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "venue_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
