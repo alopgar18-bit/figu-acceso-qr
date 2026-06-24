@@ -121,6 +121,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
         status: s.status,
         inherit_event_fields: s.inherit_event_fields,
         field_requirements: s.inherit_event_fields ? {} : (s.field_requirements ?? {}),
+        venue_plan_id: s.venue_plan_id,
       };
       await upsert.mutateAsync({ id: session?.id, values: payload });
       toast.success(session ? "Sesión actualizada" : "Sesión creada");
