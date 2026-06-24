@@ -115,6 +115,7 @@ function PlanEditor() {
         eyebrow={planQ.data.venues?.name}
         title={planQ.data.name}
         description={`v${planQ.data.version} · ${planQ.data.venues?.city ?? ""}`}
+        actions={<ImportSeatsButton planId={planId} />}
       />
 
       <div className="grid gap-6 md:grid-cols-[280px_1fr]">
