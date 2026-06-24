@@ -51,6 +51,7 @@ import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
 import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
 import { Route as CTokenCanceladaRouteImport } from './routes/c.$token.cancelada'
 import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
+import { Route as AuthenticatedPlanosPlanIdRouteImport } from './routes/_authenticated/planos.$planId'
 import { Route as AuthenticatedInformesEventIdRouteImport } from './routes/_authenticated/informes.$eventId'
 import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
 import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
@@ -282,6 +283,12 @@ const AuthenticatedSolicitudesParticipantIdRoute =
     path: '/$participantId',
     getParentRoute: () => AuthenticatedSolicitudesRoute,
   } as any)
+const AuthenticatedPlanosPlanIdRoute =
+  AuthenticatedPlanosPlanIdRouteImport.update({
+    id: '/$planId',
+    path: '/$planId',
+    getParentRoute: () => AuthenticatedPlanosRoute,
+  } as any)
 const AuthenticatedInformesEventIdRoute =
   AuthenticatedInformesEventIdRouteImport.update({
     id: '/$eventId',
@@ -392,6 +399,7 @@ export interface FileRoutesByFullPath {
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
+  '/planos/$planId': typeof AuthenticatedPlanosPlanIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/c/$token/cancelada': typeof CTokenCanceladaRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
@@ -444,6 +452,7 @@ export interface FileRoutesByTo {
   '/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
+  '/planos/$planId': typeof AuthenticatedPlanosPlanIdRoute
   '/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/c/$token/cancelada': typeof CTokenCanceladaRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
@@ -501,6 +510,7 @@ export interface FileRoutesById {
   '/_authenticated/importaciones/$batchId': typeof AuthenticatedImportacionesBatchIdRoute
   '/_authenticated/importaciones/nueva': typeof AuthenticatedImportacionesNuevaRoute
   '/_authenticated/informes/$eventId': typeof AuthenticatedInformesEventIdRoute
+  '/_authenticated/planos/$planId': typeof AuthenticatedPlanosPlanIdRoute
   '/_authenticated/solicitudes/$participantId': typeof AuthenticatedSolicitudesParticipantIdRoute
   '/c/$token/cancelada': typeof CTokenCanceladaRoute
   '/c/$token/cancelar': typeof CTokenCancelarRoute
@@ -558,6 +568,7 @@ export interface FileRouteTypes {
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/informes/$eventId'
+    | '/planos/$planId'
     | '/solicitudes/$participantId'
     | '/c/$token/cancelada'
     | '/c/$token/cancelar'
@@ -610,6 +621,7 @@ export interface FileRouteTypes {
     | '/importaciones/$batchId'
     | '/importaciones/nueva'
     | '/informes/$eventId'
+    | '/planos/$planId'
     | '/solicitudes/$participantId'
     | '/c/$token/cancelada'
     | '/c/$token/cancelar'
@@ -666,6 +678,7 @@ export interface FileRouteTypes {
     | '/_authenticated/importaciones/$batchId'
     | '/_authenticated/importaciones/nueva'
     | '/_authenticated/informes/$eventId'
+    | '/_authenticated/planos/$planId'
     | '/_authenticated/solicitudes/$participantId'
     | '/c/$token/cancelada'
     | '/c/$token/cancelar'
@@ -994,6 +1007,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSolicitudesParticipantIdRouteImport
       parentRoute: typeof AuthenticatedSolicitudesRoute
     }
+    '/_authenticated/planos/$planId': {
+      id: '/_authenticated/planos/$planId'
+      path: '/$planId'
+      fullPath: '/planos/$planId'
+      preLoaderRoute: typeof AuthenticatedPlanosPlanIdRouteImport
+      parentRoute: typeof AuthenticatedPlanosRoute
+    }
     '/_authenticated/informes/$eventId': {
       id: '/_authenticated/informes/$eventId'
       path: '/$eventId'
@@ -1144,10 +1164,12 @@ const AuthenticatedInformesRouteWithChildren =
   )
 
 interface AuthenticatedPlanosRouteChildren {
+  AuthenticatedPlanosPlanIdRoute: typeof AuthenticatedPlanosPlanIdRoute
   AuthenticatedPlanosIndexRoute: typeof AuthenticatedPlanosIndexRoute
 }
 
 const AuthenticatedPlanosRouteChildren: AuthenticatedPlanosRouteChildren = {
+  AuthenticatedPlanosPlanIdRoute: AuthenticatedPlanosPlanIdRoute,
   AuthenticatedPlanosIndexRoute: AuthenticatedPlanosIndexRoute,
 }
 

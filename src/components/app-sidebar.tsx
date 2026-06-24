@@ -18,6 +18,7 @@ import {
   ScrollText,
   Eye,
   LogOut,
+  LayoutGrid,
 } from "lucide-react";
 
 import {
