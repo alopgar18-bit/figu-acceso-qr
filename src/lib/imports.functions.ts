@@ -380,6 +380,7 @@ export const commitImport = createServerFn({ method: "POST" })
         no_contact_channel: noContactChannel,
         default_status: data.defaultStatus,
         duplicate_strategy: data.duplicateStrategy,
+        seats_not_in_plan: seatsNotInPlan,
       },
     });
 
@@ -394,5 +395,6 @@ export const commitImport = createServerFn({ method: "POST" })
       noContactChannel,
       errors,
       finalStatus: finalBatch?.status ?? "completada",
+      seatsNotInPlan,
     };
   });
