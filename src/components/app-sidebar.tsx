@@ -69,6 +69,7 @@ const adminItems: NavItem[] = [
   { title: "Usuarios", url: "/usuarios", icon: UserCog, roles: ["superadmin", "admin_figurarte"] },
   { title: "Branding", url: "/branding", icon: Palette, roles: ["superadmin", "admin_figurarte"] },
   { title: "Diseño de entradas", url: "/diseno-entradas", icon: Ticket, roles: ["superadmin", "admin_figurarte"] },
+  { title: "Planos / Recintos", url: "/planos", icon: LayoutGrid, roles: ["superadmin", "admin_figurarte"] },
   { title: "Legal / RGPD", url: "/legal", icon: Shield, roles: ["superadmin", "admin_figurarte"] },
   { title: "Logs", url: "/logs", icon: ScrollText, roles: ["superadmin"] },
   { title: "Portal cliente", url: "/portal", icon: Eye, roles: ["superadmin", "admin_figurarte"] },
