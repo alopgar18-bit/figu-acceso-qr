@@ -26,6 +26,8 @@ import {
 } from "@/lib/use-events";
 import { FieldRequirementsEditor } from "@/components/field-requirements-editor";
 import type { FieldRequirements } from "@/lib/field-requirements";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 type FormState = {
   name: string;
@@ -48,6 +50,7 @@ type FormState = {
   status: SessionStatus;
   inherit_event_fields: boolean;
   field_requirements: FieldRequirements;
+  venue_plan_id: string | null;
 };
 
 function initial(event: EventRow, session?: SessionRow | null): FormState {
@@ -76,6 +79,7 @@ function initial(event: EventRow, session?: SessionRow | null): FormState {
       (session && typeof (session as { field_requirements?: unknown }).field_requirements === "object"
         ? ((session as { field_requirements?: unknown }).field_requirements as FieldRequirements)
         : {}) ?? {},
+    venue_plan_id: (session as { venue_plan_id?: string | null } | null | undefined)?.venue_plan_id ?? null,
   };
 }
 
