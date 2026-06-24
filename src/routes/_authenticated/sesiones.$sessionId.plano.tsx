@@ -960,3 +960,85 @@ function strategyLabel(s: ResolutionPlan["strategy"]): string {
     default: return "Sin cambios";
   }
 }
+
+function PromoteToVenuePlanDialog({
+  open, onOpenChange, sessionId, defaultVenueName, defaultCity, onDone,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  sessionId: string;
+  defaultVenueName: string;
+  defaultCity: string;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [venueName, setVenueName] = useState(defaultVenueName);
+  const [city, setCity] = useState(defaultCity);
+  const [planName, setPlanName] = useState("Configuración principal");
+  const [linkToSession, setLinkToSession] = useState(true);
+
+  // Sync defaults when they arrive
+  useMemo(() => { if (defaultVenueName && !venueName) setVenueName(defaultVenueName); }, [defaultVenueName]);
+  useMemo(() => { if (defaultCity && !city) setCity(defaultCity); }, [defaultCity]);
+
+  const promoteFn = useServerFn(promoteSessionOverridesToVenuePlan);
+  const mut = useMutation({
+    mutationFn: () => promoteFn({ data: {
+      sessionId, venueName: venueName.trim(), city: city.trim() || null,
+      planName: planName.trim(), linkToSession,
+    } }),
+    onSuccess: (res) => {
+      toast.success(`Plano creado con ${res.seatsCreated} butacas`);
+      onOpenChange(false);
+      onDone();
+      router.navigate({ to: "/planos/$planId", params: { planId: res.venuePlanId } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Promover a plano de recinto</DialogTitle>
+          <DialogDescription>
+            Las butacas que ya dibujaste en esta sesión se guardarán como un plano reutilizable. Después podrás
+            asignarlo a otras sesiones desde la edición de cada sesión.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Nombre del recinto</Label>
+            <Input value={venueName} onChange={(e) => setVenueName(e.target.value)} placeholder="Cartuja Center CITE Sevilla" />
+          </div>
+          <div>
+            <Label>Ciudad</Label>
+            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Sevilla" />
+          </div>
+          <div>
+            <Label>Nombre del plano</Label>
+            <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="Configuración principal" />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={linkToSession}
+              onChange={(e) => setLinkToSession(e.target.checked)}
+            />
+            Vincular este plano a la sesión actual
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={mut.isPending}>Cancelar</Button>
+          <Button
+            disabled={!venueName.trim() || !planName.trim() || mut.isPending}
+            onClick={() => mut.mutate()}
+          >
+            {mut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            Crear plano de recinto
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
