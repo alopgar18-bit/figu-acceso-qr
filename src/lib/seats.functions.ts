@@ -101,6 +101,7 @@ export type OccupancyResponse = {
     aforo: number; // alias retrocompatible = aforo_sesion
     aforo_sesion: number; // capacidad configurada en la sesión
     aforo_plano: number; // butacas reales dibujadas (ocupadas + reservadas + huecos visibles)
+    aforo_plano_fisico: number | null; // butacas del plano físico vinculado (si existe), prioritario
     desviacion_sesion: number; // aforo_plano - aforo_sesion
     butacas_ocupadas: number; // alias de asignados con ocupantes válidos
     personas_ocupadas: number; // alias de personas con ocupantes válidos
@@ -108,6 +109,7 @@ export type OccupancyResponse = {
     libres_estimadas: number; // aforo_plano - butacas_ocupadas - reservados_no_disponibles
     overbooking: number; // exceso sobre aforo_plano
     excluidos_por_estado: number; // titulares ignorados por estado inválido
+    personas_con_qr_sin_asiento: number; // titulares (+ acompañantes) con QR emitido y sin butaca
   };
   conflicts: SeatCell[]; // butacas con 2+ ocupantes
   overrides_summary: Array<{ category: SeatOverrideCategory; count: number; color: string }>;
