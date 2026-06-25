@@ -129,6 +129,32 @@ export const commitImport = createServerFn({ method: "POST" })
     let updated = 0;
     let errored = 0;
     const errors: Array<{ row: number; reason: string }> = [];
+    const rowResults: Array<{
+      batch_id: string;
+      row_number: number;
+      outcome: "inserted" | "updated" | "skipped" | "errored";
+      participant_id: string | null;
+      match_reason: string | null;
+      error_message: string | null;
+      raw_row: Record<string, unknown>;
+    }> = [];
+    const logRow = (
+      row: typeof data.rows[number],
+      outcome: "inserted" | "updated" | "skipped" | "errored",
+      participantId: string | null,
+      matchReason: string | null,
+      errorMessage: string | null = null,
+    ) => {
+      rowResults.push({
+        batch_id: batch.id,
+        row_number: row.rowIndex,
+        outcome,
+        participant_id: participantId,
+        match_reason: matchReason,
+        error_message: errorMessage,
+        raw_row: row as unknown as Record<string, unknown>,
+      });
+    };
 
     // Duplicate detection rule: a row is a duplicate ONLY when first_name +
     // last_name (normalized) match an existing participation in the SAME
@@ -192,6 +218,7 @@ export const commitImport = createServerFn({ method: "POST" })
           // only refresh contact details on the people row.
           if (data.duplicateStrategy === "skip") {
             skipped++;
+            logRow(row, "skipped", null, "nombre+apellido coincide en la sesión");
             continue;
           }
           await supabase
@@ -216,6 +243,12 @@ export const commitImport = createServerFn({ method: "POST" })
             })
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId);
+          const { data: existingPart } = await supabase
+            .from("event_participants")
+            .select("id")
+            .eq("session_id", data.sessionId)
+            .eq("person_id", existingPersonId)
+            .maybeSingle();
           if (
             planSeatKeys &&
             row.seat_zone &&
@@ -226,6 +259,7 @@ export const commitImport = createServerFn({ method: "POST" })
             seatsNotInPlan++;
           }
           updated++;
+          logRow(row, "updated", existingPart?.id ?? null, "nombre+apellido coincide en la sesión");
           continue;
         }
 
@@ -337,9 +371,19 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         imported++;
+        logRow(row, "inserted", participant.id, null);
       } catch (err) {
         errored++;
         errors.push({ row: row.rowIndex, reason: err instanceof Error ? err.message : "error" });
+        logRow(row, "errored", null, null, err instanceof Error ? err.message : "error");
+      }
+    }
+
+    // Persist row-level audit log. Chunked to avoid hitting payload limits.
+    if (rowResults.length > 0) {
+      const CHUNK = 500;
+      for (let i = 0; i < rowResults.length; i += CHUNK) {
+        await supabase.from("import_row_results").insert(rowResults.slice(i, i + CHUNK));
       }
     }
 
