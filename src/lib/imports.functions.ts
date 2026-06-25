@@ -475,11 +475,12 @@ export const backfillBatchRowResults = createServerFn({ method: "POST" })
 
     const { data: batch, error: bErr } = await supabase
       .from("import_batches")
-      .select("id, session_id, event_id")
+      .select("id, session_id, event_id, created_at, completed_at")
       .eq("id", data.batchId)
       .single();
     if (bErr || !batch) throw new Error("Lote no encontrado");
     if (!batch.session_id) throw new Error("El lote no tiene sesión asociada");
+    if (!batch.event_id) throw new Error("El lote no tiene evento asociado");
 
     // Wipe any previous backfill for this batch so re-runs are idempotent.
     await supabase.from("import_row_results").delete().eq("batch_id", data.batchId);
@@ -489,64 +490,177 @@ export const backfillBatchRowResults = createServerFn({ method: "POST" })
     const nameKey = (f?: string | null, l?: string | null) =>
       `${normalize(f)}|${normalize(l)}`;
 
+    // Carga TODAS las participaciones del evento + sus sesiones para poder
+    // decir si una persona quedó en otra sesión distinta a la del batch.
     const { data: roster } = await supabase
       .from("event_participants")
-      .select("id, import_batch_id, people:person_id(first_name, last_name)")
-      .eq("session_id", batch.session_id);
-    const byName = new Map<string, { id: string; import_batch_id: string | null }>();
+      .select(
+        "id, session_id, import_batch_id, created_at, people:person_id(first_name, last_name), event_sessions:session_id(name)",
+      )
+      .eq("event_id", batch.event_id);
+    type RosterEntry = {
+      id: string;
+      session_id: string | null;
+      session_name: string | null;
+      import_batch_id: string | null;
+      created_at: string | null;
+    };
+    const byName = new Map<string, RosterEntry[]>();
     for (const ep of roster ?? []) {
       const ppl = ep.people as { first_name?: string | null; last_name?: string | null } | null;
       if (!ppl) continue;
-      byName.set(nameKey(ppl.first_name, ppl.last_name), {
+      const sess = ep.event_sessions as { name?: string | null } | null;
+      const key = nameKey(ppl.first_name, ppl.last_name);
+      const entry: RosterEntry = {
         id: ep.id as string,
+        session_id: (ep.session_id as string | null) ?? null,
+        session_name: sess?.name ?? null,
         import_batch_id: (ep.import_batch_id as string | null) ?? null,
-      });
+        created_at: (ep.created_at as string | null) ?? null,
+      };
+      const arr = byName.get(key);
+      if (arr) arr.push(entry);
+      else byName.set(key, [entry]);
     }
+
+    // Personas que existen pero no tienen ninguna participación en el evento.
+    const allNames = data.rows.map((r) => nameKey(r.first_name, r.last_name));
+    const missingNames = allNames.filter((k) => !byName.has(k));
+    const personByName = new Map<string, string>();
+    if (missingNames.length > 0) {
+      // Sondeo en bloque (limitado para no inflar la consulta): obtenemos
+      // personas con esos nombres y vemos si tienen alguna participación.
+      const firstParts = Array.from(
+        new Set(missingNames.map((k) => k.split("|")[0]).filter(Boolean)),
+      ).slice(0, 500);
+      if (firstParts.length > 0) {
+        const { data: candidatePeople } = await supabase
+          .from("people")
+          .select("id, first_name, last_name")
+          .in("first_name", firstParts as string[]);
+        for (const p of candidatePeople ?? []) {
+          personByName.set(
+            nameKey(p.first_name as string, p.last_name as string | null),
+            p.id as string,
+          );
+        }
+      }
+    }
+
+    const batchStart = batch.created_at ? new Date(batch.created_at).getTime() : 0;
+    const batchEnd = batch.completed_at
+      ? new Date(batch.completed_at).getTime() + 60_000 // +1 min de margen
+      : Date.now();
+
+    type Outcome =
+      | "inserted_in_session"
+      | "updated_in_session"
+      | "updated_in_other_session"
+      | "person_exists_no_participation"
+      | "not_found"
+      | "errored";
 
     const results: Array<{
       batch_id: string;
       row_number: number;
-      outcome: "inserted" | "updated" | "skipped" | "errored";
+      outcome: Outcome;
       participant_id: string | null;
       match_reason: string | null;
       error_message: string | null;
       raw_row: unknown;
     }> = [];
 
-    let inserted = 0;
-    let updated = 0;
-    let notFound = 0;
+    const tally: Record<Outcome, number> = {
+      inserted_in_session: 0,
+      updated_in_session: 0,
+      updated_in_other_session: 0,
+      person_exists_no_participation: 0,
+      not_found: 0,
+      errored: 0,
+    };
 
     for (const r of data.rows) {
-      const match = byName.get(nameKey(r.first_name, r.last_name));
+      const key = nameKey(r.first_name, r.last_name);
+      const matches = byName.get(key);
       const raw = r.raw ?? { first_name: r.first_name, last_name: r.last_name };
-      if (!match) {
-        notFound++;
+      if (!matches || matches.length === 0) {
+        const personId = personByName.get(key);
+        if (personId) {
+          tally.person_exists_no_participation++;
+          results.push({
+            batch_id: data.batchId,
+            row_number: r.rowIndex,
+            outcome: "person_exists_no_participation",
+            participant_id: null,
+            match_reason: "La persona existe en la base, pero sin participación en este evento",
+            error_message: null,
+            raw_row: raw,
+          });
+        } else {
+          tally.not_found++;
+          results.push({
+            batch_id: data.batchId,
+            row_number: r.rowIndex,
+            outcome: "not_found",
+            participant_id: null,
+            match_reason: null,
+            error_message: "Nombre+apellido no encontrado en el evento",
+            raw_row: raw,
+          });
+        }
+        continue;
+      }
+
+      // Preferimos participación en la sesión del batch; si no, la primera del evento.
+      const inSession = matches.find((m) => m.session_id === batch.session_id);
+      const target = inSession ?? matches[0];
+      const createdMs = target.created_at ? new Date(target.created_at).getTime() : 0;
+      const wasCreatedByThisBatch =
+        target.import_batch_id === data.batchId &&
+        createdMs >= batchStart &&
+        createdMs <= batchEnd;
+
+      if (inSession) {
+        if (wasCreatedByThisBatch) {
+          tally.inserted_in_session++;
+          results.push({
+            batch_id: data.batchId,
+            row_number: r.rowIndex,
+            outcome: "inserted_in_session",
+            participant_id: inSession.id,
+            match_reason: "Creada por este lote en la sesión correcta",
+            error_message: null,
+            raw_row: raw,
+          });
+        } else {
+          tally.updated_in_session++;
+          results.push({
+            batch_id: data.batchId,
+            row_number: r.rowIndex,
+            outcome: "updated_in_session",
+            participant_id: inSession.id,
+            match_reason: "Ya existía en la sesión y este lote la re-etiquetó",
+            error_message: null,
+            raw_row: raw,
+          });
+        }
+      } else {
+        // No está en la sesión del batch pero sí en otra(s) del evento.
+        tally.updated_in_other_session++;
+        const sessionsTxt = matches
+          .map((m) => m.session_name ?? m.session_id ?? "?")
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .join(", ");
         results.push({
           batch_id: data.batchId,
           row_number: r.rowIndex,
-          outcome: "errored",
-          participant_id: null,
-          match_reason: null,
-          error_message: "No se encuentra en la sesión actual",
+          outcome: "updated_in_other_session",
+          participant_id: target.id,
+          match_reason: `La persona figura en otra sesión del evento: ${sessionsTxt}`,
+          error_message: null,
           raw_row: raw,
         });
-        continue;
       }
-      // If the participant currently belongs to THIS batch → fue creado aquí.
-      // Si pertenece a otro batch → fue actualizado por esta importación.
-      const isInserted = match.import_batch_id === data.batchId;
-      if (isInserted) inserted++;
-      else updated++;
-      results.push({
-        batch_id: data.batchId,
-        row_number: r.rowIndex,
-        outcome: isInserted ? "inserted" : "updated",
-        participant_id: match.id,
-        match_reason: "nombre+apellido coincide en la sesión",
-        error_message: null,
-        raw_row: raw,
-      });
     }
 
     const CHUNK = 500;
@@ -559,9 +673,11 @@ export const backfillBatchRowResults = createServerFn({ method: "POST" })
 
     return {
       total: data.rows.length,
-      inserted,
-      updated,
-      notFound,
+      inserted: tally.inserted_in_session,
+      updated_in_session: tally.updated_in_session,
+      updated_in_other_session: tally.updated_in_other_session,
+      person_exists_no_participation: tally.person_exists_no_participation,
+      not_found: tally.not_found,
     };
   });
 
