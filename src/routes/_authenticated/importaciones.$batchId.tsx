@@ -116,7 +116,11 @@ function BatchDetailPage() {
         .filter((r) => r.first_name);
       if (rows.length === 0) throw new Error("El Excel no contiene filas válidas");
       const res = await backfillFn({ data: { batchId, rows } });
-      toast.success(`Auditoría cargada: ${res.inserted} nuevos, ${res.updated} actualizados, ${res.notFound} no encontrados`);
+      toast.success(
+        `Auditoría: ${res.inserted} nuevos · ${res.updated_in_session} actualizados en la sesión · ${res.updated_in_other_session} en otra sesión · ${res.person_exists_no_participation} sin participación · ${res.not_found} no encontrados`,
+      );
+      // Si hay filas "perdidas" en otra sesión, las dejamos pre-filtradas.
+      if (res.updated_in_other_session > 0) setOutcomeFilter("updated_in_other_session");
       qc.invalidateQueries({ queryKey: ["import_row_results", batchId] });
     } catch (e) {
       toast.error((e as Error).message);
@@ -298,7 +302,7 @@ function BatchDetailPage() {
             <CardDescription>
               {rowResults.length === 0
                 ? "Esta importación no tiene auditoría guardada. Sube el Excel original para reconstruirla (sólo lectura: no toca participantes ni QR)."
-                : `${rowResults.length} filas registradas · Nuevos: ${counts.inserted ?? 0} · Actualizados: ${counts.updated ?? 0} · Omitidos: ${counts.skipped ?? 0} · Errores: ${counts.errored ?? 0}`}
+                : `${rowResults.length} filas · Nuevos: ${(counts.inserted_in_session ?? 0) + (counts.inserted ?? 0)} · Actualizadas en la sesión: ${(counts.updated_in_session ?? 0) + (counts.updated ?? 0)} · En otra sesión: ${counts.updated_in_other_session ?? 0} · Sin participación: ${counts.person_exists_no_participation ?? 0} · No encontradas: ${counts.not_found ?? 0} · Errores: ${counts.errored ?? 0}`}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -324,13 +328,18 @@ function BatchDetailPage() {
             {rowResults.length > 0 && (
               <>
                 <Select value={outcomeFilter} onValueChange={setOutcomeFilter}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[240px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="inserted">Nuevos</SelectItem>
-                    <SelectItem value="updated">Actualizados</SelectItem>
-                    <SelectItem value="skipped">Omitidos</SelectItem>
+                    <SelectItem value="inserted_in_session">Nuevos en la sesión</SelectItem>
+                    <SelectItem value="updated_in_session">Actualizados en la sesión</SelectItem>
+                    <SelectItem value="updated_in_other_session">En otra sesión</SelectItem>
+                    <SelectItem value="person_exists_no_participation">Sin participación</SelectItem>
+                    <SelectItem value="not_found">No encontradas</SelectItem>
                     <SelectItem value="errored">Errores</SelectItem>
+                    <SelectItem value="inserted">Nuevos (legacy)</SelectItem>
+                    <SelectItem value="updated">Actualizados (legacy)</SelectItem>
+                    <SelectItem value="skipped">Omitidos (legacy)</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="sm" onClick={exportToExcel}>
@@ -365,9 +374,10 @@ function BatchDetailPage() {
                         <TableCell className="tabular-nums">{r.row_number}</TableCell>
                         <TableCell>
                           <Badge variant={
-                            r.outcome === "inserted" ? "default"
-                            : r.outcome === "updated" ? "secondary"
-                            : r.outcome === "errored" ? "destructive"
+                            r.outcome === "inserted_in_session" || r.outcome === "inserted" ? "default"
+                            : r.outcome === "updated_in_session" || r.outcome === "updated" ? "secondary"
+                            : r.outcome === "updated_in_other_session" ? "destructive"
+                            : r.outcome === "not_found" || r.outcome === "errored" ? "destructive"
                             : "outline"
                           }>{r.outcome}</Badge>
                         </TableCell>
@@ -376,7 +386,7 @@ function BatchDetailPage() {
                           {r.error_message ?? r.match_reason ?? ""}
                         </TableCell>
                         <TableCell>
-                          {r.participant_id && batch.session_id && (
+                          {r.participant_id && (
                             <Button variant="ghost" size="sm" asChild>
                               <Link
                                 to="/solicitudes/$participantId"
