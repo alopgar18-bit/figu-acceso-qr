@@ -129,6 +129,32 @@ export const commitImport = createServerFn({ method: "POST" })
     let updated = 0;
     let errored = 0;
     const errors: Array<{ row: number; reason: string }> = [];
+    const rowResults: Array<{
+      batch_id: string;
+      row_number: number;
+      outcome: "inserted" | "updated" | "skipped" | "errored";
+      participant_id: string | null;
+      match_reason: string | null;
+      error_message: string | null;
+      raw_row: unknown;
+    }> = [];
+    const logRow = (
+      row: typeof data.rows[number],
+      outcome: "inserted" | "updated" | "skipped" | "errored",
+      participantId: string | null,
+      matchReason: string | null,
+      errorMessage: string | null = null,
+    ) => {
+      rowResults.push({
+        batch_id: batch.id,
+        row_number: row.rowIndex,
+        outcome,
+        participant_id: participantId,
+        match_reason: matchReason,
+        error_message: errorMessage,
+        raw_row: row as unknown,
+      });
+    };
 
     // Duplicate detection rule: a row is a duplicate ONLY when first_name +
     // last_name (normalized) match an existing participation in the SAME
@@ -192,6 +218,7 @@ export const commitImport = createServerFn({ method: "POST" })
           // only refresh contact details on the people row.
           if (data.duplicateStrategy === "skip") {
             skipped++;
+            logRow(row, "skipped", null, "nombre+apellido coincide en la sesión");
             continue;
           }
           await supabase
@@ -216,6 +243,12 @@ export const commitImport = createServerFn({ method: "POST" })
             })
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId);
+          const { data: existingPart } = await supabase
+            .from("event_participants")
+            .select("id")
+            .eq("session_id", data.sessionId)
+            .eq("person_id", existingPersonId)
+            .maybeSingle();
           if (
             planSeatKeys &&
             row.seat_zone &&
@@ -226,6 +259,7 @@ export const commitImport = createServerFn({ method: "POST" })
             seatsNotInPlan++;
           }
           updated++;
+          logRow(row, "updated", existingPart?.id ?? null, "nombre+apellido coincide en la sesión");
           continue;
         }
 
@@ -337,9 +371,21 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         imported++;
+        logRow(row, "inserted", participant.id, null);
       } catch (err) {
         errored++;
         errors.push({ row: row.rowIndex, reason: err instanceof Error ? err.message : "error" });
+        logRow(row, "errored", null, null, err instanceof Error ? err.message : "error");
+      }
+    }
+
+    // Persist row-level audit log. Chunked to avoid hitting payload limits.
+    if (rowResults.length > 0) {
+      const CHUNK = 500;
+      for (let i = 0; i < rowResults.length; i += CHUNK) {
+      await supabase
+        .from("import_row_results")
+        .insert(rowResults.slice(i, i + CHUNK) as never);
       }
     }
 
@@ -397,4 +443,144 @@ export const commitImport = createServerFn({ method: "POST" })
       finalStatus: finalBatch?.status ?? "completada",
       seatsNotInPlan,
     };
+  });
+
+// ============================================================
+// Audit backfill: rellena import_row_results para un batch
+// histórico a partir de las filas del Excel original.
+// No modifica event_participants ni tickets — sólo audita.
+// ============================================================
+
+const backfillSchema = z.object({
+  batchId: z.string().uuid(),
+  rows: z
+    .array(
+      z.object({
+        rowIndex: z.number().int().min(0),
+        first_name: z.string().trim().min(1).max(120),
+        last_name: z.string().trim().max(150).optional().nullable(),
+        raw: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .min(1)
+    .max(10000),
+});
+
+export const backfillBatchRowResults = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => backfillSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte"]);
+
+    const { data: batch, error: bErr } = await supabase
+      .from("import_batches")
+      .select("id, session_id, event_id")
+      .eq("id", data.batchId)
+      .single();
+    if (bErr || !batch) throw new Error("Lote no encontrado");
+    if (!batch.session_id) throw new Error("El lote no tiene sesión asociada");
+
+    // Wipe any previous backfill for this batch so re-runs are idempotent.
+    await supabase.from("import_row_results").delete().eq("batch_id", data.batchId);
+
+    const normalize = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+    const nameKey = (f?: string | null, l?: string | null) =>
+      `${normalize(f)}|${normalize(l)}`;
+
+    const { data: roster } = await supabase
+      .from("event_participants")
+      .select("id, import_batch_id, people:person_id(first_name, last_name)")
+      .eq("session_id", batch.session_id);
+    const byName = new Map<string, { id: string; import_batch_id: string | null }>();
+    for (const ep of roster ?? []) {
+      const ppl = ep.people as { first_name?: string | null; last_name?: string | null } | null;
+      if (!ppl) continue;
+      byName.set(nameKey(ppl.first_name, ppl.last_name), {
+        id: ep.id as string,
+        import_batch_id: (ep.import_batch_id as string | null) ?? null,
+      });
+    }
+
+    const results: Array<{
+      batch_id: string;
+      row_number: number;
+      outcome: "inserted" | "updated" | "skipped" | "errored";
+      participant_id: string | null;
+      match_reason: string | null;
+      error_message: string | null;
+      raw_row: unknown;
+    }> = [];
+
+    let inserted = 0;
+    let updated = 0;
+    let notFound = 0;
+
+    for (const r of data.rows) {
+      const match = byName.get(nameKey(r.first_name, r.last_name));
+      const raw = r.raw ?? { first_name: r.first_name, last_name: r.last_name };
+      if (!match) {
+        notFound++;
+        results.push({
+          batch_id: data.batchId,
+          row_number: r.rowIndex,
+          outcome: "errored",
+          participant_id: null,
+          match_reason: null,
+          error_message: "No se encuentra en la sesión actual",
+          raw_row: raw,
+        });
+        continue;
+      }
+      // If the participant currently belongs to THIS batch → fue creado aquí.
+      // Si pertenece a otro batch → fue actualizado por esta importación.
+      const isInserted = match.import_batch_id === data.batchId;
+      if (isInserted) inserted++;
+      else updated++;
+      results.push({
+        batch_id: data.batchId,
+        row_number: r.rowIndex,
+        outcome: isInserted ? "inserted" : "updated",
+        participant_id: match.id,
+        match_reason: "nombre+apellido coincide en la sesión",
+        error_message: null,
+        raw_row: raw,
+      });
+    }
+
+    const CHUNK = 500;
+    for (let i = 0; i < results.length; i += CHUNK) {
+      const { error } = await supabase
+        .from("import_row_results")
+        .insert(results.slice(i, i + CHUNK) as never);
+      if (error) throw new Error(`No se pudo guardar la auditoría: ${error.message}`);
+    }
+
+    return {
+      total: data.rows.length,
+      inserted,
+      updated,
+      notFound,
+    };
+  });
+
+// ============================================================
+// Lista de resultados fila a fila para la UI del detalle.
+// ============================================================
+
+export const getImportBatchRowResults = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ batchId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: rows, error } = await supabase
+      .from("import_row_results")
+      .select(
+        "id, row_number, outcome, participant_id, match_reason, error_message, raw_row, event_participants:participant_id(id, people:person_id(first_name, last_name, email, phone))",
+      )
+      .eq("batch_id", data.batchId)
+      .order("row_number", { ascending: true });
+    if (error) throw new Error(error.message);
+    return rows ?? [];
   });

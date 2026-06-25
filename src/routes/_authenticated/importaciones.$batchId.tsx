@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2, Inbox } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2, Inbox, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { read, utils, write } from "xlsx";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,8 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useImportBatch } from "@/lib/use-imports";
 import { cleanDniTimestamps } from "@/lib/bulk-send.functions";
+import { getImportBatchRowResults, backfillBatchRowResults } from "@/lib/imports.functions";
 import { useDeleteImportBatch } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 
@@ -27,6 +31,17 @@ function BatchDetailPage() {
   const deleteBatch = useDeleteImportBatch();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [includeParticipants, setIncludeParticipants] = useState(false);
+  const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
+  const [backfilling, setBackfilling] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const qc = useQueryClient();
+  const fetchRows = useServerFn(getImportBatchRowResults);
+  const backfillFn = useServerFn(backfillBatchRowResults);
+  const { data: rowResults = [] } = useQuery({
+    queryKey: ["import_row_results", batchId],
+    queryFn: () => fetchRows({ data: { batchId } }),
+    enabled: !!batchId,
+  });
 
   if (isLoading) return <div className="p-8 text-sm text-muted-foreground">Cargando lote...</div>;
   if (!batch) return <div className="p-8 text-sm text-muted-foreground">Lote no encontrado.</div>;
@@ -40,6 +55,76 @@ function BatchDetailPage() {
       m.target_field === "dni" &&
       /marca|timestamp|hora|fecha/i.test(m.source_column),
   );
+
+  const counts = rowResults.reduce(
+    (acc, r) => {
+      acc[r.outcome] = (acc[r.outcome] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+  const filteredRows = outcomeFilter === "all"
+    ? rowResults
+    : rowResults.filter((r) => r.outcome === outcomeFilter);
+
+  const exportToExcel = () => {
+    const rows = filteredRows.map((r) => {
+      const p = (r as unknown as { event_participants?: { people?: { first_name?: string; last_name?: string; email?: string; phone?: string } } }).event_participants;
+      return {
+        Fila: r.row_number,
+        Resultado: r.outcome,
+        Nombre: p?.people?.first_name ?? (r.raw_row as Record<string, unknown>)?.first_name ?? "",
+        Apellido: p?.people?.last_name ?? (r.raw_row as Record<string, unknown>)?.last_name ?? "",
+        Email: p?.people?.email ?? "",
+        Teléfono: p?.people?.phone ?? "",
+        Motivo: r.match_reason ?? "",
+        Error: r.error_message ?? "",
+        ParticipanteId: r.participant_id ?? "",
+      };
+    });
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, utils.json_to_sheet(rows), "Filas");
+    const wbout = write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `auditoria-${batch.filename}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBackfillUpload = async (file: File) => {
+    setBackfilling(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const json = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      // Heuristic column detection
+      const firstKeys = Object.keys(json[0] ?? {});
+      const nameCol = firstKeys.find((k) => /nombre|first.?name|name/i.test(k));
+      const lastCol = firstKeys.find((k) => /apellid|last.?name|surname/i.test(k));
+      if (!nameCol) throw new Error("No se encontró columna de nombre en el Excel");
+      const rows = json
+        .map((r, idx) => ({
+          rowIndex: idx + 2,
+          first_name: String(r[nameCol] ?? "").trim(),
+          last_name: lastCol ? String(r[lastCol] ?? "").trim() : null,
+          raw: r,
+        }))
+        .filter((r) => r.first_name);
+      if (rows.length === 0) throw new Error("El Excel no contiene filas válidas");
+      const res = await backfillFn({ data: { batchId, rows } });
+      toast.success(`Auditoría cargada: ${res.inserted} nuevos, ${res.updated} actualizados, ${res.notFound} no encontrados`);
+      qc.invalidateQueries({ queryKey: ["import_row_results", batchId] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBackfilling(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   return (
     <div>
@@ -205,6 +290,110 @@ function BatchDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>Auditoría por fila</CardTitle>
+            <CardDescription>
+              {rowResults.length === 0
+                ? "Esta importación no tiene auditoría guardada. Sube el Excel original para reconstruirla (sólo lectura: no toca participantes ni QR)."
+                : `${rowResults.length} filas registradas · Nuevos: ${counts.inserted ?? 0} · Actualizados: ${counts.updated ?? 0} · Omitidos: ${counts.skipped ?? 0} · Errores: ${counts.errored ?? 0}`}
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleBackfillUpload(f);
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileRef.current?.click()}
+              disabled={backfilling}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {rowResults.length === 0 ? "Subir Excel original" : "Re-cargar auditoría"}
+            </Button>
+            {rowResults.length > 0 && (
+              <>
+                <Select value={outcomeFilter} onValueChange={setOutcomeFilter}>
+                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="inserted">Nuevos</SelectItem>
+                    <SelectItem value="updated">Actualizados</SelectItem>
+                    <SelectItem value="skipped">Omitidos</SelectItem>
+                    <SelectItem value="errored">Errores</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={exportToExcel}>
+                  <Download className="h-4 w-4 mr-2" />Exportar
+                </Button>
+              </>
+            )}
+          </div>
+        </CardHeader>
+        {rowResults.length > 0 && (
+          <CardContent>
+            <ScrollArea className="h-[420px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">Fila</TableHead>
+                    <TableHead className="w-28">Resultado</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Detalle</TableHead>
+                    <TableHead className="w-32" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRows.map((r) => {
+                    const p = (r as unknown as { event_participants?: { id: string; people?: { first_name?: string; last_name?: string } } }).event_participants;
+                    const raw = r.raw_row as Record<string, unknown> | null;
+                    const name = p?.people
+                      ? `${p.people.first_name ?? ""} ${p.people.last_name ?? ""}`.trim()
+                      : `${(raw?.first_name as string) ?? ""} ${(raw?.last_name as string) ?? ""}`.trim();
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell className="tabular-nums">{r.row_number}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            r.outcome === "inserted" ? "default"
+                            : r.outcome === "updated" ? "secondary"
+                            : r.outcome === "errored" ? "destructive"
+                            : "outline"
+                          }>{r.outcome}</Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{name || "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {r.error_message ?? r.match_reason ?? ""}
+                        </TableCell>
+                        <TableCell>
+                          {r.participant_id && batch.session_id && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link
+                                to="/solicitudes/$participantId"
+                                params={{ participantId: r.participant_id }}
+                              >Ver ficha</Link>
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }
