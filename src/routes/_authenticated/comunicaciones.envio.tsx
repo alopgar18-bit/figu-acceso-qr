@@ -474,23 +474,40 @@ FIGURARTE Casting & Producción`,
   // Preview render with first valid recipient
   const previewSample = useMemo(() => {
     if (!selectedTemplate) return null;
-    const sample = isWhatsapp
-      ? (effectiveParticipants.find((p) => p.people?.phone) ?? effectiveParticipants[0])
-      : (effectiveParticipants.find((p) => p.people?.email) ?? effectiveParticipants[0]);
+    const sample =
+      previewSampleRow ??
+      (isWhatsapp
+        ? (effectiveParticipants.find((p) => p.people?.phone) ?? effectiveParticipants[0])
+        : (effectiveParticipants.find((p) => p.people?.email) ?? effectiveParticipants[0]));
     if (!sample) return null;
-    const ev = events.find((e) => e.id === eventId) as
-      | { name?: string; location_name?: string | null; location_address?: string | null }
-      | undefined;
-    const ses = sessions.find((s) => s.id === sessionId) as
-      | {
-          name?: string;
-          starts_at?: string | null;
-          ends_at?: string | null;
-          doors_open_at?: string | null;
-          location_name?: string | null;
-          location_address?: string | null;
-        }
-      | undefined;
+    const ev =
+      (previewEventSession.data?.ev as
+        | { name?: string; location_name?: string | null; location_address?: string | null }
+        | undefined) ??
+      (events.find((e) => e.id === (sample.event_id ?? eventId)) as
+        | { name?: string; location_name?: string | null; location_address?: string | null }
+        | undefined);
+    const ses =
+      (previewEventSession.data?.ses as
+        | {
+            name?: string;
+            starts_at?: string | null;
+            ends_at?: string | null;
+            doors_open_at?: string | null;
+            location_name?: string | null;
+            location_address?: string | null;
+          }
+        | undefined) ??
+      (sessions.find((s) => s.id === (sample.session_id ?? sessionId)) as
+        | {
+            name?: string;
+            starts_at?: string | null;
+            ends_at?: string | null;
+            doors_open_at?: string | null;
+            location_name?: string | null;
+            location_address?: string | null;
+          }
+        | undefined);
     const TZ = "Europe/Madrid";
     const fmtDate = (iso?: string | null) =>
       iso ? new Date(iso).toLocaleDateString("es-ES", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
@@ -528,7 +545,17 @@ FIGURARTE Casting & Producción`,
       subject: selectedTemplate.subject ? renderTemplate(selectedTemplate.subject, ctx) : "(sin asunto)",
       body: renderTemplate(selectedTemplate.body, ctx),
     };
-  }, [selectedTemplate, effectiveParticipants, isWhatsapp, events, sessions, eventId, sessionId]);
+  }, [
+    selectedTemplate,
+    effectiveParticipants,
+    isWhatsapp,
+    events,
+    sessions,
+    eventId,
+    sessionId,
+    previewSampleRow,
+    previewEventSession.data,
+  ]);
 
   return (
     <>
