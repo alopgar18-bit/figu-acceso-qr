@@ -1352,6 +1352,57 @@ export type Database = {
           },
         ]
       }
+      import_row_results: {
+        Row: {
+          batch_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          match_reason: string | null
+          outcome: string
+          participant_id: string | null
+          raw_row: Json
+          row_number: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          match_reason?: string | null
+          outcome: string
+          participant_id?: string | null
+          raw_row?: Json
+          row_number: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          match_reason?: string | null
+          outcome?: string
+          participant_id?: string | null
+          raw_row?: Json
+          row_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_row_results_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_row_results_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "event_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           assigned_to: string | null
