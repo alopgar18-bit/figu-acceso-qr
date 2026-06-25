@@ -46,6 +46,10 @@ interface PartRow {
   session_id?: string;
   attendee_type?: string | null;
   created_at?: string | null;
+  confirmation_token?: string | null;
+  seat_zone?: string | null;
+  seat_row?: string | null;
+  seat_number?: string | null;
   people:
     | {
         first_name: string;
