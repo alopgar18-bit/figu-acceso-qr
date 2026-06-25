@@ -1,50 +1,28 @@
-## Opción A — Auditoría sin tocar participantes
+## Problema
 
-### Qué se hace
+En **Comunicaciones → Envío masivo**, al elegir el canal **WhatsApp Business** el desplegable de plantillas aparece vacío ("No hay plantillas activas para este canal"), por lo que no puedes seleccionar `entrada_grabacin` y no se puede lanzar el envío.
 
-1. **Nueva tabla `import_row_results`** (sólo auditoría, no afecta a `event_participants` ni `tickets`):
-   - `batch_id`, `row_number`, `outcome` (`inserted` | `updated` | `skipped` | `errored`)
-   - `participant_id` (FK al participante final, si lo hay)
-   - `raw_row` (jsonb con la fila original del Excel)
-   - `match_reason` (texto: "nombre+apellido", "dni", etc.)
-   - `error_message` (si `errored`)
-   - RLS: lectura para admins y asignados al evento del batch.
+Causa: la tabla `communication_templates` no tiene ninguna fila con `channel = 'whatsapp_business'`. La edge function `send-whatsapp` ya está cableada para usar siempre la plantilla aprobada en Wati (`entrada_grabacin`), pero la UI exige seleccionar una plantilla del catálogo antes de encolar.
 
-2. **Actualizar `src/lib/imports.functions.ts`**:
-   - En cada fila procesada (insert, update, skip, error) insertar una fila en `import_row_results` con el resultado y el `participant_id` resultante.
-   - **No se cambia ninguna lógica de negocio existente** sobre participantes/tickets. Sólo se añade el log.
+## Solución
 
-3. **Nueva ruta `/importaciones/$batchId`** (detalle de importación):
-   - KPIs arriba: total filas, nuevos, actualizados, omitidos, errores.
-   - Tabla con todas las filas: nº fila, nombre, outcome, motivo, enlace al participante.
-   - Filtro por outcome (ver sólo "actualizados", sólo "errores", etc.).
-   - Botón "Exportar a Excel".
-   - Enlace desde la lista `/importaciones` (columna nueva "Ver detalle").
+Crear (sembrar) en la base de datos la plantilla `entrada_grabacin` para que aparezca en el selector y se pueda usar en el envío masivo. No hay que tocar la edge function ni el flujo de envío.
 
-4. **Backfill puntual para la sesión del 30 de junio** (sólo lectura cruzada, ningún UPDATE sobre `event_participants` ni `tickets`):
-   - Releer el Excel `bUS_Cazalla_30 junio.xlsx` desde el storage del batch `8c648d92…`.
-   - Para cada fila, buscar el participante existente en la sesión por `nombre+apellido` (misma regla que usó el importador).
-   - Insertar las 137 filas en `import_row_results` con el `participant_id` correspondiente y outcome (`updated` para los 14 ya existentes, `inserted` para los 123 nuevos).
-   - **Resultado visible**: al abrir `/importaciones/8c648d92…` verás los 14 nombres exactos marcados como "actualizado", con enlace a su ficha en la sesión del 30.
+### Pasos
 
-### Qué NO cambia
+1. **Migración SQL** que inserta en `communication_templates`:
+   - `name`: `entrada_grabacin`
+   - `channel`: `whatsapp_business`
+   - `is_active`: `true`
+   - `subject`: null
+   - `body`: texto literal de la plantilla Wati (el mismo que ya existe en `src/lib/whatsapp-template.ts`) para que la previsualización funcione.
+   - `variables`: lista de variables Wati (`nombre`, `programa`, `fecha`, `hora_acceso`, `hora_inicio`, `hora_fin`, `zona`, `fila`, `asiento`, `lugar`, `enlace_entrada`).
+   - Idempotente (`ON CONFLICT (name) DO NOTHING` o equivalente).
 
-- Las 504 entradas de la sesión del 30 quedan intactas.
-- Ningún `qr_token`, `confirmation_token`, `participant_id`, `session_id` ni `status` se modifica.
-- No se reenvía ninguna comunicación.
-- Los participantes siguen apuntando al `import_batch_id` que tienen ahora (la columna no se toca).
+2. **Verificación**: tras la migración, en `/comunicaciones/envio` con canal WhatsApp Business aparecerá `entrada_grabacin` en el selector, se mostrará la previsualización y el botón "Crear cola" quedará habilitado. El envío real ya usa la plantilla aprobada de Wati.
 
-### Detalle técnico
+### Notas
 
-- Migración: `CREATE TABLE public.import_row_results` con GRANT a `authenticated`/`service_role` y RLS reutilizando `has_event_assignment` / `is_admin`.
-- Server function nueva: `getImportBatchDetail({ batchId })` en `src/lib/imports.functions.ts` que devuelve KPIs + filas.
-- Server function nueva: `backfillBatchRowResults({ batchId })` (admin-only) que rellena las filas del batch leyendo el Excel del storage.
-- UI: `src/routes/_authenticated/importaciones.$batchId.tsx` (tabla con TanStack Query) + botón "Exportar Excel" usando `xlsx`.
-- Enlace nuevo en `src/routes/_authenticated/importaciones.tsx` por cada batch.
-
-### Orden de ejecución
-
-1. Migración `import_row_results`.
-2. Modificar `imports.functions.ts` para registrar las nuevas importaciones.
-3. Crear ruta de detalle + export.
-4. Ejecutar `backfillBatchRowResults` para el batch `8c648d92…` y verificar los 14 actualizados.
+- No se modifica la edge function `send-whatsapp` (sigue forzando `entrada_grabacin` como `template_name`, lo correcto).
+- No se modifica `send-communication-dialog` ni el componente de envío masivo.
+- Si más adelante se aprueban en Wati más plantillas, se añadirán como filas adicionales con el mismo patrón.
