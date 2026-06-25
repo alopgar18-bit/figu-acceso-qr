@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { generateMissingTickets } from "@/lib/tickets.functions";
 import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
-import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel } from "@/lib/communication-constants";
+import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel, buildEntryUrl } from "@/lib/communication-constants";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 import { PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, statusLabel } from "@/lib/participant-constants";
 import { WatiTestSendDialog } from "@/components/wati-test-send-dialog";
@@ -46,6 +46,10 @@ interface PartRow {
   session_id?: string;
   attendee_type?: string | null;
   created_at?: string | null;
+  confirmation_token?: string | null;
+  seat_zone?: string | null;
+  seat_row?: string | null;
+  seat_number?: string | null;
   people:
     | {
         first_name: string;
@@ -129,7 +133,7 @@ function BulkSendPage() {
     queryFn: async () => {
       let q = supabase
         .from("event_participants")
-        .select("id, status, person_id, event_id, session_id, attendee_type, created_at, people(first_name,last_name,email,phone,source,dni,city,province,gender,birth_date,is_blocked)")
+        .select("id, status, person_id, event_id, session_id, attendee_type, created_at, confirmation_token, seat_zone, seat_row, seat_number, people(first_name,last_name,email,phone,source,dni,city,province,gender,birth_date,is_blocked)")
         .limit(5000);
       if (selectedIds && selectedIds.length > 0) {
         q = q.in("id", selectedIds);
@@ -439,18 +443,49 @@ FIGURARTE Casting & Producción`,
       ? (effectiveParticipants.find((p) => p.people?.phone) ?? effectiveParticipants[0])
       : (effectiveParticipants.find((p) => p.people?.email) ?? effectiveParticipants[0]);
     if (!sample) return null;
-    const ctx: RenderContext = {
+    const ev = events.find((e) => e.id === eventId) as
+      | { name?: string; location_name?: string | null; location_address?: string | null }
+      | undefined;
+    const ses = sessions.find((s) => s.id === sessionId) as
+      | {
+          name?: string;
+          starts_at?: string | null;
+          ends_at?: string | null;
+          doors_open_at?: string | null;
+          location_name?: string | null;
+          location_address?: string | null;
+        }
+      | undefined;
+    const TZ = "Europe/Madrid";
+    const fmtDate = (iso?: string | null) =>
+      iso ? new Date(iso).toLocaleDateString("es-ES", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
+    const fmtTime = (iso?: string | null) =>
+      iso ? new Date(iso).toLocaleTimeString("es-ES", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+    const horaInicio = fmtTime(ses?.starts_at);
+    const horaAcceso = ses?.doors_open_at ? fmtTime(ses.doors_open_at) : horaInicio;
+    const horaFin = fmtTime(ses?.ends_at);
+    const locName = (ses?.location_name ?? ev?.location_name ?? "").toString().trim();
+    const locAddr = (ses?.location_address ?? ev?.location_address ?? "").toString().trim();
+    const lugar = [locName, locAddr].filter(Boolean).join(", ");
+    const enlace = buildEntryUrl(sample.confirmation_token ?? null) || "https://…/c/<token>/entrada";
+    const ctx = {
       nombre: sample.people?.first_name ?? "",
       apellidos: sample.people?.last_name ?? "",
-      evento: "(nombre del evento)",
-      sesion: "(nombre de la sesión)",
-      fecha: "(fecha)",
-      hora_acceso: "(hora)",
-      hora_inicio: "(hora inicio)",
-      hora_fin: "(hora fin)",
-      ubicacion: "(ubicación)",
-      enlace_entrada: "https://…/c/<token>/entrada",
-    };
+      evento: ev?.name ?? "(nombre del evento)",
+      programa: ev?.name ?? "(programa)",
+      sesion: ses?.name ?? "(nombre de la sesión)",
+      fecha: fmtDate(ses?.starts_at) || "(fecha)",
+      hora_acceso: horaAcceso || "(hora)",
+      hora_inicio: horaInicio || "(hora inicio)",
+      hora_fin: horaFin || "(hora fin)",
+      ubicacion: lugar || "(ubicación)",
+      lugar: lugar || "(lugar)",
+      zona: sample.seat_zone ?? "",
+      fila: sample.seat_row ?? "",
+      asiento: sample.seat_number ?? "",
+      enlace_entrada: enlace,
+      enlace_confirmacion: enlace,
+    } as unknown as RenderContext;
     return {
       to: isWhatsapp
         ? (sample.people?.phone ?? "(sin teléfono)")
@@ -458,7 +493,7 @@ FIGURARTE Casting & Producción`,
       subject: selectedTemplate.subject ? renderTemplate(selectedTemplate.subject, ctx) : "(sin asunto)",
       body: renderTemplate(selectedTemplate.body, ctx),
     };
-  }, [selectedTemplate, effectiveParticipants, isWhatsapp]);
+  }, [selectedTemplate, effectiveParticipants, isWhatsapp, events, sessions, eventId, sessionId]);
 
   return (
     <>
