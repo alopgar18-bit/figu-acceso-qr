@@ -136,7 +136,7 @@ export const commitImport = createServerFn({ method: "POST" })
       participant_id: string | null;
       match_reason: string | null;
       error_message: string | null;
-      raw_row: Record<string, unknown>;
+      raw_row: unknown;
     }> = [];
     const logRow = (
       row: typeof data.rows[number],
@@ -152,7 +152,7 @@ export const commitImport = createServerFn({ method: "POST" })
         participant_id: participantId,
         match_reason: matchReason,
         error_message: errorMessage,
-        raw_row: row as unknown as Record<string, unknown>,
+        raw_row: row as unknown,
       });
     };
 
