@@ -383,7 +383,9 @@ export const commitImport = createServerFn({ method: "POST" })
     if (rowResults.length > 0) {
       const CHUNK = 500;
       for (let i = 0; i < rowResults.length; i += CHUNK) {
-        await supabase.from("import_row_results").insert(rowResults.slice(i, i + CHUNK));
+      await supabase
+        .from("import_row_results")
+        .insert(rowResults.slice(i, i + CHUNK) as never);
       }
     }
 
