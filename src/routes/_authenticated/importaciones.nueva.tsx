@@ -730,13 +730,7 @@ function ValidationStep({
             <CardTitle>Errores detectados ({normalized.errors.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-48">
-              <ul className="text-sm space-y-1">
-                {normalized.errors.slice(0, 100).map((e, i) => (
-                  <li key={i}><Badge variant="outline" className="mr-2">Fila {e.row}</Badge>{e.msg}</li>
-                ))}
-              </ul>
-            </ScrollArea>
+            <ErrorsList errors={normalized.errors} />
           </CardContent>
         </Card>
       )}
