@@ -779,6 +779,38 @@ function ResultStep({
   );
 }
 
+function ErrorsList({ errors }: { errors: Array<{ row: number; msg: string }> }) {
+  const INITIAL = 100;
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? errors : errors.slice(0, INITIAL);
+  return (
+    <>
+      <ScrollArea className={showAll ? "h-96" : "h-48"}>
+        <ul className="text-sm space-y-1">
+          {visible.map((e, i) => (
+            <li key={i}>
+              <Badge variant="outline" className="mr-2">Fila {e.row}</Badge>
+              {e.msg}
+            </li>
+          ))}
+        </ul>
+      </ScrollArea>
+      {errors.length > INITIAL && (
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">
+            {showAll
+              ? `Mostrando todos los ${errors.length} errores.`
+              : `Mostrando los primeros ${INITIAL} de ${errors.length}.`}
+          </span>
+          <Button size="sm" variant="outline" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? `Mostrar solo ${INITIAL}` : `Ver todos (${errors.length})`}
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function StatCard({ label, value, tone = "neutral", action }: { label: string; value: number | string; tone?: "neutral" | "success" | "warning" | "danger" | "info"; action?: React.ReactNode }) {
   const toneClass = {
     neutral: "",
