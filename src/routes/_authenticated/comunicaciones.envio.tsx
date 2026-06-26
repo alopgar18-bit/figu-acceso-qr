@@ -456,6 +456,35 @@ FIGURARTE Casting & Producción`,
     }
   };
 
+  const handleCreateAforoCompletoTemplate = async () => {
+    try {
+      await upsertTemplate.mutateAsync({
+        name: "Aforo completo / Lista de espera",
+        channel: "email",
+        subject: "{{evento}} — Información sobre tu solicitud",
+        body: `Estimado/a {{nombre}},
+
+Antes de nada, gracias por su interés en acompañarnos como público en {{evento}}.
+
+Debido al límite de aforo, no hemos podido confirmar todas las solicitudes recibidas para la sesión del {{fecha}}. Las invitaciones se han enviado siguiendo el orden de inscripción hasta completar el aforo previsto.
+
+No obstante, su solicitud continúa en lista de espera. En caso de producirse cancelaciones o renuncias, enviaremos nuevas invitaciones a las personas que aún están pendientes de confirmación.
+
+Además, le recordamos que puede solicitar asistencia para futuras grabaciones a través de nuestra página web.
+
+Agradecemos sinceramente su comprensión y la ilusión con la que nos acompaña. Esperamos poder contar con usted muy pronto.
+
+Un saludo,
+Equipo de Público
+FIGURARTE Casting & Producción`,
+        is_active: true,
+      });
+      toast.success("Plantilla creada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   const handleQueue = async () => {
     if (!eventId || !sessionId || !templateId) return;
     try {
