@@ -129,7 +129,7 @@ function BulkSendPage() {
   // Participants for the selected session (and optionally batch via people.source)
   const participantsQ = useQuery({
     queryKey: ["bulk_participants", eventId, sessionId, batchId, batchInfo.data?.filename, selectedIds?.join(",") ?? null],
-    enabled: (!!eventId && !!sessionId) || (!!selectedIds && selectedIds.length > 0),
+    enabled: (!!eventId && !!sessionId) || (!!selectedIds && selectedIds.length > 0) || !!batchId,
     queryFn: async () => {
       // Paginate to handle sessions / batches > 1000 rows (PostgREST default cap).
       const pageSize = 1000;
