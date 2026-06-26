@@ -78,6 +78,7 @@ function BulkSendPage() {
   const [channel, setChannel] = useState<CommChannel>("email");
   const [sendPerCompanion, setSendPerCompanion] = useState<boolean>(true);
   const [includeCompanionsInTitular, setIncludeCompanionsInTitular] = useState<boolean>(true);
+  const [allowWithoutTicket, setAllowWithoutTicket] = useState<boolean>(false);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
@@ -337,11 +338,13 @@ function BulkSendPage() {
     let withoutEmail = 0;
     let withTicket = 0;
     let withoutTicket = 0;
+    let withEmailAndTicket = 0;
     for (const p of effectiveParticipants) {
-      if (p.people?.email) withEmail++;
-      else withoutEmail++;
-      if (ticketSet.has(p.id)) withTicket++;
-      else withoutTicket++;
+      const hasEmail = !!p.people?.email;
+      const hasTicket = ticketSet.has(p.id);
+      if (hasEmail) withEmail++; else withoutEmail++;
+      if (hasTicket) withTicket++; else withoutTicket++;
+      if (hasEmail && hasTicket) withEmailAndTicket++;
     }
     const effIdSet = new Set(effectiveParticipants.map((p) => p.id));
     const alreadyQueued = (sentQ.data ?? []).filter(
@@ -356,6 +359,7 @@ function BulkSendPage() {
       withoutEmail,
       withTicket,
       withoutTicket,
+      withEmailAndTicket,
       alreadyQueued,
       alreadySent,
     };
@@ -452,6 +456,35 @@ FIGURARTE Casting & Producción`,
     }
   };
 
+  const handleCreateAforoCompletoTemplate = async () => {
+    try {
+      await upsertTemplate.mutateAsync({
+        name: "Aforo completo / Lista de espera",
+        channel: "email",
+        subject: "{{evento}} — Información sobre tu solicitud",
+        body: `Estimado/a {{nombre}},
+
+Antes de nada, gracias por su interés en acompañarnos como público en {{evento}}.
+
+Debido al límite de aforo, no hemos podido confirmar todas las solicitudes recibidas para la sesión del {{fecha}}. Las invitaciones se han enviado siguiendo el orden de inscripción hasta completar el aforo previsto.
+
+No obstante, su solicitud continúa en lista de espera. En caso de producirse cancelaciones o renuncias, enviaremos nuevas invitaciones a las personas que aún están pendientes de confirmación.
+
+Además, le recordamos que puede solicitar asistencia para futuras grabaciones a través de nuestra página web.
+
+Agradecemos sinceramente su comprensión y la ilusión con la que nos acompaña. Esperamos poder contar con usted muy pronto.
+
+Un saludo,
+Equipo de Público
+FIGURARTE Casting & Producción`,
+        is_active: true,
+      });
+      toast.success("Plantilla creada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   const handleQueue = async () => {
     if (!eventId || !sessionId || !templateId) return;
     try {
@@ -470,10 +503,10 @@ FIGURARTE Casting & Producción`,
             template_id: templateId,
             participant_ids: part.length > 0 ? part : undefined,
             only_with_email: !isWhatsapp,
-            only_with_ticket: true,
+            only_with_ticket: !allowWithoutTicket,
             skip_already_queued: true,
-            send_per_companion: sendPerCompanion,
-            include_companions_in_titular: includeCompanionsInTitular,
+            send_per_companion: allowWithoutTicket ? false : sendPerCompanion,
+            include_companions_in_titular: allowWithoutTicket ? false : includeCompanionsInTitular,
             from: isWhatsapp ? undefined : senderValue,
           },
         });
@@ -665,6 +698,17 @@ FIGURARTE Casting & Producción`,
                   </div>
                   <Button variant="ghost" size="sm" onClick={resetFilters}>
                     <X className="h-3 w-3 mr-1" />Limpiar filtros
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Atajos:</span>
+                  <Button type="button" variant="outline" size="sm" className="h-7"
+                    onClick={() => setFlt((f) => ({ ...f, status: "rechazado" }))}>
+                    Solo rechazados
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="h-7"
+                    onClick={() => setFlt((f) => ({ ...f, status: "lista_espera" }))}>
+                    Solo lista de espera
                   </Button>
                 </div>
                 <div className="grid gap-3 md:grid-cols-4">
@@ -924,9 +968,14 @@ FIGURARTE Casting & Producción`,
                 </SelectContent>
               </Select>
               {channel === "email" && (
-                <Button variant="outline" onClick={handleCreateSuggestedTemplate}>
-                  Crear plantilla sugerida
-                </Button>
+                <>
+                  <Button variant="outline" onClick={handleCreateSuggestedTemplate}>
+                    Crear plantilla invitación
+                  </Button>
+                  <Button variant="outline" onClick={handleCreateAforoCompletoTemplate}>
+                    Crear plantilla aforo completo
+                  </Button>
+                </>
               )}
             </div>
           </CardContent>
@@ -979,7 +1028,23 @@ FIGURARTE Casting & Producción`,
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4"
+                  checked={allowWithoutTicket}
+                  onChange={(e) => setAllowWithoutTicket(e.target.checked)}
+                />
+                <span>
+                  <strong>Permitir envío a destinatarios sin QR / entrada</strong>
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Úsalo para avisos sin entrada: aforo completo, lista de espera, cancelaciones o recordatorios genéricos. Las variables <code>{"{{enlace_entrada}}"}</code>, <code>{"{{zona}}"}</code>, <code>{"{{fila}}"}</code> y <code>{"{{asiento}}"}</code> llegarán vacías en quienes no tengan QR. Mientras esté activado, los envíos por acompañante se desactivan.
+                  </span>
+                </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
                   checked={includeCompanionsInTitular}
+                  disabled={allowWithoutTicket}
                   onChange={(e) => setIncludeCompanionsInTitular(e.target.checked)}
                 />
                 <span>
@@ -997,6 +1062,7 @@ FIGURARTE Casting & Producción`,
                   type="checkbox"
                   className="mt-1 h-4 w-4"
                   checked={sendPerCompanion}
+                  disabled={allowWithoutTicket}
                   onChange={(e) => setSendPerCompanion(e.target.checked)}
                 />
                 <span>
@@ -1012,8 +1078,8 @@ FIGURARTE Casting & Producción`,
                 </span>
             </label>
             <div className="flex gap-2">
-              <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : stats.withEmail === 0}>
-                <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : stats.withEmail} destinatarios)
+              <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket) === 0}>
+                <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket)} destinatarios)
               </Button>
               <Button variant="outline" asChild>
                 <Link to="/comunicaciones/cola"><CheckCircle2 className="h-4 w-4 mr-2" />Ver cola</Link>
