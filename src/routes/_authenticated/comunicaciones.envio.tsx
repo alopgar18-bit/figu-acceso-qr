@@ -455,26 +455,37 @@ FIGURARTE Casting & Producción`,
   const handleQueue = async () => {
     if (!eventId || !sessionId || !templateId) return;
     try {
-      const res = await queueFn({
-        data: {
-          event_id: eventId,
-          session_id: sessionId,
-          batch_id: batchId,
-          template_id: templateId,
-          participant_ids: effectiveIds,
-          only_with_email: !isWhatsapp,
-          only_with_ticket: true,
-          skip_already_queued: true,
-          send_per_companion: sendPerCompanion,
-          include_companions_in_titular: includeCompanionsInTitular,
-          from: isWhatsapp ? undefined : senderValue,
-        },
-      });
-      const compMsg = res.queued_companions
-        ? ` + ${res.queued_companions} acompañante(s)`
-        : "";
+      const CHUNK = 2000;
+      const ids = effectiveIds ?? [];
+      const chunks: string[][] = [];
+      if (ids.length === 0) chunks.push([]);
+      else for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+      let queued = 0, queuedComp = 0, noEmail = 0, noTicket = 0, already = 0;
+      for (const part of chunks) {
+        const res = await queueFn({
+          data: {
+            event_id: eventId,
+            session_id: sessionId,
+            batch_id: batchId,
+            template_id: templateId,
+            participant_ids: part.length > 0 ? part : undefined,
+            only_with_email: !isWhatsapp,
+            only_with_ticket: true,
+            skip_already_queued: true,
+            send_per_companion: sendPerCompanion,
+            include_companions_in_titular: includeCompanionsInTitular,
+            from: isWhatsapp ? undefined : senderValue,
+          },
+        });
+        queued += res.queued ?? 0;
+        queuedComp += res.queued_companions ?? 0;
+        noEmail += res.skipped_no_email ?? 0;
+        noTicket += res.skipped_no_ticket ?? 0;
+        already += res.skipped_already ?? 0;
+      }
+      const compMsg = queuedComp ? ` + ${queuedComp} acompañante(s)` : "";
       toast.success(
-        `Cola creada: ${res.queued} titular(es)${compMsg}. ${res.skipped_no_email} sin email · ${res.skipped_no_ticket} sin QR · ${res.skipped_already} ya en cola.`,
+        `Cola creada: ${queued} titular(es)${compMsg}. ${noEmail} sin email · ${noTicket} sin QR · ${already} ya en cola.`,
       );
       sentQ.refetch();
     } catch (e) {
