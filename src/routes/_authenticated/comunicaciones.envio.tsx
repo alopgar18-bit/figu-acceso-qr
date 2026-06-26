@@ -131,22 +131,33 @@ function BulkSendPage() {
     queryKey: ["bulk_participants", eventId, sessionId, batchId, batchInfo.data?.filename, selectedIds?.join(",") ?? null],
     enabled: (!!eventId && !!sessionId) || (!!selectedIds && selectedIds.length > 0),
     queryFn: async () => {
-      let q = supabase
-        .from("event_participants")
-        .select("id, status, person_id, event_id, session_id, attendee_type, created_at, confirmation_token, seat_zone, seat_row, seat_number, people(first_name,last_name,email,phone,source,dni,city,province,gender,birth_date,is_blocked)")
-        .limit(5000);
-      if (selectedIds && selectedIds.length > 0) {
-        q = q.in("id", selectedIds);
-      } else {
-        q = q.eq("event_id", eventId!).eq("session_id", sessionId!);
+      // Paginate to handle sessions / batches > 1000 rows (PostgREST default cap).
+      const pageSize = 1000;
+      const all: PartRow[] = [];
+      let from = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        let q = supabase
+          .from("event_participants")
+          .select("id, status, person_id, event_id, session_id, attendee_type, created_at, confirmation_token, seat_zone, seat_row, seat_number, import_batch_id, people(first_name,last_name,email,phone,source,dni,city,province,gender,birth_date,is_blocked)")
+          .range(from, from + pageSize - 1);
+        if (selectedIds && selectedIds.length > 0) {
+          q = q.in("id", selectedIds);
+        } else if (batchId) {
+          // Filter directly by the import batch — robust against people.source tag mismatches.
+          q = q.eq("import_batch_id", batchId);
+        } else {
+          q = q.eq("event_id", eventId!).eq("session_id", sessionId!);
+        }
+        const { data, error } = await q;
+        if (error) throw error;
+        const chunk = (data ?? []) as unknown as PartRow[];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
+        from += pageSize;
+        if (from > 50000) break; // safety cap
       }
-      const { data, error } = await q;
-      if (error) throw error;
-      let rows = (data ?? []) as unknown as PartRow[];
-      if (batchId && batchInfo.data?.filename) {
-        const tag = `import:${batchInfo.data.filename}`;
-        rows = rows.filter((r) => r.people?.source === tag);
-      }
+      const rows = all;
       // If event/session weren't set, derive from the first row.
       if (rows.length > 0) {
         const first = rows[0] as PartRow & { event_id?: string; session_id?: string };
