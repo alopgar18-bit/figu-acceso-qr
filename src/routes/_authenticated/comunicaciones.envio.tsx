@@ -700,6 +700,17 @@ FIGURARTE Casting & Producción`,
                     <X className="h-3 w-3 mr-1" />Limpiar filtros
                   </Button>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Atajos:</span>
+                  <Button type="button" variant="outline" size="sm" className="h-7"
+                    onClick={() => setFlt((f) => ({ ...f, status: "rechazado" }))}>
+                    Solo rechazados
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="h-7"
+                    onClick={() => setFlt((f) => ({ ...f, status: "lista_espera" }))}>
+                    Solo lista de espera
+                  </Button>
+                </div>
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="md:col-span-2">
                     <Label className="text-xs uppercase tracking-wider">Buscar</Label>
