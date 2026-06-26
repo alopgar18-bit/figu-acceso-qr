@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -25,6 +25,8 @@ import { useEvents, useEventSessions } from "@/lib/use-events";
 import { PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, statusLabel } from "@/lib/participant-constants";
 import { WatiTestSendDialog } from "@/components/wati-test-send-dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { BulkProgressCard } from "@/components/bulk-progress-card";
+import { useShowAll } from "@/hooks/use-show-all";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -79,6 +81,25 @@ function BulkSendPage() {
   const [sendPerCompanion, setSendPerCompanion] = useState<boolean>(true);
   const [includeCompanionsInTitular, setIncludeCompanionsInTitular] = useState<boolean>(true);
   const [allowWithoutTicket, setAllowWithoutTicket] = useState<boolean>(false);
+  // Tamaño de lote y pausa para envío masivo automático.
+  const [batchSize, setBatchSize] = useState<number>(500);
+  const [batchPauseSec, setBatchPauseSec] = useState<number>(2);
+  // Progreso de la creación de cola.
+  const [queueProgress, setQueueProgress] = useState<{
+    current: number;
+    total: number;
+    queued: number;
+    queuedComp: number;
+    noEmail: number;
+    noTicket: number;
+    already: number;
+    startedAt: number;
+    paused: boolean;
+    done: boolean;
+  } | null>(null);
+  const queueCancelRef = useRef(false);
+  const queuePauseRef = useRef(false);
+  const tableShowAll = useShowAll(500);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
@@ -487,14 +508,37 @@ FIGURARTE Casting & Producción`,
 
   const handleQueue = async () => {
     if (!eventId || !sessionId || !templateId) return;
+    queueCancelRef.current = false;
+    queuePauseRef.current = false;
     try {
-      const CHUNK = 2000;
+      // Tamaño efectivo: respeta el límite duro de 2000 del validador del servidor.
+      const CHUNK = Math.max(50, Math.min(2000, batchSize || 500));
       const ids = effectiveIds ?? [];
       const chunks: string[][] = [];
       if (ids.length === 0) chunks.push([]);
       else for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+      const startedAt = Date.now();
+      setQueueProgress({
+        current: 0,
+        total: chunks.length,
+        queued: 0,
+        queuedComp: 0,
+        noEmail: 0,
+        noTicket: 0,
+        already: 0,
+        startedAt,
+        paused: false,
+        done: false,
+      });
       let queued = 0, queuedComp = 0, noEmail = 0, noTicket = 0, already = 0;
-      for (const part of chunks) {
+      for (let i = 0; i < chunks.length; i++) {
+        if (queueCancelRef.current) break;
+        // Pausa cooperativa entre lotes.
+        while (queuePauseRef.current && !queueCancelRef.current) {
+          await new Promise((r) => setTimeout(r, 400));
+        }
+        if (queueCancelRef.current) break;
+        const part = chunks[i];
         const res = await queueFn({
           data: {
             event_id: eventId,
@@ -515,14 +559,43 @@ FIGURARTE Casting & Producción`,
         noEmail += res.skipped_no_email ?? 0;
         noTicket += res.skipped_no_ticket ?? 0;
         already += res.skipped_already ?? 0;
+        setQueueProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                current: i + 1,
+                queued,
+                queuedComp,
+                noEmail,
+                noTicket,
+                already,
+              }
+            : prev,
+        );
+        // Pausa configurable entre lotes (excepto tras el último).
+        if (i < chunks.length - 1 && batchPauseSec > 0) {
+          await new Promise((r) => setTimeout(r, batchPauseSec * 1000));
+        }
+        // Refresca panel "ya en cola" en vivo.
+        sentQ.refetch();
       }
       const compMsg = queuedComp ? ` + ${queuedComp} acompañante(s)` : "";
-      toast.success(
-        `Cola creada: ${queued} titular(es)${compMsg}. ${noEmail} sin email · ${noTicket} sin QR · ${already} ya en cola.`,
-      );
+      if (queueCancelRef.current) {
+        toast.info(
+          `Envío cancelado. Encolados antes de cancelar: ${queued} titular(es)${compMsg}.`,
+        );
+      } else {
+        toast.success(
+          `Cola creada: ${queued} titular(es)${compMsg}. ${noEmail} sin email · ${noTicket} sin QR · ${already} ya en cola.`,
+        );
+      }
+      setQueueProgress((prev) => (prev ? { ...prev, done: true } : prev));
+      // Auto-ocultar tras 10s.
+      setTimeout(() => setQueueProgress(null), 10000);
       sentQ.refetch();
     } catch (e) {
       toast.error((e as Error).message);
+      setQueueProgress(null);
     }
   };
 
