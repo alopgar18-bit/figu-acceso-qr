@@ -1028,7 +1028,23 @@ FIGURARTE Casting & Producción`,
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4"
+                  checked={allowWithoutTicket}
+                  onChange={(e) => setAllowWithoutTicket(e.target.checked)}
+                />
+                <span>
+                  <strong>Permitir envío a destinatarios sin QR / entrada</strong>
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Úsalo para avisos sin entrada: aforo completo, lista de espera, cancelaciones o recordatorios genéricos. Las variables <code>{"{{enlace_entrada}}"}</code>, <code>{"{{zona}}"}</code>, <code>{"{{fila}}"}</code> y <code>{"{{asiento}}"}</code> llegarán vacías en quienes no tengan QR. Mientras esté activado, los envíos por acompañante se desactivan.
+                  </span>
+                </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm border rounded p-3 bg-muted/20 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
                   checked={includeCompanionsInTitular}
+                  disabled={allowWithoutTicket}
                   onChange={(e) => setIncludeCompanionsInTitular(e.target.checked)}
                 />
                 <span>
@@ -1046,6 +1062,7 @@ FIGURARTE Casting & Producción`,
                   type="checkbox"
                   className="mt-1 h-4 w-4"
                   checked={sendPerCompanion}
+                  disabled={allowWithoutTicket}
                   onChange={(e) => setSendPerCompanion(e.target.checked)}
                 />
                 <span>
@@ -1061,8 +1078,8 @@ FIGURARTE Casting & Producción`,
                 </span>
             </label>
             <div className="flex gap-2">
-              <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : stats.withEmail === 0}>
-                <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : stats.withEmail} destinatarios)
+              <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket) === 0}>
+                <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket)} destinatarios)
               </Button>
               <Button variant="outline" asChild>
                 <Link to="/comunicaciones/cola"><CheckCircle2 className="h-4 w-4 mr-2" />Ver cola</Link>
