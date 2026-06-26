@@ -78,6 +78,7 @@ function BulkSendPage() {
   const [channel, setChannel] = useState<CommChannel>("email");
   const [sendPerCompanion, setSendPerCompanion] = useState<boolean>(true);
   const [includeCompanionsInTitular, setIncludeCompanionsInTitular] = useState<boolean>(true);
+  const [allowWithoutTicket, setAllowWithoutTicket] = useState<boolean>(false);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
