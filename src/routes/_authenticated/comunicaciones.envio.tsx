@@ -957,9 +957,14 @@ FIGURARTE Casting & Producción`,
                 </SelectContent>
               </Select>
               {channel === "email" && (
-                <Button variant="outline" onClick={handleCreateSuggestedTemplate}>
-                  Crear plantilla sugerida
-                </Button>
+                <>
+                  <Button variant="outline" onClick={handleCreateSuggestedTemplate}>
+                    Crear plantilla invitación
+                  </Button>
+                  <Button variant="outline" onClick={handleCreateAforoCompletoTemplate}>
+                    Crear plantilla aforo completo
+                  </Button>
+                </>
               )}
             </div>
           </CardContent>
