@@ -32,5 +32,10 @@ export function useImportBatch(batchId: string | undefined) {
       if (error) throw error;
       return data;
     },
+    // Mientras el lote esté procesando, repollar para refrescar el progreso.
+    refetchInterval: (q) => {
+      const s = (q.state.data as { status?: string } | undefined)?.status;
+      return s === "procesando" || s === "pendiente" ? 2000 : false;
+    },
   });
 }
