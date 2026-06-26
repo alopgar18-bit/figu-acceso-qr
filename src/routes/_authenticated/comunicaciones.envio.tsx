@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -25,6 +25,8 @@ import { useEvents, useEventSessions } from "@/lib/use-events";
 import { PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, statusLabel } from "@/lib/participant-constants";
 import { WatiTestSendDialog } from "@/components/wati-test-send-dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { BulkProgressCard } from "@/components/bulk-progress-card";
+import { useShowAll } from "@/hooks/use-show-all";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -79,6 +81,25 @@ function BulkSendPage() {
   const [sendPerCompanion, setSendPerCompanion] = useState<boolean>(true);
   const [includeCompanionsInTitular, setIncludeCompanionsInTitular] = useState<boolean>(true);
   const [allowWithoutTicket, setAllowWithoutTicket] = useState<boolean>(false);
+  // Tamaño de lote y pausa para envío masivo automático.
+  const [batchSize, setBatchSize] = useState<number>(500);
+  const [batchPauseSec, setBatchPauseSec] = useState<number>(2);
+  // Progreso de la creación de cola.
+  const [queueProgress, setQueueProgress] = useState<{
+    current: number;
+    total: number;
+    queued: number;
+    queuedComp: number;
+    noEmail: number;
+    noTicket: number;
+    already: number;
+    startedAt: number;
+    paused: boolean;
+    done: boolean;
+  } | null>(null);
+  const queueCancelRef = useRef(false);
+  const queuePauseRef = useRef(false);
+  const tableShowAll = useShowAll(500);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId);
@@ -487,14 +508,37 @@ FIGURARTE Casting & Producción`,
 
   const handleQueue = async () => {
     if (!eventId || !sessionId || !templateId) return;
+    queueCancelRef.current = false;
+    queuePauseRef.current = false;
     try {
-      const CHUNK = 2000;
+      // Tamaño efectivo: respeta el límite duro de 2000 del validador del servidor.
+      const CHUNK = Math.max(50, Math.min(2000, batchSize || 500));
       const ids = effectiveIds ?? [];
       const chunks: string[][] = [];
       if (ids.length === 0) chunks.push([]);
       else for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+      const startedAt = Date.now();
+      setQueueProgress({
+        current: 0,
+        total: chunks.length,
+        queued: 0,
+        queuedComp: 0,
+        noEmail: 0,
+        noTicket: 0,
+        already: 0,
+        startedAt,
+        paused: false,
+        done: false,
+      });
       let queued = 0, queuedComp = 0, noEmail = 0, noTicket = 0, already = 0;
-      for (const part of chunks) {
+      for (let i = 0; i < chunks.length; i++) {
+        if (queueCancelRef.current) break;
+        // Pausa cooperativa entre lotes.
+        while (queuePauseRef.current && !queueCancelRef.current) {
+          await new Promise((r) => setTimeout(r, 400));
+        }
+        if (queueCancelRef.current) break;
+        const part = chunks[i];
         const res = await queueFn({
           data: {
             event_id: eventId,
@@ -515,14 +559,43 @@ FIGURARTE Casting & Producción`,
         noEmail += res.skipped_no_email ?? 0;
         noTicket += res.skipped_no_ticket ?? 0;
         already += res.skipped_already ?? 0;
+        setQueueProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                current: i + 1,
+                queued,
+                queuedComp,
+                noEmail,
+                noTicket,
+                already,
+              }
+            : prev,
+        );
+        // Pausa configurable entre lotes (excepto tras el último).
+        if (i < chunks.length - 1 && batchPauseSec > 0) {
+          await new Promise((r) => setTimeout(r, batchPauseSec * 1000));
+        }
+        // Refresca panel "ya en cola" en vivo.
+        sentQ.refetch();
       }
       const compMsg = queuedComp ? ` + ${queuedComp} acompañante(s)` : "";
-      toast.success(
-        `Cola creada: ${queued} titular(es)${compMsg}. ${noEmail} sin email · ${noTicket} sin QR · ${already} ya en cola.`,
-      );
+      if (queueCancelRef.current) {
+        toast.info(
+          `Envío cancelado. Encolados antes de cancelar: ${queued} titular(es)${compMsg}.`,
+        );
+      } else {
+        toast.success(
+          `Cola creada: ${queued} titular(es)${compMsg}. ${noEmail} sin email · ${noTicket} sin QR · ${already} ya en cola.`,
+        );
+      }
+      setQueueProgress((prev) => (prev ? { ...prev, done: true } : prev));
+      // Auto-ocultar tras 10s.
+      setTimeout(() => setQueueProgress(null), 10000);
       sentQ.refetch();
     } catch (e) {
       toast.error((e as Error).message);
+      setQueueProgress(null);
     }
   };
 
@@ -860,7 +933,7 @@ FIGURARTE Casting & Producción`,
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredParticipants.slice(0, 500).map((p) => {
+                        tableShowAll.visible(filteredParticipants).map((p) => {
                           const checked = !excluded.has(p.id);
                           return (
                             <TableRow key={p.id} data-state={checked ? undefined : "selected"}>
@@ -892,9 +965,27 @@ FIGURARTE Casting & Producción`,
                     </TableBody>
                   </Table>
                 </div>
-                {filteredParticipants.length > 500 && (
-                  <div className="text-xs text-muted-foreground px-3 py-2 border-t bg-muted/40">
-                    Mostrando los primeros 500 de {filteredParticipants.length}. Los filtros y acciones se aplican a todos.
+                {filteredParticipants.length > tableShowAll.limit && (
+                  <div className="text-xs px-3 py-2 border-t bg-muted/40 flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      {tableShowAll.showAll
+                        ? `Mostrando todos los ${filteredParticipants.length}.`
+                        : `Mostrando los primeros ${tableShowAll.limit} de ${filteredParticipants.length}. Los filtros y acciones se aplican a todos.`}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (!tableShowAll.showAll && filteredParticipants.length > 2000) {
+                          toast.message("Renderizar todos puede ralentizar el navegador con listas muy grandes.");
+                        }
+                        tableShowAll.toggle();
+                      }}
+                    >
+                      {tableShowAll.showAll
+                        ? `Mostrar solo ${tableShowAll.limit}`
+                        : `Ver todos (${filteredParticipants.length})`}
+                    </Button>
                   </div>
                 )}
               </div>
@@ -1077,8 +1168,67 @@ FIGURARTE Casting & Producción`,
                   </span>
                 </span>
             </label>
+            <div className="grid gap-3 md:grid-cols-2 border rounded p-3 bg-muted/20">
+              <div>
+                <Label className="text-xs uppercase tracking-wider">Tamaño de lote</Label>
+                <Input
+                  type="number"
+                  min={50}
+                  max={2000}
+                  step={50}
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(Math.max(50, Math.min(2000, Number(e.target.value) || 500)))}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Cada lote se encola en una llamada. Máx. 2000 (límite del servidor).
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wider">Pausa entre lotes (s)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={60}
+                  step={1}
+                  value={batchPauseSec}
+                  onChange={(e) => setBatchPauseSec(Math.max(0, Math.min(60, Number(e.target.value) || 0)))}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Pausa entre lotes para evitar rate-limit. El proceso es automático: solo pulsas una vez.
+                </p>
+              </div>
+            </div>
+            {queueProgress && (
+              <BulkProgressCard
+                title={queueProgress.done ? "Cola creada" : "Creando cola de envío…"}
+                current={queueProgress.current}
+                total={queueProgress.total}
+                startedAt={queueProgress.startedAt}
+                paused={queueProgress.paused}
+                done={queueProgress.done}
+                onPause={() => {
+                  queuePauseRef.current = true;
+                  setQueueProgress((p) => (p ? { ...p, paused: true } : p));
+                }}
+                onResume={() => {
+                  queuePauseRef.current = false;
+                  setQueueProgress((p) => (p ? { ...p, paused: false } : p));
+                }}
+                onCancel={() => {
+                  queueCancelRef.current = true;
+                  queuePauseRef.current = false;
+                }}
+                stats={[
+                  { label: "Encolados", value: queueProgress.queued, tone: "ok" },
+                  ...(queueProgress.queuedComp ? [{ label: "Acompañantes", value: queueProgress.queuedComp, tone: "ok" as const }] : []),
+                  { label: "Sin email", value: queueProgress.noEmail, tone: "warn" },
+                  { label: "Sin QR", value: queueProgress.noTicket, tone: "warn" },
+                  { label: "Ya en cola", value: queueProgress.already },
+                ]}
+              />
+            )}
             <div className="flex gap-2">
-              <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket) === 0}>
+              <Button onClick={handleQueue} disabled={!!queueProgress && !queueProgress.done || (isWhatsapp ? stats.total === 0 : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket) === 0)}>
                 <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket)} destinatarios)
               </Button>
               <Button variant="outline" asChild>
