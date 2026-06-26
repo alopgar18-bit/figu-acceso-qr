@@ -1,45 +1,63 @@
-# Envío de comunicaciones sin QR
+# Mejoras UX masivas: progreso, envío sin esperas y "ver todos"
 
-## Problema
+## 1. Barra de progreso en procesos masivos
 
-Hoy, al "Crear cola" en Comunicaciones, el cliente fuerza `only_with_ticket: true`. Por eso los rechazados de aforo completo (que no tienen ticket porque nunca se les generó QR) se descartan como "sin QR" y la cola queda vacía. El servidor (`queueBulkInvitations`) ya soporta `only_with_ticket: false`; sólo falta exponerlo en la UI y evitar romper plantillas que sí dependen del QR.
+Hoy los procesos largos (importaciones, creación de cola, envío) sólo muestran un spinner o un toast al final. Se añade una barra de progreso real con `Progress` (ya disponible en `src/components/ui/progress.tsx`) y contador `N / total`.
 
-## Cambios
+### a) Creación de cola (`comunicaciones.envio.tsx` · `handleQueue`)
+- Estado nuevo: `queueProgress = { current, total, queued, skipped }`.
+- Antes del bucle `for (const part of chunks)`, fijar `total = chunks.length`.
+- Tras cada `await queueFn(...)`, incrementar `current` y acumular contadores parciales.
+- Render bajo el botón "Crear cola": tarjeta con `Progress value={current/total*100}`, texto `Lote {current} de {total} · {queued} encolados · {skipped} omitidos` y botón "Cancelar" que setea `cancelRef.current = true` (se chequea entre chunks).
+- Al terminar, mantener la tarjeta 10 s con resumen final para que el usuario vea totales.
 
-### 1. UI · nuevo toggle "Permitir envíos sin QR/entrada"
-En `src/routes/_authenticated/comunicaciones.envio.tsx`, dentro del bloque "5 · Crear cola de envío":
+### b) Importaciones (`importaciones.$batchId.tsx`)
+- Añadir polling cada 2 s mientras `status === "procesando"` para releer `imported_rows / total_rows` y pintar `Progress`.
+- Mostrar `current/total` y porcentaje. Cuando pase a `completada`, parar polling.
 
-- Añadir checkbox **"Permitir envío a destinatarios sin QR"** (estado `allowWithoutTicket`, por defecto `false` para no cambiar el comportamiento actual).
-- Pasar `only_with_ticket: !allowWithoutTicket` al `queueFn` en `handleQueue`.
-- Cuando está activado:
-  - Mostrar aviso amarillo: *"Las variables `{{enlace_entrada}}`, `{{zona}}`, `{{fila}}`, `{{asiento}}` se enviarán vacías en los destinatarios sin QR. Úsalo para avisos como aforo completo, lista de espera o cancelaciones."*
-  - Detectar si la plantilla seleccionada usa `{{enlace_entrada}}` / `{{qr_url}}` / `{{zona}}` / `{{fila}}` / `{{asiento}}` y, si las usa, mostrar warning extra ("la plantilla incluye datos de entrada; los destinatarios sin QR los recibirán en blanco").
-  - Forzar `send_per_companion: false` e `include_companions_in_titular: false` mientras esté activo (los acompañantes sólo tienen sentido con QR).
+### c) Envío/cola de envío (`comunicaciones.cola.tsx`)
+- Ya hay polling cada 2.5 s (`pollBatchProgress`). Reutilizarlo para pintar una barra de progreso global por lote (enviados / total) además del estado por mensaje. Añadir tarjeta de "Progreso del envío en curso" arriba de la tabla.
 
-### 2. Contador de destinatarios coherente
-El botón "Crear cola (N destinatarios)" calcula N como `effectiveParticipants.length` filtrado por email. Cuando `allowWithoutTicket = false`, restar también los `withoutTicket` para que el número coincida con lo que el servidor encolará. Cuando es `true`, mantener `effectiveParticipants.length` (con email).
+### d) Asignación masiva, correcciones, importación de butacas
+- Mismo patrón: estado `{current,total}` + `<Progress>` en los diálogos `apply-seat-corrections-dialog.tsx`, `seat-import-dialog.tsx`, `sesiones.$sessionId.asignacion.tsx`.
 
-### 3. Plantilla "Aforo completo / Rechazo" sugerida
-Añadir un botón "Crear plantilla sugerida — Aforo completo" análogo a `handleCreateSuggestedTemplate`, que inserte una plantilla email sin variables de QR:
+## 2. Envío masivo en lotes automáticos (sin clic por lote)
 
-- Asunto: *"{{evento}} — Información sobre tu solicitud"*
-- Cuerpo: el texto que ya usas para el 30 de junio (Estimado/a {{nombre}}, no se ha podido confirmar la plaza, lista de espera, etc.), con sólo `{{nombre}}`, `{{evento}}`, `{{sesion}}`, `{{fecha}}`.
+Hoy en `handleQueue` el usuario debe pulsar "Crear cola" y esperar; el servidor procesa en lotes internos. Falta automatizar el "siguiente lote" para que el operador no tenga que volver.
 
-### 4. Filtro rápido por estado
-En el bloque "1 · Filtros" añadir chip rápido **"Solo rechazados / lista de espera"** que preselecciona los estados `rechazado` y `lista_espera`, para localizar rápido el público objetivo de este envío sin QR.
+Cambios:
+- Nuevo toggle **"Envío automático en lotes"** en el bloque 5 (por defecto ON cuando hay > 1 chunk).
+- Campo numérico **Tamaño de lote** (default 500; min 50; max 2000).
+- Campo **Pausa entre lotes (s)** (default 2; min 0; max 60) — útil si Wati / SMTP marca rate-limit.
+- `handleQueue` itera todos los chunks sin esperar input adicional, llamando a `queueFn` y, entre llamadas, `await new Promise(r => setTimeout(r, pauseMs*1000))`.
+- Mientras tanto, la tarjeta de progreso (sección 1a) sigue viva: lote X/Y, barras, ETA estimado (`(remaining*lastLatency)`), botón "Pausar"/"Reanudar" y "Cancelar".
+- Si el operador cierra la pestaña, queda persistida en `localStorage` (`comm_bulk_progress_<batchId>`) para retomar visual al volver; los lotes ya encolados quedan en BBDD por `queueFn` (no se pierden).
+- Estado intermedio se conserva en query keys para que `sentQ.refetch()` se ejecute al final de cada lote y el panel "Ya enviados" se actualice en vivo.
 
-### 5. Documentación en pantalla
-Texto corto bajo el toggle: *"Casos típicos: aforo completo, lista de espera, cancelaciones, recordatorios genéricos."*
+## 3. Opción "Ver todos" en pantallas con tope de 500
+
+Donde hoy mostramos sólo los primeros 500 con aviso "Mostrando los primeros 500 de N":
+
+- `comunicaciones.envio.tsx` (línea 863-897): añadir botón **"Ver todos (N)"** junto al aviso. Al pulsar, `setShowAll(true)` y se renderizan todos. Toast advirtiendo "Renderizar todos puede ralentizar el navegador".
+- `importaciones.nueva.tsx` errores (línea 735, `slice(0,100)`): mismo patrón, botón "Ver todos los errores".
+- Auditar y aplicar también en:
+  - `importaciones.$batchId.tsx` (filas de auditoría)
+  - `solicitudes.tsx` (si tiene tope; revisar y añadir si aplica)
+  - `personas.tsx`
+  - `comunicaciones.cola.tsx` tabla de logs.
+- Implementación común: hook utilitario `useShowAll(initial=500)` que devuelve `{visible, showAll, toggle}` para no duplicar lógica.
 
 ## Detalles técnicos
 
-- `queueBulkInvitations.inputSchema` ya admite `only_with_ticket` (default `true`). No requiere migración ni cambio en el servidor.
-- `renderTemplate` (en `bulk-send.functions.ts`) reemplaza variables ausentes por cadena vacía, así que las plantillas sin QR no romperán.
-- El validador `participant_ids ≤ 2000` ya está chunked en `handleQueue` (cambio anterior); se mantiene.
-- `only_with_email` sigue ligado al canal (email vs whatsapp), no se toca.
-- Sin cambios de BD, sin migración, sin tocar `communication_logs`.
+- Componente nuevo `src/components/bulk-progress-card.tsx` reutilizable: props `{ title, current, total, stats?, onCancel?, onPause? }`. Renderiza `Progress`, contador y botones.
+- Hook nuevo `src/hooks/use-bulk-progress.ts` con estado `{current,total,paused,cancelled}` y helpers `bump()`, `cancel()`, `pause()`, `resume()`.
+- Hook nuevo `src/hooks/use-show-all.ts` para el patrón de "ver todos".
+- `queueBulkInvitations` (backend) no requiere cambios; se sigue troceando en cliente.
+- Persistencia mínima en `localStorage` para retomar visualmente; nada de tablas nuevas en BBDD.
+- Tests visuales: revisar `comunicaciones.envio`, `importaciones.nueva`, `importaciones.$batchId`, `comunicaciones.cola`, `sesiones.$sessionId.asignacion`.
 
 ## Resultado esperado
 
-- En el envío del 30 de junio: seleccionas estado "Rechazado", eliges la plantilla de aforo completo, marcas "Permitir envío sin QR" y la cola se crea con los rechazados (con email) aunque no tengan ticket.
-- Comportamiento por defecto sin marcar el toggle = idéntico al actual: sigue exigiendo QR para invitaciones.
+- Cada acción masiva muestra en pantalla "Lote X de Y · 1.234 / 4.776" con barra de progreso, ETA y botón Cancelar.
+- En envíos, basta un clic para procesar todos los lotes; la app encadena lotes con la pausa configurada.
+- En cualquier listado con tope, un botón "Ver todos (N)" deja inspeccionar el dataset completo bajo el propio control del operador.
