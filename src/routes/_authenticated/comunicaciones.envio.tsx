@@ -1168,8 +1168,67 @@ FIGURARTE Casting & Producción`,
                   </span>
                 </span>
             </label>
+            <div className="grid gap-3 md:grid-cols-2 border rounded p-3 bg-muted/20">
+              <div>
+                <Label className="text-xs uppercase tracking-wider">Tamaño de lote</Label>
+                <Input
+                  type="number"
+                  min={50}
+                  max={2000}
+                  step={50}
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(Math.max(50, Math.min(2000, Number(e.target.value) || 500)))}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Cada lote se encola en una llamada. Máx. 2000 (límite del servidor).
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wider">Pausa entre lotes (s)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={60}
+                  step={1}
+                  value={batchPauseSec}
+                  onChange={(e) => setBatchPauseSec(Math.max(0, Math.min(60, Number(e.target.value) || 0)))}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Pausa entre lotes para evitar rate-limit. El proceso es automático: solo pulsas una vez.
+                </p>
+              </div>
+            </div>
+            {queueProgress && (
+              <BulkProgressCard
+                title={queueProgress.done ? "Cola creada" : "Creando cola de envío…"}
+                current={queueProgress.current}
+                total={queueProgress.total}
+                startedAt={queueProgress.startedAt}
+                paused={queueProgress.paused}
+                done={queueProgress.done}
+                onPause={() => {
+                  queuePauseRef.current = true;
+                  setQueueProgress((p) => (p ? { ...p, paused: true } : p));
+                }}
+                onResume={() => {
+                  queuePauseRef.current = false;
+                  setQueueProgress((p) => (p ? { ...p, paused: false } : p));
+                }}
+                onCancel={() => {
+                  queueCancelRef.current = true;
+                  queuePauseRef.current = false;
+                }}
+                stats={[
+                  { label: "Encolados", value: queueProgress.queued, tone: "ok" },
+                  ...(queueProgress.queuedComp ? [{ label: "Acompañantes", value: queueProgress.queuedComp, tone: "ok" as const }] : []),
+                  { label: "Sin email", value: queueProgress.noEmail, tone: "warn" },
+                  { label: "Sin QR", value: queueProgress.noTicket, tone: "warn" },
+                  { label: "Ya en cola", value: queueProgress.already },
+                ]}
+              />
+            )}
             <div className="flex gap-2">
-              <Button onClick={handleQueue} disabled={isWhatsapp ? stats.total === 0 : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket) === 0}>
+              <Button onClick={handleQueue} disabled={!!queueProgress && !queueProgress.done || (isWhatsapp ? stats.total === 0 : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket) === 0)}>
                 <Send className="h-4 w-4 mr-2" />Crear cola ({isWhatsapp ? stats.total : (allowWithoutTicket ? stats.withEmail : stats.withEmailAndTicket)} destinatarios)
               </Button>
               <Button variant="outline" asChild>
