@@ -338,11 +338,13 @@ function BulkSendPage() {
     let withoutEmail = 0;
     let withTicket = 0;
     let withoutTicket = 0;
+    let withEmailAndTicket = 0;
     for (const p of effectiveParticipants) {
-      if (p.people?.email) withEmail++;
-      else withoutEmail++;
-      if (ticketSet.has(p.id)) withTicket++;
-      else withoutTicket++;
+      const hasEmail = !!p.people?.email;
+      const hasTicket = ticketSet.has(p.id);
+      if (hasEmail) withEmail++; else withoutEmail++;
+      if (hasTicket) withTicket++; else withoutTicket++;
+      if (hasEmail && hasTicket) withEmailAndTicket++;
     }
     const effIdSet = new Set(effectiveParticipants.map((p) => p.id));
     const alreadyQueued = (sentQ.data ?? []).filter(
@@ -357,6 +359,7 @@ function BulkSendPage() {
       withoutEmail,
       withTicket,
       withoutTicket,
+      withEmailAndTicket,
       alreadyQueued,
       alreadySent,
     };
