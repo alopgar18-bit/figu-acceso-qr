@@ -933,7 +933,7 @@ FIGURARTE Casting & Producción`,
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredParticipants.slice(0, 500).map((p) => {
+                        tableShowAll.visible(filteredParticipants).map((p) => {
                           const checked = !excluded.has(p.id);
                           return (
                             <TableRow key={p.id} data-state={checked ? undefined : "selected"}>
@@ -965,9 +965,27 @@ FIGURARTE Casting & Producción`,
                     </TableBody>
                   </Table>
                 </div>
-                {filteredParticipants.length > 500 && (
-                  <div className="text-xs text-muted-foreground px-3 py-2 border-t bg-muted/40">
-                    Mostrando los primeros 500 de {filteredParticipants.length}. Los filtros y acciones se aplican a todos.
+                {filteredParticipants.length > tableShowAll.limit && (
+                  <div className="text-xs px-3 py-2 border-t bg-muted/40 flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      {tableShowAll.showAll
+                        ? `Mostrando todos los ${filteredParticipants.length}.`
+                        : `Mostrando los primeros ${tableShowAll.limit} de ${filteredParticipants.length}. Los filtros y acciones se aplican a todos.`}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (!tableShowAll.showAll && filteredParticipants.length > 2000) {
+                          toast.message("Renderizar todos puede ralentizar el navegador con listas muy grandes.");
+                        }
+                        tableShowAll.toggle();
+                      }}
+                    >
+                      {tableShowAll.showAll
+                        ? `Mostrar solo ${tableShowAll.limit}`
+                        : `Ver todos (${filteredParticipants.length})`}
+                    </Button>
                   </div>
                 )}
               </div>
