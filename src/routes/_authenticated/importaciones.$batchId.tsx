@@ -18,6 +18,7 @@ import { cleanDniTimestamps } from "@/lib/bulk-send.functions";
 import { getImportBatchRowResults, backfillBatchRowResults } from "@/lib/imports.functions";
 import { useDeleteImportBatch } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
+import { BulkProgressCard } from "@/components/bulk-progress-card";
 
 export const Route = createFileRoute("/_authenticated/importaciones/$batchId")({
   component: BatchDetailPage,
@@ -231,6 +232,20 @@ function BatchDetailPage() {
             </Button>
           </AlertDescription>
         </Alert>
+      )}
+
+      {(batch.status === "procesando" || batch.status === "pendiente") && (
+        <div className="mb-6">
+          <BulkProgressCard
+            title="Importación en curso…"
+            current={batch.imported_rows ?? 0}
+            total={batch.total_rows ?? 0}
+            stats={[
+              { label: "Importadas", value: batch.imported_rows ?? 0, tone: "ok" },
+              { label: "Errores", value: batch.error_rows ?? 0, tone: (batch.error_rows ?? 0) > 0 ? "warn" : undefined },
+            ]}
+          />
+        </div>
       )}
 
       <div className="grid gap-6 md:grid-cols-3 mb-6">
