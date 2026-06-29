@@ -38,6 +38,110 @@ function completeMissingTimes(body: string, session?: { starts_at?: string | nul
     .replace(/(<strong>\s*Fin aprox\.?:\s*<\/strong>\s*)(?=(?:<\/div>|<br\s*\/?\s*>|\n|$))/gi, end ? `$1${end}` : "$1");
 }
 
+const BACKGROUND_THRESHOLD = 20;
+const PAGE_SIZE = 1000;
+const MAX_BACKGROUND_LOGS = 50000;
+
+interface ProcessOptions {
+  fromAddress: string;
+  batchSize: number;
+  delayMs: number;
+  resendKey: string;
+}
+
+async function processEmailBatch(
+  supabase: ReturnType<typeof createClient>,
+  logs: Array<{ id: string; to_address: string | null; subject: string | null; body: string | null; metadata: Record<string, unknown> | null; session_id: string | null }>,
+  opts: ProcessOptions,
+) {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const sessionIds = Array.from(new Set(logs.map((l) => l.session_id).filter(Boolean))) as string[];
+  const sessionsById = new Map<string, { starts_at?: string | null; ends_at?: string | null; doors_open_at?: string | null }>();
+  if (sessionIds.length > 0) {
+    const { data: sessions } = await supabase
+      .from("event_sessions")
+      .select("id, starts_at, ends_at, doors_open_at")
+      .in("id", sessionIds);
+    for (const s of (sessions ?? []) as Array<{ id: string }>) sessionsById.set(s.id, s as never);
+  }
+
+  let sent = 0;
+  let failed = 0;
+  const errors: Array<{ id: string; error: string }> = [];
+
+  for (let i = 0; i < logs.length; i++) {
+    const log = logs[i];
+    if (!log.to_address) {
+      failed++;
+      await supabase.from("communication_logs")
+        .update({ status: "fallido", error_message: "Sin destinatario" })
+        .eq("id", log.id);
+      errors.push({ id: log.id, error: "Sin destinatario" });
+      continue;
+    }
+    try {
+      const enrichedBody = completeMissingTimes(log.body ?? "", sessionsById.get(log.session_id ?? ""));
+      const isHtml = enrichedBody.trim().startsWith("<");
+      const perLogFrom = (log.metadata as Record<string, unknown> | null)?.from;
+      const effectiveFrom = typeof perLogFrom === "string" && perLogFrom.trim().length > 0
+        ? perLogFrom.trim()
+        : opts.fromAddress;
+      const payload: Record<string, unknown> = {
+        from: effectiveFrom,
+        to: [log.to_address],
+        subject: log.subject ?? "(sin asunto)",
+      };
+      if (isHtml) payload.html = enrichedBody;
+      else payload.text = enrichedBody;
+
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.resendKey}` },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.status === 429) {
+        // Respeta Retry-After y deja el resto pendiente para la próxima invocación.
+        const retryAfter = Number(res.headers.get("Retry-After") ?? "5");
+        const waitMs = Math.min(Math.max(retryAfter, 1), 60) * 1000;
+        console.warn(`[send-email] Resend 429, esperando ${waitMs}ms y abortando lote`);
+        await sleep(waitMs);
+        errors.push({ id: log.id, error: "Resend 429 rate limit, reintentar" });
+        break;
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Resend ${res.status}: ${text.slice(0, 500)}`);
+      }
+      const result = await res.json();
+      await supabase.from("communication_logs").update({
+        status: "enviado",
+        sent_at: new Date().toISOString(),
+        error_message: null,
+        metadata: { ...(log.metadata ?? {}), resend_id: result.id ?? null },
+      }).eq("id", log.id);
+      sent++;
+    } catch (e) {
+      const message = (e as Error).message ?? "Error desconocido";
+      await supabase.from("communication_logs")
+        .update({ status: "fallido", error_message: message })
+        .eq("id", log.id);
+      errors.push({ id: log.id, error: message });
+      failed++;
+    }
+
+    const isLast = i === logs.length - 1;
+    const isBatchBoundary = (i + 1) % opts.batchSize === 0;
+    if (!isLast) {
+      if (isBatchBoundary) await sleep(opts.delayMs * 2);
+      else if (opts.delayMs > 0) await sleep(opts.delayMs);
+    }
+  }
+
+  return { sent, failed, processed: logs.length, errors };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -60,7 +164,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; from?: string } = {};
+    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; from?: string; background?: boolean } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
     const limit = Math.min(Math.max(body.limit ?? 100, 1), 1000);
     const batchSize = Math.min(Math.max(body.batch_size ?? 100, 1), 200);
@@ -68,120 +172,69 @@ Deno.serve(async (req) => {
     const fromAddress = (body.from && typeof body.from === "string" && body.from.trim().length > 0)
       ? body.from.trim()
       : DEFAULT_FROM_ADDRESS;
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-    let query = supabase
-      .from("communication_logs")
-      .select("id, to_address, subject, body, metadata, session_id")
-      .eq("channel", "email")
-      .eq("status", "pendiente")
-      .order("created_at", { ascending: true })
-      .limit(limit);
-
+    // Resolver logs: si vienen ids explícitos los usamos, si no paginamos TODOS los pendientes.
+    type LogRow = { id: string; to_address: string | null; subject: string | null; body: string | null; metadata: Record<string, unknown> | null; session_id: string | null };
+    let allLogs: LogRow[] = [];
     if (body.ids && body.ids.length > 0) {
-      query = supabase
+      const { data, error } = await supabase
         .from("communication_logs")
         .select("id, to_address, subject, body, metadata, session_id")
         .eq("channel", "email")
         .eq("status", "pendiente")
         .in("id", body.ids);
-    }
-
-    const { data: logs, error: fetchError } = await query;
-    if (fetchError) throw fetchError;
-
-    const allLogs = logs ?? [];
-    const sessionIds = Array.from(new Set(allLogs.map((log) => log.session_id).filter(Boolean)));
-    const sessionsById = new Map<string, { starts_at?: string | null; ends_at?: string | null; doors_open_at?: string | null }>();
-    if (sessionIds.length > 0) {
-      const { data: sessions } = await supabase
-        .from("event_sessions")
-        .select("id, starts_at, ends_at, doors_open_at")
-        .in("id", sessionIds);
-      for (const session of sessions ?? []) sessionsById.set(session.id, session);
-    }
-
-    let sent = 0;
-    let failed = 0;
-    const errors: Array<{ id: string; error: string }> = [];
-
-    for (let i = 0; i < allLogs.length; i++) {
-      const log = allLogs[i];
-      if (!log.to_address) {
-        failed++;
-        await supabase
+      if (error) throw error;
+      allLogs = (data ?? []) as LogRow[];
+    } else {
+      const wantsBackground = body.background === true;
+      const hardCap = wantsBackground ? MAX_BACKGROUND_LOGS : limit;
+      let offset = 0;
+      while (offset < hardCap) {
+        const pageSize = Math.min(PAGE_SIZE, hardCap - offset);
+        const { data, error } = await supabase
           .from("communication_logs")
-          .update({ status: "fallido", error_message: "Sin destinatario" })
-          .eq("id", log.id);
-        errors.push({ id: log.id, error: "Sin destinatario" });
-        continue;
-      }
-
-      try {
-        const enrichedBody = completeMissingTimes(log.body ?? "", sessionsById.get(log.session_id ?? ""));
-        const isHtml = enrichedBody.trim().startsWith("<");
-        const perLogFrom = (log.metadata as Record<string, unknown> | null)?.from;
-        const effectiveFrom = typeof perLogFrom === "string" && perLogFrom.trim().length > 0
-          ? perLogFrom.trim()
-          : fromAddress;
-        const payload: Record<string, unknown> = {
-          from: effectiveFrom,
-          to: [log.to_address],
-          subject: log.subject ?? "(sin asunto)",
-        };
-        if (isHtml) payload.html = enrichedBody;
-        else payload.text = enrichedBody;
-
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${RESEND_API_KEY}`,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Resend ${res.status}: ${text.slice(0, 500)}`);
-        }
-        const result = await res.json();
-
-        await supabase
-          .from("communication_logs")
-          .update({
-            status: "enviado",
-            sent_at: new Date().toISOString(),
-            error_message: null,
-            metadata: { ...(log.metadata ?? {}), resend_id: result.id ?? null },
-          })
-          .eq("id", log.id);
-        sent++;
-      } catch (e) {
-        const message = (e as Error).message ?? "Error desconocido";
-        await supabase
-          .from("communication_logs")
-          .update({ status: "fallido", error_message: message })
-          .eq("id", log.id);
-        errors.push({ id: log.id, error: message });
-        failed++;
-      }
-
-      // Delay entre emails dentro de un batch
-      const isLast = i === allLogs.length - 1;
-      const isBatchBoundary = (i + 1) % batchSize === 0;
-      if (!isLast) {
-        if (isBatchBoundary) {
-          // Pausa más larga entre batches (2x el delay normal)
-          await sleep(delayMs * 2);
-        } else if (delayMs > 0) {
-          await sleep(delayMs);
-        }
+          .select("id, to_address, subject, body, metadata, session_id")
+          .eq("channel", "email")
+          .eq("status", "pendiente")
+          .order("created_at", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const rows = (data ?? []) as LogRow[];
+        if (rows.length === 0) break;
+        allLogs = allLogs.concat(rows);
+        if (rows.length < pageSize) break;
+        offset += rows.length;
       }
     }
 
+    const opts: ProcessOptions = { fromAddress, batchSize, delayMs, resendKey: RESEND_API_KEY };
+
+    const shouldBackground = body.background === true || allLogs.length > BACKGROUND_THRESHOLD;
+    if (shouldBackground && allLogs.length > 0) {
+      const ids = allLogs.map((l) => l.id);
+      // deno-lint-ignore no-explicit-any
+      const ctx = globalThis as any;
+      const bgPromise = processEmailBatch(supabase, allLogs, opts)
+        .catch((e) => console.error("[send-email][bg] error", e));
+      if (ctx.EdgeRuntime?.waitUntil) ctx.EdgeRuntime.waitUntil(bgPromise);
+      return new Response(
+        JSON.stringify({
+          configured: true,
+          background: true,
+          queued: ids.length,
+          queued_ids: ids,
+          from: fromAddress,
+          batch_size: batchSize,
+          delay_ms: delayMs,
+          message: `Procesando ${ids.length} envíos en segundo plano. Puedes cerrar esta ventana; el envío continúa en el servidor.`,
+        }),
+        { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const result = await processEmailBatch(supabase, allLogs, opts);
     return new Response(
-      JSON.stringify({ configured: true, processed: allLogs.length, sent, failed, from: fromAddress, batch_size: batchSize, delay_ms: delayMs, errors }),
+      JSON.stringify({ configured: true, ...result, from: fromAddress, batch_size: batchSize, delay_ms: delayMs }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
