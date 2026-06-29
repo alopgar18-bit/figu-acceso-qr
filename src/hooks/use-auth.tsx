@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -42,6 +43,9 @@ interface AuthContextValue {
   profile: Profile | null;
   roles: AppRole[];
   loading: boolean;
+  rolesLoading: boolean;
+  rolesError: string | null;
+  reloadRoles: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (
     email: string,
@@ -61,25 +65,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [rolesError, setRolesError] = useState<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const loadRolesAttemptRef = useRef(0);
 
-  const loadRoles = async (userId: string | undefined) => {
+  const BACKOFFS = [250, 750, 2000];
+
+  const loadRoles = async (userId: string | undefined): Promise<void> => {
     if (!userId) {
       setRoles([]);
+      setRolesError(null);
+      setRolesLoading(false);
       return;
     }
-    // Use security-definer RPC to avoid any RLS edge cases.
-    const { data, error } = await supabase.rpc("get_my_roles");
-    if (error) {
+    const attemptId = ++loadRolesAttemptRef.current;
+    setRolesLoading(true);
+
+    const tryOnce = async (): Promise<{ ok: boolean; roles?: AppRole[] }> => {
+      const { data, error } = await supabase.rpc("get_my_roles");
+      if (!error) {
+        return { ok: true, roles: (data ?? []).map((r: { role: AppRole }) => r.role) };
+      }
       console.error("[auth] get_my_roles failed", error);
-      // Fallback to direct table read
-      const { data: fb } = await supabase
+      const { data: fb, error: fbErr } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId);
-      setRoles((fb ?? []).map((r) => r.role as AppRole));
-      return;
+      if (!fbErr) {
+        return { ok: true, roles: (fb ?? []).map((r) => r.role as AppRole) };
+      }
+      console.error("[auth] user_roles fallback failed", fbErr);
+      return { ok: false };
+    };
+
+    for (let i = 0; i <= BACKOFFS.length; i++) {
+      const res = await tryOnce();
+      // Another loadRoles call superseded this one
+      if (attemptId !== loadRolesAttemptRef.current) return;
+      if (res.ok) {
+        setRoles(res.roles ?? []);
+        setRolesError(null);
+        setRolesLoading(false);
+        return;
+      }
+      if (i < BACKOFFS.length) {
+        await new Promise((r) => setTimeout(r, BACKOFFS[i]));
+        if (attemptId !== loadRolesAttemptRef.current) return;
+      }
     }
-    setRoles((data ?? []).map((r: { role: AppRole }) => r.role));
+    // All retries failed: keep previous roles, mark error.
+    setRolesError("No se pudieron cargar tus permisos.");
+    setRolesLoading(false);
   };
 
   const loadProfile = async (userId: string | undefined) => {
@@ -103,16 +140,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
+      const newUserId = newSession?.user?.id ?? null;
+      const prevUserId = currentUserIdRef.current;
+      const userChanged = newUserId !== prevUserId;
+
+      // Ignore noisy events that don't change identity (TOKEN_REFRESHED,
+      // INITIAL_SESSION on the same user). They previously caused the UI to
+      // briefly flash "Sin rol asignado".
+      if (!userChanged && (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION")) {
+        return;
+      }
+
+      currentUserIdRef.current = newUserId;
+
+      if (!newUserId) {
+        setRoles([]);
+        setProfile(null);
+        setRolesError(null);
+        setRolesLoading(false);
+        return;
+      }
+
       // Defer Supabase calls outside the callback
       setTimeout(() => {
-        void Promise.all([loadRoles(newSession?.user?.id), loadProfile(newSession?.user?.id)]);
+        void Promise.all([loadRoles(newUserId), loadProfile(newUserId)]);
       }, 0);
     });
 
     supabase.auth.getSession().then(({ data: { session: existing } }) => {
       setSession(existing);
+      currentUserIdRef.current = existing?.user?.id ?? null;
       void Promise.all([loadRoles(existing?.user?.id), loadProfile(existing?.user?.id)]).finally(() => setLoading(false));
     });
 
@@ -146,6 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     roles,
     loading,
+    rolesLoading,
+    rolesError,
+    reloadRoles: () => loadRoles(currentUserIdRef.current ?? session?.user?.id),
     signIn,
     signUp,
     signOut,

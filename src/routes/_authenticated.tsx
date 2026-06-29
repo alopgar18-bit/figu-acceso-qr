@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet, Navigate, useRouterState } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -37,8 +39,22 @@ function isAllowed(pathname: string, userRoles: AppRole[]): boolean {
 }
 
 function AuthenticatedLayout() {
-  const { session, loading, roles, isAdmin, hasRole, signOut } = useAuth();
+  const { session, loading, roles, rolesLoading, rolesError, reloadRoles, isAdmin, hasRole, signOut } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [graceElapsed, setGraceElapsed] = useState(false);
+
+  // Grace period after mount/session change before showing "Sin rol".
+  useEffect(() => {
+    setGraceElapsed(false);
+    const t = setTimeout(() => setGraceElapsed(true), 2000);
+    return () => clearTimeout(t);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (rolesError) {
+      toast.error(rolesError, { description: "Reintentando…" });
+    }
+  }, [rolesError]);
 
   if (loading) {
     return (
@@ -55,6 +71,16 @@ function AuthenticatedLayout() {
     !roles.some((r) => r === "coordinador" || r === "validador");
   if (onlyClient) return <Navigate to="/portal" />;
 
+  // While roles are loading, or during the grace window, or while there's a
+  // recoverable error, show a spinner instead of the "Sin rol" screen.
+  if (roles.length === 0 && (rolesLoading || !graceElapsed || rolesError)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   // Defensive: signed in but no role assigned at all.
   if (roles.length === 0) {
     return (
@@ -67,9 +93,14 @@ function AuthenticatedLayout() {
             Tu usuario no tiene rol asignado. Contacta con un administrador de
             FIGURARTE para activar tu acceso.
           </p>
-          <Button variant="outline" onClick={() => signOut()}>
-            Cerrar sesión
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" onClick={() => void reloadRoles()}>
+              Reintentar
+            </Button>
+            <Button variant="outline" onClick={() => signOut()}>
+              Cerrar sesión
+            </Button>
+          </div>
         </div>
       </div>
     );
