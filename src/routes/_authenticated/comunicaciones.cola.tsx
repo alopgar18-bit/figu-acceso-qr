@@ -51,6 +51,18 @@ function QueuePage() {
     startedAt: number;
   } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [pendingEmailCount, setPendingEmailCount] = useState<number | null>(null);
+
+  const refreshPendingCount = async () => {
+    const { count } = await supabase
+      .from("communication_logs")
+      .select("id", { count: "exact", head: true })
+      .eq("channel", "email")
+      .eq("status", "pendiente");
+    setPendingEmailCount(count ?? 0);
+  };
+
+  useEffect(() => { void refreshPendingCount(); }, [logs]);
 
   const pollBatchProgress = async (ids: string[]) => {
     const { data, error } = await supabase
@@ -98,16 +110,26 @@ function QueuePage() {
     try {
       const ids = selectedIds.length > 0 ? selectedIds : undefined;
       const { data, error } = await supabase.functions.invoke("send-email", {
-        body: ids ? { ids, from: senderValue } : { from: senderValue },
+        body: ids
+          ? { ids, from: senderValue, background: true }
+          : { from: senderValue, background: true },
       });
       if (error) throw error;
       if (data?.configured === false) {
         toast.message(data.message ?? "Servicio de email no configurado");
+      } else if (data?.background === true) {
+        toast.success(
+          data.message ?? `Procesando ${data.queued ?? ""} envíos en segundo plano.`,
+          { duration: 12000 },
+        );
+        const queuedIds: string[] = Array.isArray(data.queued_ids) ? data.queued_ids : [];
+        if (queuedIds.length > 0) startBatchTracking(queuedIds);
       } else {
         toast.success(`Enviados: ${data?.sent ?? 0} · Fallidos: ${data?.failed ?? 0}`);
       }
       setSelected(new Set());
       await refetch();
+      await refreshPendingCount();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -304,7 +326,11 @@ function QueuePage() {
             </Select>
             <Button onClick={sendPendingEmails} disabled={sending}>
               <Send className="h-4 w-4 mr-2" />
-              {sending ? "Enviando…" : selectedIds.length > 0 ? `Enviar ${selectedIds.length} seleccionados` : "Enviar emails pendientes"}
+              {sending
+                ? "Enviando…"
+                : selectedIds.length > 0
+                  ? `Enviar ${selectedIds.length} seleccionados`
+                  : `Enviar TODA la cola${pendingEmailCount != null ? ` (${pendingEmailCount})` : ""}`}
             </Button>
             <Button onClick={sendPendingWhatsapps} disabled={sendingWa} variant="secondary">
               <MessageCircle className="h-4 w-4 mr-2" />
