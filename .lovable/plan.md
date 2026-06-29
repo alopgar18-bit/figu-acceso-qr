@@ -1,16 +1,30 @@
-## Generar informe Excel de rechazados (Aforo completo 30/06)
+## Objetivo
+Eliminar el falso "SIN ROL ASIGNADO" que aparece al refrescar token o al recargar, sin esconder fallos reales de permisos.
 
-Crear `/mnt/documents/informe_rechazados_aforo_completo_v2.xlsx` con datos actualizados tras el reintento.
+## Cambios
 
-### Hojas
-1. **Resumen** — totales: 4.764 destinatarios, enviados (incluyendo los 244 recuperados), fallidos finales, tasa éxito, plantilla, sesión, remitente, fechas.
-2. **Enviados** — nombre, apellidos, DNI, email, teléfono, ciudad, fecha envío, message_id.
-3. **Fallidos finales** — los 3 emails malformados con motivo y email actual en BBDD.
-4. **Emails a corregir** — los 3 registros de `people` con email inválido, para limpieza manual (id, nombre, email actual sugerencia de corrección).
+### 1. `src/hooks/use-auth.tsx` — endurecer carga de roles
+- Ignorar eventos `TOKEN_REFRESHED` e `INITIAL_SESSION` cuando el `user.id` no cambia (no recargar roles ni limpiar estado).
+- En `loadRoles`:
+  - Si la consulta a `get_my_roles` falla, **no** sobrescribir `roles` con `[]`; mantener el valor anterior y marcar `rolesError`.
+  - Reintento automático con backoff (250 ms, 750 ms, 2 s) antes de dar por vacío.
+  - Solo considerar "sin rol" cuando la respuesta es exitosa y el array está realmente vacío.
+- Exponer `rolesLoading`, `rolesError` y `reloadRoles()` desde el contexto.
 
-### Pasos
-1. Query SQL: `communication_logs` últimas 48h, filtro plantilla aforo completo + status rechazado.
-2. Join con `people` para datos personales.
-3. Generar XLSX con openpyxl, formato profesional (encabezados bold, columnas auto-width, conteos en Resumen como fórmulas).
-4. Verificar con `recalculate_formulas.py` y revisar visualmente.
-5. Entregar con `<presentation-artifact>`.
+### 2. `src/routes/_authenticated.tsx` (o gate equivalente) — UX del bloqueo
+- Mientras `rolesLoading` o exista `rolesError` reciente, mostrar spinner durante un grace period de ~2 s en lugar de la pantalla "Sin rol".
+- Pantalla "Sin rol" solo si tras el grace period seguimos sin roles y sin error.
+- Añadir botón **"Reintentar"** que llama a `reloadRoles()`.
+- Si hubo `rolesError`, mostrar toast discreto ("No se pudieron cargar tus permisos, reintentando…") para no esconder fallos reales.
+
+### 3. Mitigación inmediata para el usuario
+- Indicar en la respuesta final que cierre sesión y vuelva a entrar para desbloquear la sesión actual mientras se despliega el fix.
+
+## Fuera de alcance
+- No se tocan políticas RLS, ni `get_my_roles`, ni la tabla `user_roles`.
+- No se modifica la lógica de envío masivo ni la cola de comunicaciones.
+
+## Validación
+- Forzar `TOKEN_REFRESHED` (esperar ~1 h o invalidar token) → la UI no parpadea a "Sin rol".
+- Simular fallo de red en `get_my_roles` (DevTools offline) → spinner + toast + reintento, nunca pantalla "Sin rol".
+- Login limpio de un usuario sin roles reales → sí muestra "Sin rol" tras el grace period.
