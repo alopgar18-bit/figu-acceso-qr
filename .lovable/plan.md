@@ -1,30 +1,28 @@
 ## Objetivo
-Eliminar el falso "SIN ROL ASIGNADO" que aparece al refrescar token o al recargar, sin esconder fallos reales de permisos.
+Botón único "Enviar TODA la cola" en `/comunicaciones/cola` que drena todos los pendientes en el servidor, con pausas anti-saturación de Resend, sin que el usuario tenga que ir clic a clic ni dejar el navegador abierto.
 
 ## Cambios
 
-### 1. `src/hooks/use-auth.tsx` — endurecer carga de roles
-- Ignorar eventos `TOKEN_REFRESHED` e `INITIAL_SESSION` cuando el `user.id` no cambia (no recargar roles ni limpiar estado).
-- En `loadRoles`:
-  - Si la consulta a `get_my_roles` falla, **no** sobrescribir `roles` con `[]`; mantener el valor anterior y marcar `rolesError`.
-  - Reintento automático con backoff (250 ms, 750 ms, 2 s) antes de dar por vacío.
-  - Solo considerar "sin rol" cuando la respuesta es exitosa y el array está realmente vacío.
-- Exponer `rolesLoading`, `rolesError` y `reloadRoles()` desde el contexto.
+### 1. `supabase/functions/send-email/index.ts`
+- Acepta `background?: boolean` (+ opcionales `event_id`, `session_id`, `batch_id`).
+- Sin `ids`: resuelve TODOS los pendientes paginando 1000 en 1000 (sin tope de 100).
+- Si hay >20 logs o `background=true`: responde 202 con `{ background, queued, queued_ids }` y procesa con `EdgeRuntime.waitUntil`.
+- Mismas pausas anti-spam dentro del background: `delay_ms` (def. 500 ms) entre emails, pausa doble cada `batch_size` (def. 100).
+- Resend 429: respeta `Retry-After` y deja el resto `pendiente` para la próxima invocación.
+- ≤20 logs sin background: comportamiento síncrono actual.
 
-### 2. `src/routes/_authenticated.tsx` (o gate equivalente) — UX del bloqueo
-- Mientras `rolesLoading` o exista `rolesError` reciente, mostrar spinner durante un grace period de ~2 s en lugar de la pantalla "Sin rol".
-- Pantalla "Sin rol" solo si tras el grace period seguimos sin roles y sin error.
-- Añadir botón **"Reintentar"** que llama a `reloadRoles()`.
-- Si hubo `rolesError`, mostrar toast discreto ("No se pudieron cargar tus permisos, reintentando…") para no esconder fallos reales.
+### 2. `src/routes/_authenticated/comunicaciones.cola.tsx`
+- "Enviar TODA la cola" (primario): invoca `send-email` con `{ background: true }` sin `ids`.
+- "Enviar N seleccionados" (si hay selección): igual + `ids`.
+- Respuesta `background: true` → toast + `startBatchTracking(queued_ids)` (barra de progreso y polling ya existen, agnósticos del canal).
+- Contador real de pendientes junto al botón (consulta `count`, no limitada a 500).
+- "Cancelar seguimiento" limpia `bgBatch` (no aborta server).
 
-### 3. Mitigación inmediata para el usuario
-- Indicar en la respuesta final que cierre sesión y vuelva a entrar para desbloquear la sesión actual mientras se despliega el fix.
+### 3. `src/lib/bulk-send.functions.ts`
+- `queueBulkInvitations` devuelve también `inserted_log_ids: string[]` para que la pantalla de importación pueda lanzar el envío en background con esos ids.
 
-## Fuera de alcance
-- No se tocan políticas RLS, ni `get_my_roles`, ni la tabla `user_roles`.
-- No se modifica la lógica de envío masivo ni la cola de comunicaciones.
-
-## Validación
-- Forzar `TOKEN_REFRESHED` (esperar ~1 h o invalidar token) → la UI no parpadea a "Sin rol".
-- Simular fallo de red en `get_my_roles` (DevTools offline) → spinner + toast + reintento, nunca pantalla "Sin rol".
-- Login limpio de un usuario sin roles reales → sí muestra "Sin rol" tras el grace period.
+## Verificación
+1. 5 pendientes → síncrono.
+2. >500 pendientes → respuesta inmediata, barra sube, cerrar pestaña no detiene el envío.
+3. 429 simulado → tanda se pausa, resto queda pendiente, próxima invocación los retoma.
+4. Selección de N filas → "Enviar N seleccionados" con mismas pausas.
