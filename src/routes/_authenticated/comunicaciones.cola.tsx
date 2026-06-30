@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send, MessageCircle } from "lucide-react";
+import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send, MessageCircle, ShieldAlert, PlugZap } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +53,8 @@ function QueuePage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pendingEmailCount, setPendingEmailCount] = useState<number | null>(null);
   const [pendingWaCount, setPendingWaCount] = useState<number | null>(null);
+  const [unauthorizedCount, setUnauthorizedCount] = useState<number>(0);
+  const [testingWati, setTestingWati] = useState(false);
 
   const refreshPendingCount = async () => {
     const { count } = await supabase
@@ -67,6 +69,13 @@ function QueuePage() {
       .in("channel", ["whatsapp_business", "whatsapp_asistido"])
       .eq("status", "pendiente");
     setPendingWaCount(waCount ?? 0);
+    const { count: unauthCount } = await supabase
+      .from("communication_logs")
+      .select("id", { count: "exact", head: true })
+      .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+      .eq("status", "fallido")
+      .eq("error_message", "wati_unauthorized");
+    setUnauthorizedCount(unauthCount ?? 0);
   };
 
   useEffect(() => { void refreshPendingCount(); }, [logs]);
