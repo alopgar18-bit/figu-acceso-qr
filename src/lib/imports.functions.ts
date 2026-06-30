@@ -387,7 +387,7 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         imported++;
-        logRow(row, "inserted", participant.id, null);
+        logRow(row, "inserted", participant.id, suffixApplied ? "sufijo VIS aplicado por duplicado nombre+apellido" : null);
       } catch (err) {
         errored++;
         errors.push({ row: row.rowIndex, reason: err instanceof Error ? err.message : "error" });
