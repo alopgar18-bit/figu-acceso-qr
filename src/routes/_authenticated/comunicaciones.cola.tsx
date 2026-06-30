@@ -464,6 +464,10 @@ function QueuePage() {
                   ? `Enviar ${selectedIds.length} WhatsApps seleccionados`
                   : `Enviar TODA la cola WhatsApp${pendingWaCount != null ? ` (${pendingWaCount}) · ~45/min` : ""}`}
             </Button>
+            <Button onClick={testWatiConnection} disabled={testingWati} variant="outline" title="Hace una llamada de prueba a Wati para verificar que el token es válido, sin enviar mensajes.">
+              <PlugZap className="h-4 w-4 mr-2" />
+              {testingWati ? "Probando…" : "Probar conexión Wati"}
+            </Button>
             <Button onClick={retryNoCreditsFailures} variant="outline" title="Vuelve a poner en cola los WhatsApps fallidos por falta de créditos de Wati. Úsalo tras recargar saldo en Wati.">
               <RotateCw className="h-4 w-4 mr-2" />
               Reintentar fallidos sin créditos
