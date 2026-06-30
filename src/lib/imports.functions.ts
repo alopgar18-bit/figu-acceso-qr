@@ -210,8 +210,22 @@ export const commitImport = createServerFn({ method: "POST" })
 
     for (const row of data.rows) {
       try {
-        const key = nameKey(row.first_name, row.last_name);
-        const existingPersonId = nameToPersonId.get(key);
+        let key = nameKey(row.first_name, row.last_name);
+        let existingPersonId = nameToPersonId.get(key);
+
+        // Modo "personas distintas": al detectar colisión por nombre+apellido
+        // (con el roster o con filas anteriores del propio batch), se renombra
+        // el apellido añadiendo "VIS 2", "VIS 3"… y se crea como persona nueva.
+        if (existingPersonId && data.duplicateStrategy === "suffix_distinct") {
+          const baseLast = (row.last_name ?? "").trim();
+          let n = 2;
+          while (nameToPersonId.has(nameKey(row.first_name, `${baseLast} VIS ${n}`.trim()))) {
+            n++;
+          }
+          row.last_name = `${baseLast} VIS ${n}`.trim();
+          key = nameKey(row.first_name, row.last_name);
+          existingPersonId = undefined;
+        }
 
         if (existingPersonId) {
           // Duplicate (same name in same session): keep ticket/QR/status,
