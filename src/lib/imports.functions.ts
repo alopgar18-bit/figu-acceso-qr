@@ -212,6 +212,7 @@ export const commitImport = createServerFn({ method: "POST" })
       try {
         let key = nameKey(row.first_name, row.last_name);
         let existingPersonId = nameToPersonId.get(key);
+        let suffixApplied = false;
 
         // Modo "personas distintas": al detectar colisión por nombre+apellido
         // (con el roster o con filas anteriores del propio batch), se renombra
@@ -225,6 +226,7 @@ export const commitImport = createServerFn({ method: "POST" })
           row.last_name = `${baseLast} VIS ${n}`.trim();
           key = nameKey(row.first_name, row.last_name);
           existingPersonId = undefined;
+          suffixApplied = true;
         }
 
         if (existingPersonId) {
