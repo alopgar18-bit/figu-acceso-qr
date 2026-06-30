@@ -2097,6 +2097,27 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_drain_locks: {
+        Row: {
+          acquired_at: string
+          acquired_by: string | null
+          expires_at: string
+          lock_key: string
+        }
+        Insert: {
+          acquired_at?: string
+          acquired_by?: string | null
+          expires_at: string
+          lock_key: string
+        }
+        Update: {
+          acquired_at?: string
+          acquired_by?: string | null
+          expires_at?: string
+          lock_key?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       event_sessions_public: {
