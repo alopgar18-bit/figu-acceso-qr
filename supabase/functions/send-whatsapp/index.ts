@@ -720,6 +720,10 @@ async function processWatiBatch(
   return {
     processed: logs.length, sent, failed, skipped, errors,
     mode: useBatch ? "batch" : "individual",
+    throttled: spamHits > 0,
+    spam_hits: spamHits,
+    spam_aborted: spamAbort,
+    paused_seconds_total: pausedSecondsTotal,
     ...(noCreditsAbort
       ? {
           error_code: "WATI_NO_CREDITS",
