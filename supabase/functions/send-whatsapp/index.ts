@@ -205,7 +205,15 @@ type CommLogRow = {
 
 async function runWati(
   supabase: ReturnType<typeof createClient>,
-  body: { limit?: number; ids?: string[]; background?: boolean },
+  body: {
+    limit?: number;
+    ids?: string[];
+    background?: boolean;
+    delay_ms?: number;
+    jitter_ms?: number;
+    batch_size?: number;
+    batch_pause_ms?: number;
+  },
 ) {
   const endpoint = Deno.env.get("WATI_API_ENDPOINT");
   const token = Deno.env.get("WATI_ACCESS_TOKEN");
@@ -224,7 +232,16 @@ async function runWati(
   }
 
   const channels = ["whatsapp_business", "whatsapp_asistido"];
-  const limit = Math.min(Math.max(body.limit ?? 100, 1), 1000);
+  // Permitimos hasta 5000 por invocación para drenar TODA la cola.
+  const limit = Math.min(Math.max(body.limit ?? 5000, 1), 5000);
+
+  // Parámetros de ritmo (anti-spam Wati). Defaults: ~45 msg/min.
+  const cfg = {
+    delayMs: Math.min(Math.max(body.delay_ms ?? 1300, 200), 10000),
+    jitterMs: Math.min(Math.max(body.jitter_ms ?? 250, 0), 2000),
+    batchSize: Math.min(Math.max(body.batch_size ?? 40, 1), 200),
+    batchPauseMs: Math.min(Math.max(body.batch_pause_ms ?? 10000, 0), 120000),
+  };
 
   let query = supabase
     .from("communication_logs")
@@ -246,26 +263,60 @@ async function runWati(
   if (fetchErr) throw fetchErr;
   const logs = (rawLogs ?? []) as unknown as CommLogRow[];
 
-  // Si hay más de 20 logs a procesar, lanzamos en background y devolvemos 202
-  // para evitar timeout de la edge function (la conexión se cierra a los ~60s).
-  // El frontend debe refrescar la cola para ver el progreso.
+  // Si hay más de 20 logs → background con lock global (un solo drenaje a la vez).
   const BACKGROUND_THRESHOLD = 20;
   if (logs.length > BACKGROUND_THRESHOLD) {
-    // Marcamos todos como "encolado_envio" para feedback inmediato
-    const ids = logs.map((l) => l.id);
-    await supabase
-      .from("communication_logs")
-      .update({ status: "pendiente", error_message: null })
-      .in("id", ids);
+    // Intentar adquirir lock global de drenaje
+    const lockKey = "wati_drain";
+    const lockTtlMs = 30 * 60 * 1000; // 30 min
+    const expiresAt = new Date(Date.now() + lockTtlMs).toISOString();
+    const acquiredBy = `edge_${crypto.randomUUID()}`;
 
-    // Lanzar procesamiento en background sin bloquear la respuesta
+    const { data: existing } = await supabase
+      .from("whatsapp_drain_locks")
+      .select("expires_at, acquired_by")
+      .eq("lock_key", lockKey)
+      .maybeSingle();
+
+    const stillLocked =
+      existing && new Date((existing as { expires_at: string }).expires_at).getTime() > Date.now();
+
+    if (stillLocked) {
+      return new Response(
+        JSON.stringify({
+          configured: true,
+          provider: "wati",
+          busy: true,
+          until: (existing as { expires_at: string }).expires_at,
+          message: "Ya hay un envío masivo de WhatsApp en curso. Espera a que termine antes de lanzar otro.",
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Upsert lock (cogemos si no existe o está expirado)
+    await supabase
+      .from("whatsapp_drain_locks")
+      .upsert({ lock_key: lockKey, acquired_at: new Date().toISOString(), acquired_by: acquiredBy, expires_at: expiresAt });
+
+    const ids = logs.map((l) => l.id);
+
     // deno-lint-ignore no-explicit-any
     const ctx = globalThis as any;
-    const bgPromise = processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl)
-      .catch((e) => console.error("[send-whatsapp][bg] error", e));
+    const bgPromise = (async () => {
+      try {
+        await processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl, cfg);
+      } catch (e) {
+        console.error("[send-whatsapp][bg] error", e);
+      } finally {
+        await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", lockKey).eq("acquired_by", acquiredBy);
+      }
+    })();
     if (ctx.EdgeRuntime?.waitUntil) {
       ctx.EdgeRuntime.waitUntil(bgPromise);
     }
+
+    const estMin = Math.ceil((logs.length * (cfg.delayMs + cfg.jitterMs / 2)) / 60000);
 
     return new Response(
       JSON.stringify({
@@ -274,13 +325,15 @@ async function runWati(
         background: true,
         queued: logs.length,
         queued_ids: ids,
-        message: `Procesando ${logs.length} envíos en segundo plano. Refresca la cola en 1–2 minutos para ver el resultado.`,
+        rate: { delay_ms: cfg.delayMs, jitter_ms: cfg.jitterMs, batch_size: cfg.batchSize, batch_pause_ms: cfg.batchPauseMs },
+        estimated_minutes: estMin,
+        message: `Procesando ${logs.length} WhatsApps en segundo plano (~${Math.round(60000 / cfg.delayMs)} msg/min, ≈${estMin} min). Puedes cerrar la pestaña.`,
       }),
       { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 
-  const result = await processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl);
+  const result = await processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl, cfg);
   return new Response(
     JSON.stringify({ configured: true, provider: "wati", ...result }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -293,6 +346,9 @@ async function processWatiBatch(
   endpoint: string,
   token: string,
   publicSiteUrl: string,
+  cfg: { delayMs: number; jitterMs: number; batchSize: number; batchPauseMs: number } = {
+    delayMs: 1300, jitterMs: 250, batchSize: 40, batchPauseMs: 10000,
+  },
 ) {
 
   let sent = 0;
