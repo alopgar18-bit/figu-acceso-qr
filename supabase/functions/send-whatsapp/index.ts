@@ -43,10 +43,45 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number } = {};
+    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; action?: string } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // ─── Acción: test de conexión con Wati (no envía nada) ────────────────────
+    if (body.action === "test") {
+      const endpoint = Deno.env.get("WATI_API_ENDPOINT");
+      const token = Deno.env.get("WATI_ACCESS_TOKEN");
+      if (!endpoint || !token) {
+        return new Response(
+          JSON.stringify({ ok: false, configured: false, message: "Faltan WATI_API_ENDPOINT o WATI_ACCESS_TOKEN" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      try {
+        const base = endpoint.replace(/\/+$/, "");
+        const testUrl = `${base}/api/v1/getMessageTemplates?pageSize=1&pageNumber=0`;
+        const res = await fetch(testUrl, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+        if (res.status === 401 || res.status === 403) {
+          return new Response(
+            JSON.stringify({ ok: false, status: res.status, message: "Token de Wati caducado o inválido. Renueva WATI_ACCESS_TOKEN." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        return new Response(
+          JSON.stringify({ ok: res.ok, status: res.status, message: res.ok ? "Conexión Wati OK." : `Wati respondió ${res.status}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ ok: false, message: `Error al contactar con Wati: ${(e as Error).message}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
 
     // ─── Branch: WATI ────────────────────────────────────────────────────────
     if (PROVIDER === "wati") {
@@ -524,13 +559,17 @@ async function processWatiBatch(
 
   let noCreditsAbort = false;
   let spamAbort = false;
+  let unauthorizedAbort = false;
   let spamHits = 0;
   let pausedSecondsTotal = 0;
   const NO_CREDITS_MSG = "Sin créditos en Wati — recarga la cuenta antes de reintentar";
+  const UNAUTHORIZED_MSG = "Token de Wati caducado o inválido — renueva WATI_ACCESS_TOKEN";
   const isNoCredits = (s: string | null | undefined) =>
     typeof s === "string" && /not\s+enough\s+credits/i.test(s);
   const isSpamLimit = (s: string | null | undefined) =>
     typeof s === "string" && /spam.*rate.*limit/i.test(s);
+  const isUnauthorized = (s: string | null | undefined) =>
+    typeof s === "string" && /\bHTTP\s*40[13]\b|unauthor/i.test(s);
 
   if (!useBatch) {
     for (let i = 0; i < prepared.length; i++) {
@@ -566,6 +605,43 @@ async function processWatiBatch(
       } else {
         const noCredits = isNoCredits(res.errorDetail);
         const spam = isSpamLimit(res.errorDetail);
+        const unauthorized = isUnauthorized(res.errorDetail);
+
+        if (unauthorized) {
+          // Token caducado: marcar este log como fallido con motivo claro
+          // y devolver el resto a pendiente para no quemar la cola entera.
+          unauthorizedAbort = true;
+          await supabase.from("communication_logs").update({
+            status: "fallido",
+            whatsapp_estado: "failed",
+            whatsapp_failed_detail: UNAUTHORIZED_MSG,
+            error_message: "wati_unauthorized",
+            metadata: {
+              ...(p.log.metadata ?? {}),
+              provider: "wati",
+              wati_error_code: "WATI_UNAUTHORIZED",
+            },
+          }).eq("id", p.log.id);
+          failed++;
+          errors.push({ id: p.log.id, error: UNAUTHORIZED_MSG });
+          const remaining = prepared.slice(i + 1);
+          for (const r of remaining) {
+            await supabase.from("communication_logs").update({
+              status: "pendiente",
+              whatsapp_estado: null,
+              error_message: null,
+              whatsapp_failed_detail: null,
+              wati_local_message_id: null,
+              metadata: {
+                ...(r.log.metadata ?? {}),
+                provider: "wati",
+                wati_paused_reason: "WATI_UNAUTHORIZED",
+              },
+            }).eq("id", r.log.id);
+          }
+          console.warn("[send-whatsapp] WATI 401 detected, aborting batch and leaving rest pending");
+          break;
+        }
 
         if (spam) {
           // Devolver el log a pendiente — NO contar como fallido, lo reintentamos tras pausa.
@@ -729,6 +805,13 @@ async function processWatiBatch(
           error_code: "WATI_NO_CREDITS",
           message:
             "Wati ha rechazado los envíos por falta de créditos. Recarga la cuenta y reintenta los fallidos.",
+        }
+      : {}),
+    ...(unauthorizedAbort
+      ? {
+          error_code: "WATI_UNAUTHORIZED",
+          message:
+            "Token de Wati caducado o inválido. Renueva WATI_ACCESS_TOKEN y vuelve a lanzar la cola — los pendientes están intactos.",
         }
       : {}),
   };

@@ -1,0 +1,1 @@
+UPDATE communication_logs SET status='pendiente', error_message=NULL, sent_at=NULL WHERE channel::text LIKE 'whatsapp%' AND status::text='fallido' AND error_message='HTTP 401: ' AND created_at > now() - interval '3 hours';

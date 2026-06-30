@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send, MessageCircle } from "lucide-react";
+import { ArrowLeft, Download, RotateCw, Archive, Trash2, Mail, Send, MessageCircle, ShieldAlert, PlugZap } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +53,8 @@ function QueuePage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pendingEmailCount, setPendingEmailCount] = useState<number | null>(null);
   const [pendingWaCount, setPendingWaCount] = useState<number | null>(null);
+  const [unauthorizedCount, setUnauthorizedCount] = useState<number>(0);
+  const [testingWati, setTestingWati] = useState(false);
 
   const refreshPendingCount = async () => {
     const { count } = await supabase
@@ -67,6 +69,13 @@ function QueuePage() {
       .in("channel", ["whatsapp_business", "whatsapp_asistido"])
       .eq("status", "pendiente");
     setPendingWaCount(waCount ?? 0);
+    const { count: unauthCount } = await supabase
+      .from("communication_logs")
+      .select("id", { count: "exact", head: true })
+      .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+      .eq("status", "fallido")
+      .eq("error_message", "wati_unauthorized");
+    setUnauthorizedCount(unauthCount ?? 0);
   };
 
   useEffect(() => { void refreshPendingCount(); }, [logs]);
@@ -265,6 +274,60 @@ function QueuePage() {
     }
   };
 
+  const recoverUnauthorizedFailures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("communication_logs")
+        .select("id")
+        .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+        .eq("status", "fallido")
+        .eq("error_message", "wati_unauthorized");
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ id: string }>;
+      if (rows.length === 0) {
+        toast.message("No hay WhatsApps fallidos por token caducado.");
+        return;
+      }
+      const ids = rows.map((r) => r.id);
+      const { error: updErr } = await supabase
+        .from("communication_logs")
+        .update({
+          status: "pendiente",
+          whatsapp_estado: null,
+          whatsapp_failed_detail: null,
+          whatsapp_failed_code: null,
+          wati_local_message_id: null,
+          error_message: null,
+        })
+        .in("id", ids);
+      if (updErr) throw updErr;
+      toast.success(`${ids.length} WhatsApps devueltos a pendiente. Pulsa "Enviar TODA la cola WhatsApp" para relanzar.`);
+      await refetch();
+      await refreshPendingCount();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const testWatiConnection = async () => {
+    setTestingWati(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { action: "test" },
+      });
+      if (error) throw error;
+      if (data?.ok === true) {
+        toast.success(data.message ?? "Conexión Wati OK.");
+      } else {
+        toast.error(data?.message ?? "Wati no responde correctamente.", { duration: 12000 });
+      }
+    } catch (e) {
+      toast.error(`Error al probar Wati: ${(e as Error).message}`);
+    } finally {
+      setTestingWati(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     if (!search.trim()) return logs;
     const q = search.toLowerCase();
@@ -401,6 +464,10 @@ function QueuePage() {
                   ? `Enviar ${selectedIds.length} WhatsApps seleccionados`
                   : `Enviar TODA la cola WhatsApp${pendingWaCount != null ? ` (${pendingWaCount}) · ~45/min` : ""}`}
             </Button>
+            <Button onClick={testWatiConnection} disabled={testingWati} variant="outline" title="Hace una llamada de prueba a Wati para verificar que el token es válido, sin enviar mensajes.">
+              <PlugZap className="h-4 w-4 mr-2" />
+              {testingWati ? "Probando…" : "Probar conexión Wati"}
+            </Button>
             <Button onClick={retryNoCreditsFailures} variant="outline" title="Vuelve a poner en cola los WhatsApps fallidos por falta de créditos de Wati. Úsalo tras recargar saldo en Wati.">
               <RotateCw className="h-4 w-4 mr-2" />
               Reintentar fallidos sin créditos
@@ -419,6 +486,33 @@ function QueuePage() {
           </div>
         }
       />
+
+      {unauthorizedCount > 0 && (
+        <Card className="mb-4 border-red-500/60 bg-red-50 dark:bg-red-950/30">
+          <CardContent className="p-4 flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="font-medium text-red-700 dark:text-red-300">
+                Token de Wati caducado o inválido
+              </div>
+              <div className="text-sm text-red-700/90 dark:text-red-200/90">
+                Hay {unauthorizedCount} WhatsApp{unauthorizedCount === 1 ? "" : "s"} marcados como fallidos porque Wati devolvió 401 Unauthorized.
+                Renueva el token (panel de Wati → API → Generar token de acceso), guárdalo como <code>WATI_ACCESS_TOKEN</code>, prueba la conexión y reenvía.
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={testWatiConnection} disabled={testingWati}>
+                  <PlugZap className="h-4 w-4 mr-2" />
+                  {testingWati ? "Probando…" : "Probar conexión Wati"}
+                </Button>
+                <Button size="sm" onClick={recoverUnauthorizedFailures}>
+                  <RotateCw className="h-4 w-4 mr-2" />
+                  Devolver {unauthorizedCount} a pendiente
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {bgBatch && (
         <Card className="mb-4 border-primary/40">

@@ -1,38 +1,19 @@
-# Por qué la plantilla `entrada_grabacin` no muestra Zona/Fila/Asiento
+## Acción inmediata (ahora)
 
-La plantilla SÍ tiene los placeholders `{{zona}}`, `{{fila}}`, `{{asiento}}`, pero el motor de envío no los rellena:
+1. Devolver a `pendiente` los 43 WhatsApp marcados como `failed` con error `401` del lote `manual_2026-06-30T20:46…/20:47…` para la sesión del 2 de julio.
+2. Lanzar la cola Wati ya con el token nuevo y verificar que los primeros envíos responden `200` en los logs.
+3. Si todo va bien, dejar que termine sin tocar nada más.
 
-- En `src/lib/bulk-send.functions.ts`, las consultas a `event_participants` NO traen los campos `seat_zone / seat_row / seat_number` (sí los traen para `companions`, no para el titular).
-- El tipo `RenderContext` en `src/lib/communication-constants.ts` tampoco tiene `zona / fila / asiento`, así que aunque se pasaran, `renderTemplate()` los dejaría vacíos por tipo.
-- La previsualización en `comunicaciones.envio.tsx` sí los rellena ad-hoc (líneas 663-665), por eso el problema no era visible al previsualizar con un asistente con asiento — pero al encolar el envío real, llegaban vacíos.
+## Mejoras anti-token-caducado
 
-Resultado: cualquier envío masivo (email o WhatsApp) usando una plantilla con `{{zona}}/{{fila}}/{{asiento}}` deja esas líneas en blanco para el titular. Los acompañantes sí salen bien porque su flujo aparte ya carga el asiento.
+1. **Detectar 401 como caso especial** en `send-whatsapp`: al primer `401` se aborta el lote, los mensajes que aún no se han enviado vuelven a `pendiente` y se marca el motivo como `wati_unauthorized`. Así no se "queman" los 900 con el mismo error.
+2. **Mensaje claro en la UI de la cola**: cuando el motivo del fallo sea `wati_unauthorized`, mostrar arriba un aviso rojo: *"Token de Wati caducado o inválido. Renueva WATI_ACCESS_TOKEN antes de reintentar"*, en lugar del genérico actual.
+3. **Botón "Probar conexión Wati"** en la cabecera de `comunicaciones.cola`: hace una llamada barata a Wati (`/api/v1/getMessageTemplates?pageSize=1`) y muestra al instante ✅ token válido / ❌ token caducado, antes de lanzar cientos de mensajes.
 
-# Cambios a aplicar (mínimos, sin tocar UI)
+## Detalles técnicos
 
-## 1. `src/lib/communication-constants.ts`
-Añadir al `RenderContext`:
-```ts
-zona?: string | null;
-fila?: string | null;
-asiento?: string | null;
-```
-Añadir a `WHATSAPP_VARIABLES` / `EMAIL_VARIABLES` los tres tokens con descripción ("Zona del asiento", etc.) para que se vean en la lista de variables del editor.
+- `supabase/functions/send-whatsapp/index.ts`: añadir rama `if (response.status === 401)` que rompe el bucle y devuelve los pendientes a estado `pending` con `error_message = 'wati_unauthorized'`.
+- `src/routes/_authenticated/comunicaciones.cola.tsx`: banner condicional + botón "Probar conexión Wati" que invoca una nueva server function `testWatiConnection` en `src/lib/wati.functions.ts`.
+- No se toca lógica de envío masivo ni el "drain lock" actuales.
 
-## 2. `src/lib/bulk-send.functions.ts`
-- En `queueBulkSend` (línea ~155 y ~163): añadir `seat_zone, seat_row, seat_number` al `select` de `event_participants` y al tipo `PartRow`.
-- En `resendInvitations` (línea ~576): mismo añadido.
-- Al construir cada `ctx` (líneas ~300 y ~725) añadir:
-  ```ts
-  zona: p.seat_zone ?? "",
-  fila: p.seat_row ?? "",
-  asiento: p.seat_number ?? "",
-  ```
-- Para los acompañantes, ya tenemos `c.seat_zone/row/number`: añadir los mismos campos al `compCtx` para que la plantilla también muestre el asiento del acompañante (líneas ~390 y ~785).
-
-## 3. Verificación
-1. Previsualizar la plantilla `entrada_grabacin` con un asistente que tenga asiento asignado → debe mostrar Zona/Fila/Asiento (ya funcionaba).
-2. Encolar un envío real de prueba a un destinatario con asiento y comprobar en `communication_logs.body` que el cuerpo ya incluye los valores (no `Zona: \nFila: \n`).
-3. Para Javier (test pendiente del 2/07): tras aprobarlo y reenviar, debe ver su zona/fila/asiento.
-
-No requiere cambios en BD, ni en plantillas, ni en la UI de envío. Solo en el renderizado del cuerpo en el backend.
+¿Procedo con todo esto?
