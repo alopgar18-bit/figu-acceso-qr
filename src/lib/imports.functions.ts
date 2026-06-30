@@ -60,7 +60,7 @@ const commitSchema = z.object({
   defaultAttendeeType: z
     .enum(["publico", "figurante", "casting", "vip", "prensa", "equipo", "acompanante", "otro"])
     .default("publico"),
-  duplicateStrategy: z.enum(["skip", "update_person", "new_participation"]),
+  duplicateStrategy: z.enum(["skip", "update_person", "new_participation", "suffix_distinct"]),
   mappings: z
     .array(
       z.object({
