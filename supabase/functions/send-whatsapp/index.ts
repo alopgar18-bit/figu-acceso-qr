@@ -43,10 +43,45 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number } = {};
+    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; action?: string } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // ─── Acción: test de conexión con Wati (no envía nada) ────────────────────
+    if (body.action === "test") {
+      const endpoint = Deno.env.get("WATI_API_ENDPOINT");
+      const token = Deno.env.get("WATI_ACCESS_TOKEN");
+      if (!endpoint || !token) {
+        return new Response(
+          JSON.stringify({ ok: false, configured: false, message: "Faltan WATI_API_ENDPOINT o WATI_ACCESS_TOKEN" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      try {
+        const base = endpoint.replace(/\/+$/, "");
+        const testUrl = `${base}/api/v1/getMessageTemplates?pageSize=1&pageNumber=0`;
+        const res = await fetch(testUrl, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+        if (res.status === 401 || res.status === 403) {
+          return new Response(
+            JSON.stringify({ ok: false, status: res.status, message: "Token de Wati caducado o inválido. Renueva WATI_ACCESS_TOKEN." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        return new Response(
+          JSON.stringify({ ok: res.ok, status: res.status, message: res.ok ? "Conexión Wati OK." : `Wati respondió ${res.status}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ ok: false, message: `Error al contactar con Wati: ${(e as Error).message}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
 
     // ─── Branch: WATI ────────────────────────────────────────────────────────
     if (PROVIDER === "wati") {
