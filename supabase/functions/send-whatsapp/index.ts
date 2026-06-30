@@ -807,5 +807,12 @@ async function processWatiBatch(
             "Wati ha rechazado los envíos por falta de créditos. Recarga la cuenta y reintenta los fallidos.",
         }
       : {}),
+    ...(unauthorizedAbort
+      ? {
+          error_code: "WATI_UNAUTHORIZED",
+          message:
+            "Token de Wati caducado o inválido. Renueva WATI_ACCESS_TOKEN y vuelve a lanzar la cola — los pendientes están intactos.",
+        }
+      : {}),
   };
 }
