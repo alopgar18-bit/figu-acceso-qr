@@ -52,6 +52,7 @@ function QueuePage() {
   } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pendingEmailCount, setPendingEmailCount] = useState<number | null>(null);
+  const [pendingWaCount, setPendingWaCount] = useState<number | null>(null);
 
   const refreshPendingCount = async () => {
     const { count } = await supabase
@@ -60,6 +61,12 @@ function QueuePage() {
       .eq("channel", "email")
       .eq("status", "pendiente");
     setPendingEmailCount(count ?? 0);
+    const { count: waCount } = await supabase
+      .from("communication_logs")
+      .select("id", { count: "exact", head: true })
+      .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+      .eq("status", "pendiente");
+    setPendingWaCount(waCount ?? 0);
   };
 
   useEffect(() => { void refreshPendingCount(); }, [logs]);
@@ -144,9 +151,27 @@ function QueuePage() {
       const { data, error } = await supabase.functions.invoke("send-whatsapp", {
         body: ids ? { ids } : {},
       });
-      if (error) throw error;
+      if (error) {
+        // 409 busy: ya hay un drenaje en curso
+        // deno-lint-ignore no-explicit-any
+        const ctx = (error as any).context;
+        let busyMsg: string | null = null;
+        if (ctx?.status === 409) {
+          try {
+            const j = await ctx.json();
+            if (j?.busy) busyMsg = j.message ?? "Ya hay un envío en curso.";
+          } catch (_) { /* ignore */ }
+        }
+        if (busyMsg) {
+          toast.message(busyMsg, { duration: 10000 });
+          return;
+        }
+        throw error;
+      }
       if (data?.configured === false) {
         toast.message(data.message ?? "Wassenger no configurado");
+      } else if (data?.busy === true) {
+        toast.message(data.message ?? "Ya hay un envío en curso.", { duration: 10000 });
       } else if (data?.background === true) {
         toast.success(
           data.message ??
@@ -166,10 +191,46 @@ function QueuePage() {
       }
       setSelected(new Set());
       await refetch();
+      await refreshPendingCount();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setSendingWa(false);
+    }
+  };
+
+  const recoverSpamFailures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("communication_logs")
+        .select("id")
+        .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+        .eq("status", "fallido")
+        .ilike("whatsapp_failed_detail", "%Spam Rate limit hit%");
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ id: string }>;
+      if (rows.length === 0) {
+        toast.message("No hay WhatsApps fallidos por Spam Rate limit.");
+        return;
+      }
+      const ids = rows.map((r) => r.id);
+      const { error: updErr } = await supabase
+        .from("communication_logs")
+        .update({
+          status: "pendiente",
+          whatsapp_estado: null,
+          whatsapp_failed_detail: null,
+          whatsapp_failed_code: null,
+          wati_local_message_id: null,
+          error_message: null,
+        })
+        .in("id", ids);
+      if (updErr) throw updErr;
+      toast.success(`${ids.length} WhatsApps devueltos a pendiente. Pulsa "Enviar TODA la cola WhatsApp" para relanzar.`);
+      await refetch();
+      await refreshPendingCount();
+    } catch (e) {
+      toast.error((e as Error).message);
     }
   };
 
@@ -334,11 +395,19 @@ function QueuePage() {
             </Button>
             <Button onClick={sendPendingWhatsapps} disabled={sendingWa} variant="secondary">
               <MessageCircle className="h-4 w-4 mr-2" />
-              {sendingWa ? "Enviando WhatsApps…" : "Enviar WhatsApps pendientes"}
+              {sendingWa
+                ? "Enviando WhatsApps…"
+                : selectedIds.length > 0
+                  ? `Enviar ${selectedIds.length} WhatsApps seleccionados`
+                  : `Enviar TODA la cola WhatsApp${pendingWaCount != null ? ` (${pendingWaCount}) · ~45/min` : ""}`}
             </Button>
             <Button onClick={retryNoCreditsFailures} variant="outline" title="Vuelve a poner en cola los WhatsApps fallidos por falta de créditos de Wati. Úsalo tras recargar saldo en Wati.">
               <RotateCw className="h-4 w-4 mr-2" />
               Reintentar fallidos sin créditos
+            </Button>
+            <Button onClick={recoverSpamFailures} variant="outline" title="Devuelve a pendiente los WhatsApps fallidos por 'Spam Rate limit hit' del último envío.">
+              <RotateCw className="h-4 w-4 mr-2" />
+              Recuperar fallidos por spam
             </Button>
             <Button onClick={exportEmlZip}>
               <Mail className="h-4 w-4 mr-2" />Descargar .eml para Gmail
