@@ -487,6 +487,33 @@ function QueuePage() {
         }
       />
 
+      {unauthorizedCount > 0 && (
+        <Card className="mb-4 border-red-500/60 bg-red-50 dark:bg-red-950/30">
+          <CardContent className="p-4 flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="font-medium text-red-700 dark:text-red-300">
+                Token de Wati caducado o inválido
+              </div>
+              <div className="text-sm text-red-700/90 dark:text-red-200/90">
+                Hay {unauthorizedCount} WhatsApp{unauthorizedCount === 1 ? "" : "s"} marcados como fallidos porque Wati devolvió 401 Unauthorized.
+                Renueva el token (panel de Wati → API → Generar token de acceso), guárdalo como <code>WATI_ACCESS_TOKEN</code>, prueba la conexión y reenvía.
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={testWatiConnection} disabled={testingWati}>
+                  <PlugZap className="h-4 w-4 mr-2" />
+                  {testingWati ? "Probando…" : "Probar conexión Wati"}
+                </Button>
+                <Button size="sm" onClick={recoverUnauthorizedFailures}>
+                  <RotateCw className="h-4 w-4 mr-2" />
+                  Devolver {unauthorizedCount} a pendiente
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {bgBatch && (
         <Card className="mb-4 border-primary/40">
           <CardContent className="p-4 space-y-2">
