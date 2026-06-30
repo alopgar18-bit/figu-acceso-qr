@@ -559,13 +559,17 @@ async function processWatiBatch(
 
   let noCreditsAbort = false;
   let spamAbort = false;
+  let unauthorizedAbort = false;
   let spamHits = 0;
   let pausedSecondsTotal = 0;
   const NO_CREDITS_MSG = "Sin créditos en Wati — recarga la cuenta antes de reintentar";
+  const UNAUTHORIZED_MSG = "Token de Wati caducado o inválido — renueva WATI_ACCESS_TOKEN";
   const isNoCredits = (s: string | null | undefined) =>
     typeof s === "string" && /not\s+enough\s+credits/i.test(s);
   const isSpamLimit = (s: string | null | undefined) =>
     typeof s === "string" && /spam.*rate.*limit/i.test(s);
+  const isUnauthorized = (s: string | null | undefined) =>
+    typeof s === "string" && /\bHTTP\s*40[13]\b|unauthor/i.test(s);
 
   if (!useBatch) {
     for (let i = 0; i < prepared.length; i++) {
@@ -601,6 +605,43 @@ async function processWatiBatch(
       } else {
         const noCredits = isNoCredits(res.errorDetail);
         const spam = isSpamLimit(res.errorDetail);
+        const unauthorized = isUnauthorized(res.errorDetail);
+
+        if (unauthorized) {
+          // Token caducado: marcar este log como fallido con motivo claro
+          // y devolver el resto a pendiente para no quemar la cola entera.
+          unauthorizedAbort = true;
+          await supabase.from("communication_logs").update({
+            status: "fallido",
+            whatsapp_estado: "failed",
+            whatsapp_failed_detail: UNAUTHORIZED_MSG,
+            error_message: "wati_unauthorized",
+            metadata: {
+              ...(p.log.metadata ?? {}),
+              provider: "wati",
+              wati_error_code: "WATI_UNAUTHORIZED",
+            },
+          }).eq("id", p.log.id);
+          failed++;
+          errors.push({ id: p.log.id, error: UNAUTHORIZED_MSG });
+          const remaining = prepared.slice(i + 1);
+          for (const r of remaining) {
+            await supabase.from("communication_logs").update({
+              status: "pendiente",
+              whatsapp_estado: null,
+              error_message: null,
+              whatsapp_failed_detail: null,
+              wati_local_message_id: null,
+              metadata: {
+                ...(r.log.metadata ?? {}),
+                provider: "wati",
+                wati_paused_reason: "WATI_UNAUTHORIZED",
+              },
+            }).eq("id", r.log.id);
+          }
+          console.warn("[send-whatsapp] WATI 401 detected, aborting batch and leaving rest pending");
+          break;
+        }
 
         if (spam) {
           // Devolver el log a pendiente — NO contar como fallido, lo reintentamos tras pausa.
