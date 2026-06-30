@@ -73,12 +73,13 @@ export const IMPORT_QR_STATES: ParticipantStatus[] = [
 
 export const DEFAULT_ATTENDEE_TYPE: AttendeeType = "publico";
 
-export type DuplicateStrategy = "skip" | "update_person" | "new_participation";
+export type DuplicateStrategy = "skip" | "update_person" | "new_participation" | "suffix_distinct";
 
 export const DUPLICATE_STRATEGIES: { value: DuplicateStrategy; label: string; description: string }[] = [
   { value: "skip", label: "Saltar duplicados", description: "No importar filas cuya persona ya existe." },
   { value: "update_person", label: "Actualizar persona global", description: "Actualizar datos de la persona y crear participación si no existe en este evento/sesión." },
   { value: "new_participation", label: "Crear participación nueva", description: "Reutilizar persona existente y crear una nueva participación, aunque ya exista en otro evento/sesión." },
+  { value: "suffix_distinct", label: "Tratar como personas distintas (VIS 2, VIS 3…)", description: "Si dentro de la sesión / del archivo hay dos filas con el mismo nombre y apellido, al segundo y siguientes se les añade 'VIS 2', 'VIS 3'… en el apellido y se crean como participantes nuevos con su propio asiento y QR. El sufijo solo aparece en BBDD; el saludo en plantillas usa el primer apellido." },
 ];
 
 /** Auto-detect a target field from a header name. */
