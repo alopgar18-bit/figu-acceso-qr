@@ -60,7 +60,7 @@ const commitSchema = z.object({
   defaultAttendeeType: z
     .enum(["publico", "figurante", "casting", "vip", "prensa", "equipo", "acompanante", "otro"])
     .default("publico"),
-  duplicateStrategy: z.enum(["skip", "update_person", "new_participation"]),
+  duplicateStrategy: z.enum(["skip", "update_person", "new_participation", "suffix_distinct"]),
   mappings: z
     .array(
       z.object({
@@ -210,8 +210,24 @@ export const commitImport = createServerFn({ method: "POST" })
 
     for (const row of data.rows) {
       try {
-        const key = nameKey(row.first_name, row.last_name);
-        const existingPersonId = nameToPersonId.get(key);
+        let key = nameKey(row.first_name, row.last_name);
+        let existingPersonId = nameToPersonId.get(key);
+        let suffixApplied = false;
+
+        // Modo "personas distintas": al detectar colisión por nombre+apellido
+        // (con el roster o con filas anteriores del propio batch), se renombra
+        // el apellido añadiendo "VIS 2", "VIS 3"… y se crea como persona nueva.
+        if (existingPersonId && data.duplicateStrategy === "suffix_distinct") {
+          const baseLast = (row.last_name ?? "").trim();
+          let n = 2;
+          while (nameToPersonId.has(nameKey(row.first_name, `${baseLast} VIS ${n}`.trim()))) {
+            n++;
+          }
+          row.last_name = `${baseLast} VIS ${n}`.trim();
+          key = nameKey(row.first_name, row.last_name);
+          existingPersonId = undefined;
+          suffixApplied = true;
+        }
 
         if (existingPersonId) {
           // Duplicate (same name in same session): keep ticket/QR/status,
@@ -371,7 +387,7 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         imported++;
-        logRow(row, "inserted", participant.id, null);
+        logRow(row, "inserted", participant.id, suffixApplied ? "sufijo VIS aplicado por duplicado nombre+apellido" : null);
       } catch (err) {
         errored++;
         errors.push({ row: row.rowIndex, reason: err instanceof Error ? err.message : "error" });
