@@ -45,6 +45,9 @@ export const COMM_VARIABLES = [
   { token: "{{hora_fin}}", description: "Hora aproximada de finalización" },
   { token: "{{ubicacion}}", description: "Lugar / dirección" },
   { token: "{{direccion}}", description: "Dirección completa (calle, ciudad)" },
+  { token: "{{zona}}", description: "Zona del asiento asignado" },
+  { token: "{{fila}}", description: "Fila del asiento asignado" },
+  { token: "{{asiento}}", description: "Número de asiento asignado" },
   { token: "{{enlace_confirmacion}}", description: "Enlace para confirmar asistencia" },
   { token: "{{enlace_entrada}}", description: "Enlace a la entrada / QR" },
   { token: "{{qr}}", description: "Código QR / token" },
@@ -106,6 +109,9 @@ export interface RenderContext {
   hora_fin?: string | null;
   ubicacion?: string | null;
   direccion?: string | null;
+  zona?: string | null;
+  fila?: string | null;
+  asiento?: string | null;
   enlace_confirmacion?: string | null;
   enlace_entrada?: string | null;
   qr?: string | null;
