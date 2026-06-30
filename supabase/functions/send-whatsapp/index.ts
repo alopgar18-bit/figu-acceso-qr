@@ -520,13 +520,17 @@ async function processWatiBatch(
   // ("Sin respuesta de Wati para este número") aunque el mensaje sí se
   // entregue. Individual es más lento pero 100% fiable.
   const useBatch = false;
-  const delayMs = 400;
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   let noCreditsAbort = false;
+  let spamAbort = false;
+  let spamHits = 0;
+  let pausedSecondsTotal = 0;
   const NO_CREDITS_MSG = "Sin créditos en Wati — recarga la cuenta antes de reintentar";
   const isNoCredits = (s: string | null | undefined) =>
     typeof s === "string" && /not\s+enough\s+credits/i.test(s);
+  const isSpamLimit = (s: string | null | undefined) =>
+    typeof s === "string" && /spam.*rate.*limit/i.test(s);
 
   if (!useBatch) {
     for (let i = 0; i < prepared.length; i++) {
@@ -561,6 +565,57 @@ async function processWatiBatch(
         sent++;
       } else {
         const noCredits = isNoCredits(res.errorDetail);
+        const spam = isSpamLimit(res.errorDetail);
+
+        if (spam) {
+          // Devolver el log a pendiente — NO contar como fallido, lo reintentamos tras pausa.
+          spamHits++;
+          await supabase.from("communication_logs").update({
+            status: "pendiente",
+            whatsapp_estado: null,
+            error_message: null,
+            whatsapp_failed_detail: null,
+            wati_local_message_id: null,
+            metadata: {
+              ...(p.log.metadata ?? {}),
+              provider: "wati",
+              wati_throttled_at: new Date().toISOString(),
+              wati_throttle_hits: spamHits,
+            },
+          }).eq("id", p.log.id);
+
+          if (spamHits >= 3) {
+            // 3 strikes: abortar, dejar resto en pendiente
+            spamAbort = true;
+            const remaining = prepared.slice(i + 1);
+            for (const r of remaining) {
+              await supabase.from("communication_logs").update({
+                status: "pendiente",
+                whatsapp_estado: null,
+                error_message: null,
+                whatsapp_failed_detail: null,
+                wati_local_message_id: null,
+                metadata: {
+                  ...(r.log.metadata ?? {}),
+                  provider: "wati",
+                  wati_throttled_at: new Date().toISOString(),
+                },
+              }).eq("id", r.log.id);
+            }
+            console.warn("[send-whatsapp] spam-rate aborted after 3 hits, leaving rest pending");
+            break;
+          }
+
+          // Pausa creciente: 90s → 5min
+          const pauseMs = spamHits === 1 ? 90_000 : 300_000;
+          console.warn(`[send-whatsapp] spam-rate hit #${spamHits}, pausing ${pauseMs / 1000}s`);
+          await sleep(pauseMs);
+          pausedSecondsTotal += pauseMs / 1000;
+          // Reintentar este mismo log
+          i--;
+          continue;
+        }
+
         const detail = noCredits ? NO_CREDITS_MSG : (res.errorDetail ?? "Error desconocido de Wati");
         await supabase.from("communication_logs").update({
           status: "fallido",
@@ -598,7 +653,18 @@ async function processWatiBatch(
           break;
         }
       }
-      if (i < prepared.length - 1 && delayMs > 0) await sleep(delayMs);
+      // Ritmo anti-spam: delay base + jitter, pausa larga cada batchSize
+      if (i < prepared.length - 1) {
+        const isBatchBoundary = (i + 1) % cfg.batchSize === 0;
+        if (isBatchBoundary && cfg.batchPauseMs > 0) {
+          await sleep(cfg.batchPauseMs);
+        } else {
+          const jitter = cfg.jitterMs > 0
+            ? Math.floor((Math.random() - 0.5) * 2 * cfg.jitterMs)
+            : 0;
+          await sleep(Math.max(50, cfg.delayMs + jitter));
+        }
+      }
     }
   } else {
     // Batch
