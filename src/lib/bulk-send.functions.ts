@@ -141,6 +141,9 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       person_id: string;
       status: string;
       confirmation_token: string | null;
+      seat_zone: string | null;
+      seat_row: string | null;
+      seat_number: string | null;
       people:
         | { first_name: string; last_name: string | null; email: string | null; phone: string | null }
         | null;
@@ -152,7 +155,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         for (const ids of chunk(data.participant_ids, 100)) {
           const { data: rows, error } = await supabase
             .from("event_participants")
-            .select("id, person_id, status, confirmation_token, people(first_name,last_name,email,phone)")
+            .select("id, person_id, status, confirmation_token, seat_zone, seat_row, seat_number, people(first_name,last_name,email,phone)")
             .in("id", ids);
           if (error) throw new Error(error.message);
           participants = participants.concat((rows ?? []) as unknown as PartRow[]);
@@ -160,7 +163,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       } else {
         let pq = supabase
           .from("event_participants")
-          .select("id, person_id, status, confirmation_token, people(first_name,last_name,email,phone)")
+          .select("id, person_id, status, confirmation_token, seat_zone, seat_row, seat_number, people(first_name,last_name,email,phone)")
           .eq("event_id", data.event_id);
         if (data.session_id) pq = pq.eq("session_id", data.session_id);
         const { data: rows, error } = await pq.limit(5000);
