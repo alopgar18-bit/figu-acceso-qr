@@ -561,6 +561,9 @@ export const resendInvitations = createServerFn({ method: "POST" })
       event_id: string;
       session_id: string;
       confirmation_token: string | null;
+      seat_zone: string | null;
+      seat_row: string | null;
+      seat_number: string | null;
       people:
         | { first_name: string; last_name: string | null; email: string | null; phone: string | null }
         | null;
@@ -582,7 +585,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
       const { data: rows, error } = await supabase
         .from("event_participants")
         .select(
-          "id, person_id, event_id, session_id, confirmation_token, people(first_name,last_name,email,phone), events(name,location_name,location_address), event_sessions(name,starts_at,ends_at,doors_open_at,location_name,location_address)",
+          "id, person_id, event_id, session_id, confirmation_token, seat_zone, seat_row, seat_number, people(first_name,last_name,email,phone), events(name,location_name,location_address), event_sessions(name,starts_at,ends_at,doors_open_at,location_name,location_address)",
         )
         .in("id", ids);
       if (error) throw new Error(error.message);
