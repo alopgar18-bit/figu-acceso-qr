@@ -274,6 +274,60 @@ function QueuePage() {
     }
   };
 
+  const recoverUnauthorizedFailures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("communication_logs")
+        .select("id")
+        .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+        .eq("status", "fallido")
+        .eq("error_message", "wati_unauthorized");
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ id: string }>;
+      if (rows.length === 0) {
+        toast.message("No hay WhatsApps fallidos por token caducado.");
+        return;
+      }
+      const ids = rows.map((r) => r.id);
+      const { error: updErr } = await supabase
+        .from("communication_logs")
+        .update({
+          status: "pendiente",
+          whatsapp_estado: null,
+          whatsapp_failed_detail: null,
+          whatsapp_failed_code: null,
+          wati_local_message_id: null,
+          error_message: null,
+        })
+        .in("id", ids);
+      if (updErr) throw updErr;
+      toast.success(`${ids.length} WhatsApps devueltos a pendiente. Pulsa "Enviar TODA la cola WhatsApp" para relanzar.`);
+      await refetch();
+      await refreshPendingCount();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const testWatiConnection = async () => {
+    setTestingWati(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { action: "test" },
+      });
+      if (error) throw error;
+      if (data?.ok === true) {
+        toast.success(data.message ?? "Conexión Wati OK.");
+      } else {
+        toast.error(data?.message ?? "Wati no responde correctamente.", { duration: 12000 });
+      }
+    } catch (e) {
+      toast.error(`Error al probar Wati: ${(e as Error).message}`);
+    } finally {
+      setTestingWati(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     if (!search.trim()) return logs;
     const q = search.toLowerCase();
