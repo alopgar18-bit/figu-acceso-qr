@@ -20,6 +20,7 @@ import { retryCommunication } from "@/lib/bulk-send.functions";
 import { useArchiveCommunicationLogs, useDeleteCommunicationLogs } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 import { CommLogDetailDialog, type CommLogDetail } from "@/components/comm-log-detail-dialog";
+import { WhatsappQueueStatusBanner } from "@/components/whatsapp-queue-status-banner";
 
 export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
   component: QueuePage,
@@ -513,6 +514,8 @@ function QueuePage() {
           </CardContent>
         </Card>
       )}
+
+      <WhatsappQueueStatusBanner />
 
       {bgBatch && (
         <Card className="mb-4 border-primary/40">
