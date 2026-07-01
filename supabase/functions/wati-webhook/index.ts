@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
           .in("channel", ["whatsapp_business", "whatsapp_asistido"])
           .eq("status", "fallido")
           .ilike("whatsapp_failed_detail", "%Spam Rate limit hit%")
-          .gte("updated_at", sinceIso);
+          .gte("whatsapp_last_event_at", sinceIso);
         if ((count ?? 0) >= 3) {
           const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
           await supabase.from("whatsapp_drain_locks").upsert({
