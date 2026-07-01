@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
+import DOMPurify from "isomorphic-dompurify";
 import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users, Armchair } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -214,7 +215,7 @@ function Page() {
                 const Icon = NOTICE_ICON_MAP[n.icon as TicketNoticeIcon] ?? AlertCircle;
                 return (
                   <Notice key={i} icon={<Icon className="h-3.5 w-3.5" />}>
-                    <span dangerouslySetInnerHTML={{ __html: n.text }} />
+                    <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(n.text) }} />
                   </Notice>
                 );
               })}
