@@ -463,7 +463,7 @@ function QueuePage() {
                 ? "Enviando WhatsApps…"
                 : selectedIds.length > 0
                   ? `Enviar ${selectedIds.length} WhatsApps seleccionados`
-                  : `Enviar TODA la cola WhatsApp${pendingWaCount != null ? ` (${pendingWaCount}) · ~45/min` : ""}`}
+                  : `Enviar TODA la cola WhatsApp${pendingWaCount != null ? ` (${pendingWaCount}) · ~20/min` : ""}`}
             </Button>
             <Button onClick={testWatiConnection} disabled={testingWati} variant="outline" title="Hace una llamada de prueba a Wati para verificar que el token es válido, sin enviar mensajes.">
               <PlugZap className="h-4 w-4 mr-2" />
