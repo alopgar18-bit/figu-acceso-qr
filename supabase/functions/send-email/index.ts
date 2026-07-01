@@ -2,6 +2,7 @@
 // Procesa los communication_logs en estado 'pendiente' del canal 'email'
 // y los envía vía Resend, actualizando status a 'enviado' o 'fallido'.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/require-admin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,16 @@ const corsHeaders = {
 
 // Remitente por defecto (dominio verificado en Resend)
 const DEFAULT_FROM_ADDRESS = "FIGURARTE Casting & Producción <casting@figurarte.app>";
+
+// Lista blanca de remitentes permitidos (dominios verificados).
+// Cualquier override de `from` que no coincida se ignora silenciosamente.
+const ALLOWED_FROM_DOMAINS = ["figurarte.app"];
+function isAllowedFrom(from: string): boolean {
+  const match = from.match(/<([^>]+)>\s*$/);
+  const email = (match ? match[1] : from).trim().toLowerCase();
+  const domain = email.split("@")[1];
+  return !!domain && ALLOWED_FROM_DOMAINS.includes(domain);
+}
 
 function formatMadridTime(value?: string | null): string {
   if (!value) return "";
@@ -146,6 +157,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    // Auth: solo administradores autenticados pueden invocar esta función.
+    const auth = await requireAdmin(req, corsHeaders);
+    if (!auth.ok) return auth.response;
+
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -169,8 +184,9 @@ Deno.serve(async (req) => {
     const limit = Math.min(Math.max(body.limit ?? 100, 1), 1000);
     const batchSize = Math.min(Math.max(body.batch_size ?? 100, 1), 200);
     const delayMs = Math.min(Math.max(body.delay_ms ?? 500, 0), 10000);
-    const fromAddress = (body.from && typeof body.from === "string" && body.from.trim().length > 0)
-      ? body.from.trim()
+    const requestedFrom = (body.from && typeof body.from === "string") ? body.from.trim() : "";
+    const fromAddress = requestedFrom && isAllowedFrom(requestedFrom)
+      ? requestedFrom
       : DEFAULT_FROM_ADDRESS;
 
     // Resolver logs: si vienen ids explícitos los usamos, si no paginamos TODOS los pendientes.
