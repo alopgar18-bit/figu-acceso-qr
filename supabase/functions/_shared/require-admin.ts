@@ -41,15 +41,15 @@ export async function requireAdmin(
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: isAdmin, error: roleErr } = await admin.rpc("has_role", {
+  const { data: isStaff, error: roleErr } = await admin.rpc("has_any_role", {
     _user_id: userId,
-    _role: "admin",
+    _roles: ["superadmin", "admin_figurarte", "coordinador"],
   });
-  if (roleErr || !isAdmin) {
+  if (roleErr || !isStaff) {
     return {
       ok: false,
       response: new Response(
-        JSON.stringify({ error: "Forbidden: admin role required" }),
+        JSON.stringify({ error: "Forbidden: staff role required (superadmin, admin_figurarte, coordinador)" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       ),
     };
