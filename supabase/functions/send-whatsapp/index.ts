@@ -5,6 +5,7 @@
 // cuando se valide el cambio en producción).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizarTelefonoES } from "../_shared/phone.ts";
+import { requireAdmin } from "../_shared/require-admin.ts";
 import {
   buildWatiParameters,
   formatFechaLarga,
@@ -38,6 +39,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    // Auth: solo administradores autenticados pueden invocar esta función.
+    const auth = await requireAdmin(req, corsHeaders);
+    if (!auth.ok) return auth.response;
+
     const PROVIDER = (Deno.env.get("WHATSAPP_PROVIDER") ?? "wassenger").toLowerCase();
     const WASSENGER_API_KEY = Deno.env.get("WASSENGER_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

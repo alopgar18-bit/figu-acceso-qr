@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import DOMPurify from "isomorphic-dompurify";
 import { COMM_CHANNEL_OPTIONS, COMM_STATUS_OPTIONS, type CommChannel, type CommStatus } from "@/lib/communication-constants";
 
 export interface CommLogDetail {
@@ -77,7 +78,7 @@ export function CommLogDetailDialog({
               <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Cuerpo</div>
               <div className="border rounded-md p-3 bg-muted/30 max-h-72 overflow-y-auto">
                 {/<\/?[a-z][\s\S]*>/i.test(log.body) ? (
-                  <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: log.body }} />
+                  <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(log.body) }} />
                 ) : (
                   <pre className="whitespace-pre-wrap text-sm font-sans">{log.body}</pre>
                 )}
