@@ -61,7 +61,7 @@ function ImportWizardPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [defaultStatus, setDefaultStatus] = useState<ParticipantStatus>("pendiente_revision");
   const [defaultAttendeeType, setDefaultAttendeeType] = useState<AttendeeType>("publico");
-  const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>("update_person");
+  const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>("suffix_distinct");
   const [mapping, setMapping] = useState<Record<string, TargetField | "">>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Awaited<ReturnType<typeof commitImport>> | null>(null);
@@ -320,6 +320,7 @@ function ImportWizardPage() {
           onPreflight={preflightDuplicates}
           defaultStatus={defaultStatus}
           duplicateStrategy={duplicateStrategy}
+          setDuplicateStrategy={setDuplicateStrategy}
           resolved={resolved}
         />
       )}
@@ -526,7 +527,13 @@ function ConfigStep(props: {
             </Select>
           </div>
           <div>
-            <Label>Duplicados</Label>
+            <Label className="flex items-center gap-1">
+              Duplicados por nombre+apellido
+              {(props.duplicateStrategy === "update_person" ||
+                props.duplicateStrategy === "skip") && (
+                <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+              )}
+            </Label>
             <Select value={props.duplicateStrategy} onValueChange={(v) => props.setDuplicateStrategy(v as DuplicateStrategy)}>
               <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -646,6 +653,7 @@ function ValidationStep({
   onPreflight,
   defaultStatus,
   duplicateStrategy,
+  setDuplicateStrategy,
   resolved,
 }: {
   normalized: { rows: Array<Record<string, unknown> & { rowIndex: number }>; errors: Array<{ row: number; msg: string }> };
@@ -654,11 +662,16 @@ function ValidationStep({
   onPreflight: () => void;
   defaultStatus: ParticipantStatus;
   duplicateStrategy: DuplicateStrategy;
+  setDuplicateStrategy: (v: DuplicateStrategy) => void;
   resolved: Record<FieldKey, FieldRule> | null;
 }) {
   const preview = normalized.rows.slice(0, 20);
   const errSet = new Set(normalized.errors.map((e) => e.row));
   void resolved;
+  const willOverwrite =
+    duplicateHits !== null &&
+    duplicateHits > 0 &&
+    (duplicateStrategy === "update_person" || duplicateStrategy === "skip");
   return (
     <div className="space-y-6">
       <div className="grid gap-3 md:grid-cols-4">
@@ -672,6 +685,33 @@ function ValidationStep({
           action={<Button size="sm" variant="outline" onClick={onPreflight}>Comprobar</Button>}
         />
       </div>
+
+      {willOverwrite && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>
+            {duplicateHits} filas con nombre+apellido ya existentes en esta sesión
+          </AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              Estrategia actual: <strong>{DUPLICATE_STRATEGIES.find((d) => d.value === duplicateStrategy)?.label}</strong>.
+              {" "}
+              {duplicateStrategy === "update_person"
+                ? "Estas filas se fusionarán con la persona existente y su asiento se sobrescribirá con el de la fila importada (podría dejar butacas huérfanas en el plano)."
+                : "Estas filas se saltarán sin importar."}
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setDuplicateStrategy("suffix_distinct")}
+              >
+                Cambiar a "Tratar como personas distintas (VIS 2, VIS 3…)"
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {IMPORT_QR_STATES.includes(defaultStatus) && (
         <Alert>
