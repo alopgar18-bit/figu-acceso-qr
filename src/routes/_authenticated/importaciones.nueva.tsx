@@ -527,7 +527,13 @@ function ConfigStep(props: {
             </Select>
           </div>
           <div>
-            <Label>Duplicados</Label>
+            <Label className="flex items-center gap-1">
+              Duplicados por nombre+apellido
+              {(props.duplicateStrategy === "update_person" ||
+                props.duplicateStrategy === "skip") && (
+                <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+              )}
+            </Label>
             <Select value={props.duplicateStrategy} onValueChange={(v) => props.setDuplicateStrategy(v as DuplicateStrategy)}>
               <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
               <SelectContent>
