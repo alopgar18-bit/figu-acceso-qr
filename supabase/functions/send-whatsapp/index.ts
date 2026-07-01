@@ -404,7 +404,7 @@ async function processWatiBatch(
   token: string,
   publicSiteUrl: string,
   cfg: { delayMs: number; jitterMs: number; batchSize: number; batchPauseMs: number } = {
-    delayMs: 1300, jitterMs: 250, batchSize: 40, batchPauseMs: 10000,
+    delayMs: 3000, jitterMs: 600, batchSize: 20, batchPauseMs: 15000,
   },
 ) {
 
