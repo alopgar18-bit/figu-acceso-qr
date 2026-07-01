@@ -10,9 +10,12 @@ interface Status {
   lockActive: boolean;
   lockExpiresAt: string | null;
   lockAcquiredAt: string | null;
+  spamPauseActive: boolean;
+  spamPauseUntil: string | null;
   pending: number;
   sentRecent: number;
   failedRecent: number;
+  spamFailedRecent: number;
   lastSentAt: string | null;
   ratePerMin: number;
 }
@@ -31,20 +34,27 @@ export function WhatsappQueueStatusBanner() {
 
   const load = async () => {
     const sinceIso = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const [lockRes, pendRes, sentRes, failRes, lastRes] = await Promise.all([
+    const since24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const [lockRes, spamLockRes, pendRes, sentRes, failRes, spamFailRes, lastRes] = await Promise.all([
       supabase.from("whatsapp_drain_locks").select("acquired_at, expires_at").eq("lock_key", "wati_drain").maybeSingle(),
+      supabase.from("whatsapp_drain_locks").select("acquired_at, expires_at").eq("lock_key", "wati_spam_pause").maybeSingle(),
       supabase.from("communication_logs").select("id", { count: "exact", head: true })
         .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "pendiente"),
       supabase.from("communication_logs").select("id", { count: "exact", head: true })
         .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "enviado").gte("sent_at", sinceIso),
       supabase.from("communication_logs").select("id", { count: "exact", head: true })
         .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "fallido").gte("created_at", sinceIso),
+      supabase.from("communication_logs").select("id", { count: "exact", head: true })
+        .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "fallido")
+        .ilike("whatsapp_failed_detail", "%Spam Rate limit hit%").gte("created_at", since24hIso),
       supabase.from("communication_logs").select("sent_at")
         .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "enviado")
         .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const lock = lockRes.data as { acquired_at: string; expires_at: string } | null;
     const lockActive = !!lock && new Date(lock.expires_at).getTime() > Date.now();
+    const spamLock = spamLockRes.data as { acquired_at: string; expires_at: string } | null;
+    const spamPauseActive = !!spamLock && new Date(spamLock.expires_at).getTime() > Date.now();
     // Rate: enviados en los últimos 5 min
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { count: last5 } = await supabase.from("communication_logs").select("id", { count: "exact", head: true })
@@ -53,9 +63,12 @@ export function WhatsappQueueStatusBanner() {
       lockActive,
       lockAcquiredAt: lock?.acquired_at ?? null,
       lockExpiresAt: lock?.expires_at ?? null,
+      spamPauseActive,
+      spamPauseUntil: spamLock?.expires_at ?? null,
       pending: pendRes.count ?? 0,
       sentRecent: sentRes.count ?? 0,
       failedRecent: failRes.count ?? 0,
+      spamFailedRecent: spamFailRes.count ?? 0,
       lastSentAt: (lastRes.data as { sent_at: string | null } | null)?.sent_at ?? null,
       ratePerMin: Math.round(((last5 ?? 0) / 5) * 10) / 10,
     });
@@ -69,7 +82,7 @@ export function WhatsappQueueStatusBanner() {
 
   if (!st) return null;
   // No mostrar el banner si no hay nada en juego.
-  if (!st.lockActive && st.pending === 0 && st.sentRecent === 0) return null;
+  if (!st.lockActive && !st.spamPauseActive && st.pending === 0 && st.sentRecent === 0 && st.spamFailedRecent === 0) return null;
 
   const lastSentMs = st.lastSentAt ? Date.now() - new Date(st.lastSentAt).getTime() : null;
   const stalled = st.lockActive && (lastSentMs == null || lastSentMs > 3 * 60 * 1000);
@@ -110,18 +123,35 @@ export function WhatsappQueueStatusBanner() {
     }
   };
 
+  const releaseSpamPause = async () => {
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", "wati_spam_pause");
+      if (error) throw error;
+      toast.success("Pausa por spam liberada manualmente. Puedes relanzar la cola.");
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const tone =
-    state === "active"
+    st.spamPauseActive
+      ? "border-orange-500/60 bg-orange-50 dark:bg-orange-950/30"
+      : state === "active"
       ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30"
       : state === "stalled"
       ? "border-amber-500/60 bg-amber-50 dark:bg-amber-950/30"
       : "border-slate-300 bg-slate-50 dark:bg-slate-900/30";
 
   const dot =
-    state === "active" ? "bg-emerald-500 animate-pulse" : state === "stalled" ? "bg-amber-500" : "bg-slate-400";
+    st.spamPauseActive ? "bg-orange-500" : state === "active" ? "bg-emerald-500 animate-pulse" : state === "stalled" ? "bg-amber-500" : "bg-slate-400";
 
   const label =
-    state === "active" ? "Envío masivo WhatsApp en curso"
+    st.spamPauseActive ? "Cola WhatsApp pausada — Wati marcó envíos como spam"
+    : state === "active" ? "Envío masivo WhatsApp en curso"
     : state === "stalled" ? "Envío masivo WhatsApp detenido"
     : st.pending > 0 ? "Hay WhatsApps pendientes sin enviar" : "Sin envíos activos";
 
@@ -137,13 +167,21 @@ export function WhatsappQueueStatusBanner() {
             <div>
               <div className="font-semibold text-sm">{label}</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {st.lockActive
+                {st.spamPauseActive && st.spamPauseUntil
+                  ? <>Reanuda automáticamente a las <strong>{new Date(st.spamPauseUntil).toLocaleTimeString("es-ES")}</strong>. Wati bloquea envíos si detecta ráfagas.</>
+                  : st.lockActive
                   ? <>Worker activo desde {fmtAgo(st.lockAcquiredAt)} · último envío {fmtAgo(st.lastSentAt)}</>
                   : <>Sin worker activo · último envío {fmtAgo(st.lastSentAt)}</>}
               </div>
             </div>
           </div>
           <div className="flex gap-2">
+            {st.spamPauseActive && (
+              <Button size="sm" variant="outline" onClick={releaseSpamPause} disabled={busy}
+                title="Elimina la pausa automática por spam. Solo úsalo si sabes que Wati ya no está bloqueando.">
+                <Unlock className="h-3.5 w-3.5 mr-1" />Reanudar ahora
+              </Button>
+            )}
             {(state === "stalled" || (!st.lockActive && st.pending > 0)) && (
               <Button size="sm" onClick={resume} disabled={busy}>
                 <Play className="h-3.5 w-3.5 mr-1" />Reanudar cola
@@ -163,6 +201,9 @@ export function WhatsappQueueStatusBanner() {
           <span className="text-emerald-700 dark:text-emerald-400">Enviados (2h): <strong>{st.sentRecent}</strong></span>
           <span className="text-muted-foreground">Pendientes: <strong>{st.pending}</strong></span>
           <span className="text-red-700 dark:text-red-400">Fallidos (2h): <strong>{st.failedRecent}</strong></span>
+          {st.spamFailedRecent > 0 && (
+            <span className="text-orange-700 dark:text-orange-400">Spam Wati (24h): <strong>{st.spamFailedRecent}</strong></span>
+          )}
           <span className="text-muted-foreground">Ritmo: <strong>{st.ratePerMin}</strong> msg/min</span>
           {etaMin != null && <span className="text-muted-foreground">ETA: <strong>~{etaMin} min</strong></span>}
           {state === "stalled" && (
