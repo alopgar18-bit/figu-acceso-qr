@@ -150,6 +150,16 @@ Deno.serve(async (req) => {
       // Reflejar también en el status general de la fila
       update.status = "fallido";
       update.error_message = update.whatsapp_failed_detail ?? "WhatsApp failed";
+      // Circuit breaker por spam: si Wati marca "Spam Rate limit hit",
+      // etiquetamos y contamos incidencias recientes para pausar la cola.
+      const detail = String(update.whatsapp_failed_detail ?? "");
+      if (/spam.*rate.*limit/i.test(detail)) {
+        update.metadata = {
+          ...(update.metadata as Record<string, unknown>),
+          wati_error_code: "WATI_SPAM_RATELIMIT",
+          wati_spam_at: new Date().toISOString(),
+        };
+      }
     } else if (current !== "failed") {
       // Solo refrescamos `status` general si no estábamos en failed.
       // sent/delivered/read/replied → status='enviado'
@@ -162,6 +172,32 @@ Deno.serve(async (req) => {
       .eq("id", log.id);
     if (upErr) { console.error("[wati-webhook] update error", upErr.message); continue; }
     summary.updated++;
+
+    // Tras registrar un fallo por spam, evaluamos ventana de 2 min.
+    if (incoming === "failed" && /spam.*rate.*limit/i.test(String(update.whatsapp_failed_detail ?? ""))) {
+      try {
+        const sinceIso = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        const { count } = await supabase
+          .from("communication_logs")
+          .select("id", { count: "exact", head: true })
+          .in("channel", ["whatsapp_business", "whatsapp_asistido"])
+          .eq("status", "fallido")
+          .ilike("whatsapp_failed_detail", "%Spam Rate limit hit%")
+          .gte("updated_at", sinceIso);
+        if ((count ?? 0) >= 3) {
+          const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+          await supabase.from("whatsapp_drain_locks").upsert({
+            lock_key: "wati_spam_pause",
+            acquired_at: new Date().toISOString(),
+            acquired_by: "wati_webhook_spam_breaker",
+            expires_at: expiresAt,
+          });
+          console.warn(`[wati-webhook] SPAM burst detected (${count} in 2min) → cola pausada hasta ${expiresAt}`);
+        }
+      } catch (e) {
+        console.error("[wati-webhook] spam-breaker error", (e as Error).message);
+      }
+    }
   }
 
   console.log("[wati-webhook] summary", summary);
