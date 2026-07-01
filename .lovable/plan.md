@@ -1,64 +1,49 @@
-## Lo que he encontrado para la sesión "Grabación 2 de julio"
+## Qué está pasando
 
-He revisado los 4 batches de importación de asientos (los 3.802 del 29-jun no traían asiento, así que esos duplicados sin asiento no dejan butaca vacía).
+La opción **"Tratar como personas distintas (VIS 2, VIS 3…)"** SÍ existe en el wizard de `Importaciones → Nueva importación`, en el paso **"Reglas de importación"** → desplegable **"Duplicados"** (tercera columna, a la derecha de "Estado inicial" y "Tipo de asistente").
 
-**35 nombres se importaron por duplicado** (mismo nombre+apellido, ignorando mayúsculas y espacios). En todos los casos del bug: la primera fila creó/asignó un asiento al participante existente, y la segunda fila — al hacer match por nombre+apellido — sobrescribió ese asiento con el de la segunda fila. **El primer asiento queda vacío en el plano**.
+El problema es que:
+- El **valor por defecto** del desplegable es `"Actualizar persona global"` (`update_person`), no VIS.
+- Ese modo hace exactamente lo que has visto: cuando llega una fila con un nombre+apellido ya existente en la sesión, **sobrescribe** el asiento del anterior en vez de crear una persona nueva.
+- La opción de duplicados está en la misma tarjeta que "Estado inicial", visualmente poco destacada, así que en un import rápido pasa desapercibida y te quedas con el default.
 
-### Asientos "huérfanos" (los que se ven libres y no deberían) — 16 casos con asiento
+O sea: el código funciona bien si eliges VIS, pero por defecto no lo estás eligiendo y no hay ningún aviso previo de "vas a sobrescribir N filas".
+
+## Qué propongo cambiar
+
+### 1. Cambiar el default a "VIS" (más seguro)
+En `src/routes/_authenticated/importaciones.nueva.tsx` cambiar:
+```
+useState<DuplicateStrategy>("update_person")  →  useState<DuplicateStrategy>("suffix_distinct")
+```
+Así, salvo que el usuario elija explícitamente otra cosa, los duplicados siempre se crean como personas distintas y **nunca se pierde un asiento** por colisión de nombre.
+
+### 2. Aviso claro antes de importar
+En el paso final ("Confirmar e importar") añadir un recuadro amarillo/rojo cuando el fichero contenga colisiones de nombre+apellido (con el propio fichero o con el roster de la sesión):
 
 ```
-BATCH 1 — OKK BBDD General_Publico_2jl (1c4207cc…)
-  Ana Piñero Domínguez         → vacía: Platea puerta 3 · F25 · A7   (ocupa F24 A25)
-  David Pozo Fernandez         → vacía: Platea puerta 3 · F26 · A14  (ocupa F24 A18)
-  Inmaculada Sosa Borrego      → vacía: Platea puerta 3 · F19 · A12  (ocupa F19 A11)
-  Juan Felipe Vazquez          → vacía: Platea puerta 3 · F20 · A7   (ocupa F20 A30)
-  Kenia Arjona Dorado          → vacía: Platea puerta 3 · F21 · A2   (ocupa F22 A3)
-  Pedro González León          → vacía: Platea puerta 3 · F20 · A16  (ocupa Placo 6y7 F3 A9)
-
-BATCH 2 — Bus Puebla de Cazalla (8d6e0d43…)
-  Miguel Luque Luque           → vacía: Platea puerta 3 · F6 · A29   (ocupa F7 A41)
-  Raquel Cabello Berlanga      → vacía: Platea puerta 3 · F8 · A36   (ocupa F8 A32)
-
-BATCH 3 — Invitados 16 Escalones (e42c3af7…)
-  Alberto Garrido Mata         → vacía: Platea puerta 2 · F5 · A26   (ocupa F6 A2)
-  Andrea Albalat Carmona       → vacía: Platea puerta 2 · F5 · A11   (ocupa F6 A1)
-  Ángeles Pavón Vázquez        → vacía: Platea puerta 2 · F5 · A25   (ocupa F7 A7)
-  Carmen Vera Galindo          → vacía: Platea puerta 2 · F9 · A29   (ocupa F10 A36)
-  Emilio Cano Rueda            → vacía: Platea puerta 2 · F8 · A16   (ocupa F10 A35)
-  Habiba Yahi                  → vacía: Platea puerta 2 · F5 · A9    (ocupa F7 A5)
-  Jade García Pavón            → vacía: Platea puerta 2 · F5 · A24   (ocupa F7 A8)
-  Juan Bautista Bermejo García → vacía: Platea puerta 2 · F9 · A28   (ocupa F10 A38)
-  María José Villegas Pineda   → vacía: Platea puerta 2 · F5 · A12   (ocupa F7 A11)
-  Miguel Ángel Labrador Labrador → vacía: Platea puerta 2 · F5 · A23 (ocupa F7 A3)
-  Pablo Garrido Díaz           → vacía: Platea puerta 2 · F5 · A10   (ocupa F7 A10)
-  Pablo Márquez                → vacía: Platea puerta 2 · F8 · A21   (ocupa F10 A31)
-  Raquel Díaz Silva            → vacía: Platea puerta 2 · F5 · A22   (ocupa F7 A9)
+⚠️  Hemos detectado 12 filas con nombre y apellidos que coinciden con
+    personas ya existentes en esta sesión.
+    Estrategia actual: [Actualizar persona global]
+        → Los 12 se fusionarán con la persona existente y su asiento
+          se sobrescribirá con el de la fila importada.
+    [Cambiar a "Tratar como personas distintas (VIS 2, VIS 3…)"]
 ```
+El botón cambia el desplegable sin salir del paso. Cálculo del contador: reutilizar el `nameToPersonId` que ya monta `imports.functions.ts` en un `previewDuplicates` server fn ligero (solo cuenta, no escribe).
 
-Además, en el batch BBDD_ok (3.802) hay 19 nombres duplicados sin asiento (no afectan al plano, solo es que una de las dos personas no se importó como registro separado — siguen siendo 1 persona en BBDD en lugar de 2).
+### 3. Etiqueta más visible del selector
+Renombrar la label del desplegable de `Duplicados` → `Duplicados por nombre+apellido` y añadir un icono ⚠️ al lado cuando el valor sea `update_person` o `new_participation`, con tooltip "Puede sobrescribir asientos".
 
-## Qué propongo hacer ahora (sesión del 2 de julio)
+### 4. Mismo comportamiento en "Importar asientos" rápido
+`src/components/seat-import-dialog.tsx` (el botón del plano) hoy no tiene selector de duplicados y siempre actualiza por nombre. Añadir el mismo selector con default `suffix_distinct` para que el flujo rápido tampoco pise asientos.
 
-1. **Genero Excel `huerfanos_2julio.xlsx`** con las 35 filas afectadas: nombre, apellido, batch, asiento original (vacío) y asiento final (ocupado), para que decidas en cada caso.
-2. **Para cada uno de los 21 con asiento**, dos posibles correcciones — necesito que me digas cuál:
-   - **A) Son la misma persona** (duplicado real del fichero): dejar como está, marcar el asiento "huérfano" como libre real en el plano y reasignable.
-   - **B) Son dos personas distintas** (mismo nombre+apellido por casualidad / familiares): crear el segundo participante a mano con el asiento original y reenviar QR solo a ese nuevo (la persona ya importada conserva su URL).
-   La forma rápida: te paso el Excel, marcas A/B en una columna y yo ejecuto el SQL.
+### 5. Post-import: seguir mostrándolo en el resumen
+El resumen del batch ya audita `sufijo VIS aplicado por duplicado nombre+apellido` en `import_row_results.match_reason`. Añadir en la pantalla del batch un contador destacado:
+- "X personas creadas con sufijo VIS por duplicado — revísalas para confirmar si son la misma persona o dos distintas".
 
-## Mejora futura: sufijo "VIS 1 / VIS 2" en importación
+## Qué NO cambia
+- El modo `update_person` sigue disponible para quien realmente quiera actualizar contactos (email/tel/etc.) sin crear duplicados.
+- El sufijo VIS sigue viviendo solo en BBDD; el saludo de plantillas usa el primer token del apellido, así el asistente nunca ve "VIS 2".
+- No se toca la importación que acabas de hacer — para esa te preparo aparte el Excel de huérfanos como el del 2 de julio y aplicamos SQL, si me confirmas de qué sesión/batch es.
 
-Añadir al diálogo de importación una opción **"Tratar duplicados nombre+apellido como personas distintas"** con dos modos:
-
-- **Modo actual (por defecto):** match por nombre+apellido → update (lo que hace hoy).
-- **Modo nuevo "Personas distintas":** si dentro del mismo fichero aparece un nombre+apellido ya visto, al segundo se le añade automáticamente `VIS 2` al apellido (`VIS 3`, `VIS 4`…). Así el match falla y se crea como participante nuevo con su propio asiento y su propia URL/QR.
-  - El sufijo aparece **solo internamente** (apellido en BBDD), no en la plantilla del WhatsApp/email enviados al asistente (el saludo seguirá usando solo el primer apellido, o el campo "nombre visible").
-  - Se muestra en el resumen post-importación: "X duplicados detectados, marcados como VIS 2/VIS 3 — revisa si son la misma persona".
-
-### Detalles técnicos
-
-- `src/lib/imports.functions.ts`: añadir flag `duplicate_handling: 'update' | 'suffix'` al payload, mantener un `Map<fn+ln, count>` durante el proceso del batch, y al insertar aplicar el sufijo si `count > 1`.
-- `src/components/seat-import-dialog.tsx` (y/o el diálogo de importación de asistentes): añadir un checkbox "Tratar duplicados como personas distintas (VIS 2, VIS 3…)" con tooltip explicativo.
-- `import_row_results.match_reason`: añadir nuevo valor `'sufijo VIS aplicado'` para que sea auditable.
-- Saludo en plantillas: usar `first_name` + primer token de `last_name` (ya lo hace), así "VIS 2" no se cuela en el mensaje.
-
-¿Lo lanzo así? (1º genero el Excel de huérfanos para hoy, 2º implemento el modo VIS para próximas importaciones)
+¿Lo aplico así? Si prefieres que el default siga siendo `update_person` y solo añadamos el aviso + botón de cambio, dímelo y lo dejo como opción explícita.
