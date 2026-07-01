@@ -170,6 +170,7 @@ function QueuePage() {
           try {
             const j = await ctx.json();
             if (j?.busy) busyMsg = j.message ?? "Ya hay un envío en curso.";
+            else if (j?.paused) busyMsg = j.message ?? "Cola pausada por Wati (spam rate limit).";
           } catch (_) { /* ignore */ }
         }
         if (busyMsg) {
@@ -182,6 +183,8 @@ function QueuePage() {
         toast.message(data.message ?? "Wassenger no configurado");
       } else if (data?.busy === true) {
         toast.message(data.message ?? "Ya hay un envío en curso.", { duration: 10000 });
+      } else if (data?.paused === true) {
+        toast.message(data.message ?? "Cola pausada por Wati (spam rate limit).", { duration: 12000 });
       } else if (data?.background === true) {
         toast.success(
           data.message ??
@@ -463,7 +466,7 @@ function QueuePage() {
                 ? "Enviando WhatsApps…"
                 : selectedIds.length > 0
                   ? `Enviar ${selectedIds.length} WhatsApps seleccionados`
-                  : `Enviar TODA la cola WhatsApp${pendingWaCount != null ? ` (${pendingWaCount}) · ~45/min` : ""}`}
+                  : `Enviar TODA la cola WhatsApp${pendingWaCount != null ? ` (${pendingWaCount}) · ~20/min` : ""}`}
             </Button>
             <Button onClick={testWatiConnection} disabled={testingWati} variant="outline" title="Hace una llamada de prueba a Wati para verificar que el token es válido, sin enviar mensajes.">
               <PlugZap className="h-4 w-4 mr-2" />

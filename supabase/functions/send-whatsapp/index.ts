@@ -270,13 +270,35 @@ async function runWati(
   // Permitimos hasta 5000 por invocación para drenar TODA la cola.
   const limit = Math.min(Math.max(body.limit ?? 5000, 1), 5000);
 
-  // Parámetros de ritmo (anti-spam Wati). Defaults: ~45 msg/min.
+  // Parámetros de ritmo (anti-spam Wati). Defaults: ~18-20 msg/min.
+  // Wati marca como spam envíos por encima de ~30 msg/min sostenidos.
   const cfg = {
-    delayMs: Math.min(Math.max(body.delay_ms ?? 1300, 200), 10000),
-    jitterMs: Math.min(Math.max(body.jitter_ms ?? 250, 0), 2000),
-    batchSize: Math.min(Math.max(body.batch_size ?? 40, 1), 200),
-    batchPauseMs: Math.min(Math.max(body.batch_pause_ms ?? 10000, 0), 120000),
+    delayMs: Math.min(Math.max(body.delay_ms ?? 3000, 200), 10000),
+    jitterMs: Math.min(Math.max(body.jitter_ms ?? 600, 0), 2000),
+    batchSize: Math.min(Math.max(body.batch_size ?? 20, 1), 200),
+    batchPauseMs: Math.min(Math.max(body.batch_pause_ms ?? 15000, 0), 120000),
   };
+
+  // Comprobar lock de pausa por spam antes de arrancar.
+  const { data: spamLock } = await supabase
+    .from("whatsapp_drain_locks")
+    .select("expires_at")
+    .eq("lock_key", "wati_spam_pause")
+    .maybeSingle();
+  const spamLockActive = !!spamLock && new Date((spamLock as { expires_at: string }).expires_at).getTime() > Date.now();
+  if (spamLockActive) {
+    return new Response(
+      JSON.stringify({
+        configured: true,
+        provider: "wati",
+        paused: true,
+        pause_reason: "WATI_SPAM_BURST",
+        pause_until: (spamLock as { expires_at: string }).expires_at,
+        message: `Cola pausada automáticamente por Wati (spam rate limit). Se reanudará a las ${new Date((spamLock as { expires_at: string }).expires_at).toLocaleTimeString("es-ES")}.`,
+      }),
+      { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   let query = supabase
     .from("communication_logs")
@@ -382,7 +404,7 @@ async function processWatiBatch(
   token: string,
   publicSiteUrl: string,
   cfg: { delayMs: number; jitterMs: number; batchSize: number; batchPauseMs: number } = {
-    delayMs: 1300, jitterMs: 250, batchSize: 40, batchPauseMs: 10000,
+    delayMs: 3000, jitterMs: 600, batchSize: 20, batchPauseMs: 15000,
   },
 ) {
 
