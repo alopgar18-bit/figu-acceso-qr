@@ -1,0 +1,1 @@
+UPDATE public.event_sessions SET ends_at = '2026-07-02 22:30:00+00' WHERE id='48478b6a-bf55-4441-b5ba-224de1b575fc'; UPDATE public.tickets SET expires_at='2026-07-02 22:30:00+00' WHERE session_id='48478b6a-bf55-4441-b5ba-224de1b575fc' AND revoked=false;
