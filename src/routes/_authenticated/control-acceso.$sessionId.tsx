@@ -22,6 +22,97 @@ import { zoneTone, zoneToneClasses } from "@/lib/event-constants";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import * as XLSX from "xlsx";
+
+async function exportAttendeesXlsx(sessionId: string, sessionName: string) {
+  const [checkinsRes, incidentsRes] = await Promise.all([
+    supabase
+      .from("checkins")
+      .select("id, checked_in_at, companions_validated, result, participant_id, event_participants(attendee_type, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone))")
+      .eq("session_id", sessionId)
+      .eq("result", "ok")
+      .order("checked_in_at", { ascending: true }),
+    supabase
+      .from("incidents")
+      .select("id, created_at, title, description, severity, incident_type, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions, participant_id, event_participants(attendee_type, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone))")
+      .eq("session_id", sessionId)
+      .eq("category", "entrada")
+      .order("created_at", { ascending: true }),
+  ]);
+  if (checkinsRes.error) throw checkinsRes.error;
+  if (incidentsRes.error) throw incidentsRes.error;
+
+  type Row = Record<string, string | number | null>;
+  const rows: Row[] = [];
+
+  for (const c of checkinsRes.data ?? []) {
+    const ep = c.event_participants as {
+      attendee_type?: string | null;
+      seat_zone?: string | null; seat_row?: string | null; seat_number?: string | null;
+      people?: { first_name?: string | null; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
+    } | null;
+    const p = ep?.people ?? null;
+    rows.push({
+      Origen: "Escaneo",
+      Fecha: format(new Date(c.checked_in_at), "yyyy-MM-dd HH:mm:ss"),
+      Nombre: p?.first_name ?? "",
+      Apellidos: p?.last_name ?? "",
+      DNI: p?.dni ?? "",
+      Email: p?.email ?? "",
+      Telefono: p?.phone ?? "",
+      Tipo: ep?.attendee_type ?? "",
+      Zona: ep?.seat_zone ?? "",
+      Fila: ep?.seat_row ?? "",
+      Asiento: ep?.seat_number ?? "",
+      Acompanantes: c.companions_validated ?? 0,
+      Incidencia: "",
+      Severidad: "",
+      Descripcion: "",
+    });
+  }
+
+  for (const i of incidentsRes.data ?? []) {
+    const ep = i.event_participants as {
+      attendee_type?: string | null;
+      seat_zone?: string | null; seat_row?: string | null; seat_number?: string | null;
+      people?: { first_name?: string | null; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
+    } | null;
+    const p = ep?.people ?? null;
+    rows.push({
+      Origen: "Incidencia",
+      Fecha: format(new Date(i.created_at), "yyyy-MM-dd HH:mm:ss"),
+      Nombre: p?.first_name ?? i.walk_in_first_name ?? "",
+      Apellidos: p?.last_name ?? i.walk_in_last_name ?? "",
+      DNI: p?.dni ?? i.walk_in_dni ?? "",
+      Email: p?.email ?? "",
+      Telefono: p?.phone ?? "",
+      Tipo: ep?.attendee_type ?? "walk-in",
+      Zona: ep?.seat_zone ?? "",
+      Fila: ep?.seat_row ?? "",
+      Asiento: ep?.seat_number ?? "",
+      Acompanantes: i.walk_in_companions ?? 0,
+      Incidencia: i.incident_type ?? "",
+      Severidad: i.severity ?? "",
+      Descripcion: i.description ?? i.title ?? "",
+    });
+  }
+
+  const totalPersonas = rows.reduce((s, r) => s + 1 + Number(r.Acompanantes || 0), 0);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Asistentes");
+  const resumen = XLSX.utils.aoa_to_sheet([
+    ["Sesion", sessionName],
+    ["Registros", rows.length],
+    ["Personas totales (con acompañantes)", totalPersonas],
+    ["Escaneos", (checkinsRes.data ?? []).length],
+    ["Incidencias tipo entrada", (incidentsRes.data ?? []).length],
+    ["Generado", format(new Date(), "yyyy-MM-dd HH:mm:ss")],
+  ]);
+  XLSX.utils.book_append_sheet(wb, resumen, "Resumen");
+  const safeName = sessionName.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60);
+  XLSX.writeFile(wb, `asistentes_${safeName}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+}
 
 export const Route = createFileRoute("/_authenticated/control-acceso/$sessionId")({
   component: Page,
