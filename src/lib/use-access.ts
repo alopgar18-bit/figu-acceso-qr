@@ -26,7 +26,7 @@ export function useSessionDashboard(sessionId: string | undefined) {
         supabase.from("event_sessions").select("id, name, capacity, starts_at, event_id, allow_companions").eq("id", sessionId!).single(),
         supabase.from("event_participants").select("id, status, companions_count").eq("session_id", sessionId!),
         supabase.from("checkins").select("id, companions_validated, result, checked_in_at").eq("session_id", sessionId!),
-        supabase.from("incidents").select("id, title, severity, status, created_at").eq("session_id", sessionId!).order("created_at", { ascending: false }).limit(10),
+        supabase.from("incidents").select("id, title, severity, status, created_at, category, walk_in_companions, participant_id").eq("session_id", sessionId!).order("created_at", { ascending: false }),
         supabase
           .from("checkins")
           .select("id, checked_in_at, result, participant_id, event_participants(people(first_name, last_name))")
@@ -59,16 +59,35 @@ export function useSessionDashboard(sessionId: string | undefined) {
         0,
       );
 
+      const allIncidents = incidents.data ?? [];
+      // Entradas registradas vía incidencia (walk-in o resolución manual sin escaneo previo).
+      // Se cuentan solo las incidencias de categoría "entrada" que NO están ya vinculadas a un check-in existente.
+      const checkedInParticipantIds = new Set(
+        okCheckins.map((c) => (c as { participant_id?: string | null }).participant_id).filter(Boolean) as string[],
+      );
+      const incidentEntries = allIncidents.filter(
+        (i) => i.category === "entrada" && !(i.participant_id && checkedInParticipantIds.has(i.participant_id)),
+      );
+      const incidentPersons = incidentEntries.reduce(
+        (sum, i) => sum + 1 + (i.walk_in_companions ?? 0),
+        0,
+      );
+      const totalDentro = totalPersonsCheckedIn + incidentPersons;
+
       return {
         session: session.data,
         capacity: session.data?.capacity ?? 0,
         confirmados: personasConPlaza,
         pendientes: pendientes.length,
         checkins: okCheckins.length,
-        totalPersonsCheckedIn,
-        incidents: incidents.data ?? [],
+        totalPersonsCheckedIn: totalDentro,
+        checkinsPersons: totalPersonsCheckedIn,
+        incidentEntries: incidentEntries.length,
+        incidentPersons,
+        incidents: allIncidents.slice(0, 10),
+        incidentsAll: allIncidents,
         lastCheckins: last.data ?? [],
-        occupancyPct: session.data?.capacity ? Math.round((totalPersonsCheckedIn / session.data.capacity) * 100) : 0,
+        occupancyPct: session.data?.capacity ? Math.round((totalDentro / session.data.capacity) * 100) : 0,
       };
     },
   });
