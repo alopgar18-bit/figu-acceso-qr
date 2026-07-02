@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ScanLine, Search, BarChart3, AlertTriangle, CheckCircle2, XCircle, Clock, Ban, ShieldAlert, WifiOff, UserCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, ScanLine, Search, BarChart3, AlertTriangle, CheckCircle2, XCircle, Clock, Ban, ShieldAlert, WifiOff, UserCheck, Loader2, Download } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -442,19 +442,40 @@ function ParticipantDetail({
 // ─────── Dashboard ───────
 function DashboardTab({ sessionId }: { sessionId: string }) {
   const { data, isLoading } = useSessionDashboard(sessionId);
+  const [exporting, setExporting] = useState(false);
   if (isLoading || !data) return <div className="text-sm text-muted-foreground">Cargando…</div>;
 
   const stats = [
     { label: "Aforo", value: data.capacity },
     { label: "Confirmados", value: data.confirmados },
     { label: "Check-ins (escaneos)", value: data.checkins },
-    { label: "Personas dentro", value: data.totalPersonsCheckedIn },
+    { label: "Personas por escaneo", value: data.checkinsPersons },
+    { label: "Entradas por incidencia", value: data.incidentEntries },
+    { label: "Personas por incidencia", value: data.incidentPersons },
+    { label: "Personas dentro (total)", value: data.totalPersonsCheckedIn },
     { label: "Pendientes", value: data.pendientes },
     { label: "Incidencias", value: data.incidents.length },
   ];
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportAttendeesXlsx(sessionId, data.session?.name ?? "sesion");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo exportar");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+          {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+          Exportar asistentes (Excel)
+        </Button>
+      </div>
       <Card className="p-6">
         <div className="flex items-end justify-between mb-3">
           <div className="text-sm uppercase tracking-wider text-muted-foreground">Ocupación</div>
