@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ScanLine, Search, BarChart3, AlertTriangle, CheckCircle2, XCircle, Clock, Ban, ShieldAlert, WifiOff, UserCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, ScanLine, Search, BarChart3, AlertTriangle, CheckCircle2, XCircle, Clock, Ban, ShieldAlert, WifiOff, UserCheck, Loader2, Download } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,97 @@ import { zoneTone, zoneToneClasses } from "@/lib/event-constants";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import * as XLSX from "xlsx";
+
+async function exportAttendeesXlsx(sessionId: string, sessionName: string) {
+  const [checkinsRes, incidentsRes] = await Promise.all([
+    supabase
+      .from("checkins")
+      .select("id, checked_in_at, companions_validated, result, participant_id, event_participants(attendee_type, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone))")
+      .eq("session_id", sessionId)
+      .eq("result", "ok")
+      .order("checked_in_at", { ascending: true }),
+    supabase
+      .from("incidents")
+      .select("id, created_at, title, description, severity, incident_type, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions, participant_id, event_participants(attendee_type, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone))")
+      .eq("session_id", sessionId)
+      .eq("category", "entrada")
+      .order("created_at", { ascending: true }),
+  ]);
+  if (checkinsRes.error) throw checkinsRes.error;
+  if (incidentsRes.error) throw incidentsRes.error;
+
+  type Row = Record<string, string | number | null>;
+  const rows: Row[] = [];
+
+  for (const c of checkinsRes.data ?? []) {
+    const ep = c.event_participants as {
+      attendee_type?: string | null;
+      seat_zone?: string | null; seat_row?: string | null; seat_number?: string | null;
+      people?: { first_name?: string | null; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
+    } | null;
+    const p = ep?.people ?? null;
+    rows.push({
+      Origen: "Escaneo",
+      Fecha: format(new Date(c.checked_in_at), "yyyy-MM-dd HH:mm:ss"),
+      Nombre: p?.first_name ?? "",
+      Apellidos: p?.last_name ?? "",
+      DNI: p?.dni ?? "",
+      Email: p?.email ?? "",
+      Telefono: p?.phone ?? "",
+      Tipo: ep?.attendee_type ?? "",
+      Zona: ep?.seat_zone ?? "",
+      Fila: ep?.seat_row ?? "",
+      Asiento: ep?.seat_number ?? "",
+      Acompanantes: c.companions_validated ?? 0,
+      Incidencia: "",
+      Severidad: "",
+      Descripcion: "",
+    });
+  }
+
+  for (const i of incidentsRes.data ?? []) {
+    const ep = i.event_participants as {
+      attendee_type?: string | null;
+      seat_zone?: string | null; seat_row?: string | null; seat_number?: string | null;
+      people?: { first_name?: string | null; last_name?: string | null; dni?: string | null; email?: string | null; phone?: string | null } | null;
+    } | null;
+    const p = ep?.people ?? null;
+    rows.push({
+      Origen: "Incidencia",
+      Fecha: format(new Date(i.created_at), "yyyy-MM-dd HH:mm:ss"),
+      Nombre: p?.first_name ?? i.walk_in_first_name ?? "",
+      Apellidos: p?.last_name ?? i.walk_in_last_name ?? "",
+      DNI: p?.dni ?? i.walk_in_dni ?? "",
+      Email: p?.email ?? "",
+      Telefono: p?.phone ?? "",
+      Tipo: ep?.attendee_type ?? "walk-in",
+      Zona: ep?.seat_zone ?? "",
+      Fila: ep?.seat_row ?? "",
+      Asiento: ep?.seat_number ?? "",
+      Acompanantes: i.walk_in_companions ?? 0,
+      Incidencia: i.incident_type ?? "",
+      Severidad: i.severity ?? "",
+      Descripcion: i.description ?? i.title ?? "",
+    });
+  }
+
+  const totalPersonas = rows.reduce((s, r) => s + 1 + Number(r.Acompanantes || 0), 0);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Asistentes");
+  const resumen = XLSX.utils.aoa_to_sheet([
+    ["Sesion", sessionName],
+    ["Registros", rows.length],
+    ["Personas totales (con acompañantes)", totalPersonas],
+    ["Escaneos", (checkinsRes.data ?? []).length],
+    ["Incidencias tipo entrada", (incidentsRes.data ?? []).length],
+    ["Generado", format(new Date(), "yyyy-MM-dd HH:mm:ss")],
+  ]);
+  XLSX.utils.book_append_sheet(wb, resumen, "Resumen");
+  const safeName = sessionName.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60);
+  XLSX.writeFile(wb, `asistentes_${safeName}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+}
 
 export const Route = createFileRoute("/_authenticated/control-acceso/$sessionId")({
   component: Page,
@@ -442,19 +533,40 @@ function ParticipantDetail({
 // ─────── Dashboard ───────
 function DashboardTab({ sessionId }: { sessionId: string }) {
   const { data, isLoading } = useSessionDashboard(sessionId);
+  const [exporting, setExporting] = useState(false);
   if (isLoading || !data) return <div className="text-sm text-muted-foreground">Cargando…</div>;
 
   const stats = [
     { label: "Aforo", value: data.capacity },
     { label: "Confirmados", value: data.confirmados },
     { label: "Check-ins (escaneos)", value: data.checkins },
-    { label: "Personas dentro", value: data.totalPersonsCheckedIn },
+    { label: "Personas por escaneo", value: data.checkinsPersons },
+    { label: "Entradas por incidencia", value: data.incidentEntries },
+    { label: "Personas por incidencia", value: data.incidentPersons },
+    { label: "Personas dentro (total)", value: data.totalPersonsCheckedIn },
     { label: "Pendientes", value: data.pendientes },
     { label: "Incidencias", value: data.incidents.length },
   ];
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportAttendeesXlsx(sessionId, data.session?.name ?? "sesion");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo exportar");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+          {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+          Exportar asistentes (Excel)
+        </Button>
+      </div>
       <Card className="p-6">
         <div className="flex items-end justify-between mb-3">
           <div className="text-sm uppercase tracking-wider text-muted-foreground">Ocupación</div>
