@@ -25,7 +25,7 @@ export function useSessionDashboard(sessionId: string | undefined) {
       const [session, parts, checkins, incidents, last] = await Promise.all([
         supabase.from("event_sessions").select("id, name, capacity, starts_at, event_id, allow_companions").eq("id", sessionId!).single(),
         supabase.from("event_participants").select("id, status, companions_count").eq("session_id", sessionId!),
-        supabase.from("checkins").select("id, companions_validated, result, checked_in_at").eq("session_id", sessionId!),
+        supabase.from("checkins").select("id, participant_id, companions_validated, result, checked_in_at").eq("session_id", sessionId!),
         supabase.from("incidents").select("id, title, severity, status, created_at, category, walk_in_companions, participant_id").eq("session_id", sessionId!).order("created_at", { ascending: false }),
         supabase
           .from("checkins")
