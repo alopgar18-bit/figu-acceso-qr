@@ -136,8 +136,8 @@ function Page() {
           </h1>
           <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
             {success === "lista_espera"
-              ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza, nos pondremos en contacto contigo."
-              : "Hemos recibido tu solicitud correctamente. Nos pondremos en contacto contigo."}
+              ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza, el equipo de FIGURARTE se pondrá en contacto contigo."
+              : "El equipo de FIGURARTE revisará tu solicitud y te confirmará por email si puedes asistir."}
           </p>
         </div>
       </PublicShell>

@@ -273,12 +273,12 @@ function Page() {
             {success === "lista_espera" ? "En lista de espera" : "Solicitud recibida"}
           </div>
           <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">
-            ¡Gracias!
+            {success === "lista_espera" ? "Estás en lista de espera" : "¡Gracias!"}
           </h1>
           <p className="mt-4 max-w-lg text-muted-foreground">
             {success === "lista_espera"
-              ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza te avisaremos por email."
-              : "Hemos recibido tu solicitud correctamente. Te contactaremos por email con los siguientes pasos."}
+              ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza, el equipo de FIGURARTE se pondrá en contacto contigo."
+              : "El equipo de FIGURARTE revisará tu solicitud y te confirmará por email si puedes asistir."}
           </p>
         </div>
       </PublicShell>
