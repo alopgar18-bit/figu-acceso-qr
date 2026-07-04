@@ -2,6 +2,20 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+// Single-round-trip atomic submit: all validation + inserts happen in one
+// Postgres transaction with a per-session row lock, so the endpoint can
+// absorb thousands of concurrent submissions without race conditions or
+// connection-pool exhaustion.
+async function callSubmitRpc(payload: Record<string, unknown>) {
+  const { data, error } = await supabaseAdmin.rpc("submit_public_form", {
+    _payload: payload as never,
+  });
+  if (error) throw error;
+  return data as
+    | { ok: true; code: "recibida" | "lista_espera"; participantId: string }
+    | { ok: false; code: string; minAge?: number };
+}
+
 const submitSchema = z.object({
   slug: z.string().min(1).max(120),
   sessionId: z.string().uuid().optional(),
