@@ -99,9 +99,12 @@ function Page() {
   const getForm = useServerFn(getPublicFormBySlug);
   const submit = useServerFn(submitPublicFormBySlug);
 
-  const { data: result, isLoading } = useQuery({
+  const { data: result, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["public-form", formSlug],
     queryFn: () => getForm({ data: { slug: formSlug } }),
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+    staleTime: 30_000,
   });
 
   const [state, setState] = useState<State>(INITIAL);
@@ -247,18 +250,26 @@ function Page() {
         } else if (res.code === "inscripciones_cerradas" || res.code === "evento_no_disponible") {
           toast.error("Las inscripciones están cerradas.");
         } else if (res.code === "duplicado") {
-          toast.error("Ya existe una solicitud para esta sesión con tus datos.");
+          // Tratamos el duplicado como éxito: significa que la inscripción
+          // anterior sí se registró aunque el usuario viera un error temporal.
+          toast.success("Tu solicitud ya estaba registrada. ¡Gracias!");
+          setSuccess("recibida");
+          if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
         } else if (res.code === "edad_minima_no_cumplida") {
           toast.error(`Edad mínima requerida: ${(res as { minAge?: number }).minAge ?? minAge} años.`);
         } else {
-          toast.error("No se pudo enviar la solicitud: " + res.code);
+          toast.error("No se pudo enviar la solicitud. Espera unos segundos y vuelve a intentarlo.");
         }
         return;
       }
       setSuccess(res.code === "lista_espera" ? "lista_espera" : "recibida");
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error inesperado.");
+      console.error("[submitPublicForm]", err);
+      toast.error(
+        "No se pudo enviar la solicitud por una sobrecarga temporal. Espera 10 segundos y vuelve a intentarlo — si ya se había guardado, te avisaremos al reintentar.",
+      );
     } finally {
       setSubmitting(false);
     }
