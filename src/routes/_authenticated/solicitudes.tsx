@@ -137,6 +137,12 @@ function ListPage() {
     return r;
   }, [rows, extraFilters.hasPhoto, extraFilters.duplicates, duplicateIds]);
 
+  const totalPeople = useMemo(
+    () => filteredRows.reduce((acc, r) => acc + 1 + (r.companions_count ?? 0), 0),
+    [filteredRows],
+  );
+  const totalCompanions = totalPeople - filteredRows.length;
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -391,7 +397,10 @@ function ListPage() {
             </label>
             <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
               <Filter className="h-3 w-3" />
-              {filteredRows.length} resultado{filteredRows.length === 1 ? "" : "s"}
+              {filteredRows.length} solicitud{filteredRows.length === 1 ? "" : "es"}
+              {totalCompanions > 0 && (
+                <span> · <strong className="text-foreground">{totalPeople}</strong> personas ({totalCompanions} acomp.)</span>
+              )}
               {totalCount > loadedCount && (
                 <span className="ml-1">· {loadedCount.toLocaleString("es-ES")} de {totalCount.toLocaleString("es-ES")} cargados</span>
               )}
