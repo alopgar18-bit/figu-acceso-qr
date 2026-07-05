@@ -199,18 +199,24 @@ function Page() {
         } else if (result.code === "inscripciones_cerradas" || result.code === "evento_no_disponible") {
           navigate({ to: "/e/$slug/cerrado", params: { slug } });
         } else if (result.code === "duplicado") {
-          toast.error("Ya existe una solicitud para esta sesión con tus datos.");
+          toast.success("Tu solicitud ya estaba registrada. ¡Gracias!");
+          setSuccess("recibida");
+          if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
         } else if (result.code === "edad_minima_no_cumplida") {
           toast.error(`Edad mínima requerida: ${result.minAge} años.`);
         } else {
-          toast.error("No se pudo enviar la solicitud: " + result.code);
+          toast.error("No se pudo enviar la solicitud. Espera unos segundos y vuelve a intentarlo.");
         }
         return;
       }
       setSuccess(result.code === "lista_espera" ? "lista_espera" : "recibida");
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error inesperado.");
+      console.error("[submitPublicForm]", err);
+      toast.error(
+        "No se pudo enviar la solicitud por una sobrecarga temporal. Espera 10 segundos y vuelve a intentarlo — si ya se había guardado, te avisaremos al reintentar.",
+      );
     } finally {
       setSubmitting(false);
     }
