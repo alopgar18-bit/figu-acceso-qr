@@ -1,104 +1,99 @@
-## Idea
+## Objetivo
+Eliminar los fallos por caducidad de sesión en TODOS los procesos largos de la plataforma (envíos WhatsApp/email, importaciones, generación masiva, exportaciones), no solo en la cola de WhatsApp. Solución en tres capas: sesión resiliente, jobs desacoplados del navegador, y configuración de auth.
 
-En lugar de elegir una única estrategia de duplicados a ciegas, la importación se hace en **dos pasos**:
+---
 
-1. **Analizar** el archivo → mostrar los duplicados detectados agrupados en bloques.
-2. **Decidir por bloque** qué hacer, y confirmar la importación.
+## Capa A — Sesión resiliente (aplica a toda la app)
 
-## Detección ampliada
+**A1. Refresh proactivo en `src/hooks/use-auth.tsx`**
+- Listener de `visibilitychange` + `focus`: si `expires_at` < 5 min, llamar `supabase.auth.refreshSession()`.
+- `setInterval` cada 4 min mientras la pestaña esté visible, como red de seguridad contra navegadores que congelan timers en background.
 
-Hoy sólo se compara `nombre + apellidos` en la misma sesión. Se amplía a 4 claves normalizadas: **DNI**, **email**, **teléfono** (últimos 9 dígitos) y **nombre+apellidos**. Basta con que coincida una para considerar duplicado.
+**A2. Reintento silencioso tras 401**
+- Ampliar `src/lib/send-whatsapp-client.ts` con lógica: si 401 → `refreshSession()` → reintentar una vez → si vuelve a fallar, mostrar aviso.
+- Crear helper genérico `src/lib/authed-invoke.ts` que envuelve `supabase.functions.invoke` con el mismo patrón.
+- Migrar todas las llamadas a edge functions (send-email, send-whatsapp, wati-webhook test) a este helper.
 
-Se compara contra **toda la base de personas / participaciones** del evento (no sólo la sesión actual), para poder clasificar.
+**A3. Hook `useKeepSessionAlive(active)` en `src/hooks/use-keep-session-alive.ts`**
+- Cuando `active === true`, hace `supabase.auth.getUser()` cada 4 min.
+- Se activa en:
+  - `whatsapp-queue-status-banner.tsx` cuando hay `queued > 0` o `processing > 0`.
+  - Página de importaciones cuando hay batch en progreso.
+  - Página de envíos por lotes cuando `bulk_progress` está activo.
+  - Cualquier página con job en `running`.
 
-## Bloques que verá el usuario
+**A4. Aviso no destructivo cuando el refresh falla realmente**
+- Nuevo componente `<SessionExpiredToast>` que aparece como toast persistente con botón "Volver a iniciar sesión" (abre `/login` en nueva pestaña) en lugar de redirigir y perder estado.
+- Se dispara desde el interceptor A2 cuando el refresh token también falla.
 
-Cada fila del Excel se clasifica en un bloque:
+---
 
-- **A. Nuevos** — no coinciden con nadie. Se importan siempre.
-- **B. Ya en esta sesión** — la persona ya participa en la sesión destino.
-- **C. Ya en otra sesión del evento** — la persona existe en otra sesión, pero no en esta.
-- **D. Persona conocida sin participación** — existe en `people` pero sin participación en este evento.
+## Capa B — Desacoplar procesos largos del navegador
 
-Para B y C, además, se marca si esa participación existente **ya tiene ticket/QR generado** (icono/aviso "entrada enviada").
-
-## Acción por bloque (radio group)
-
-Para cada bloque el usuario elige una acción por defecto, con posibilidad de sobreescribir fila a fila:
-
-| Bloque | Acciones posibles |
-|---|---|
-| **B. Ya en esta sesión** | **Actualizar** datos (default) · **No importar** · **Crear bis** (VIS 2) |
-| **C. Ya en otra sesión** | **Crear en esta sesión** (default) · **No importar** · **Crear bis** |
-| **D. Persona conocida** | **Crear participación** (default) · **No importar** |
-| **A. Nuevos** | Sólo "Crear" (no hay decisión) |
-
-"Crear bis" = añade `VIS 2` / `VIS 3`… al apellido y lo trata como persona nueva con su propio QR (comportamiento actual de `suffix_distinct`).
-
-## UI
-
-Nueva pantalla intermedia entre "subir archivo + mapear columnas" y "confirmar importación":
-
-```text
-┌─ Análisis de duplicados ────────────────────────────────┐
-│  A. Nuevos             42 filas   → Crear                │
-│  B. Ya en esta sesión  11 filas   ( ) Actualizar         │
-│                        (8 con entrada enviada)  ( ) Saltar  ( ) Crear bis │
-│  C. Ya en otra sesión   6 filas   ( ) Crear aquí  ( ) Saltar  ( ) Crear bis │
-│  D. Persona conocida    3 filas   ( ) Crear  ( ) Saltar  │
-│                                                           │
-│  [ Ver detalle por fila ▾ ]                              │
-│  [ Descargar Excel del análisis ]                        │
-│                                                           │
-│                     [ Cancelar ]  [ Confirmar importación ] │
-└──────────────────────────────────────────────────────────┘
+**B1. Nueva tabla `background_jobs` (migración)**
 ```
+id uuid PK
+kind text (send_whatsapp | send_email | import_batch | export_report | bulk_assign)
+payload jsonb
+status text (queued | running | done | failed | paused | cancelled)
+progress jsonb ({ total, done, failed, current_step })
+result jsonb
+error text
+created_by uuid → auth.users
+created_at, started_at, finished_at timestamptz
+lock_owner text, lock_expires_at timestamptz
+```
+Con GRANTs (`authenticated` SELECT/INSERT own; `service_role` ALL), RLS y policies scoped a `created_by = auth.uid()` o `is_admin`.
 
-El detalle expandible lista fila a fila: nombre del Excel, motivo del match (DNI/email/tel/nombre), participación existente (sesión, estado, si tiene QR), y un selector por fila para sobreescribir la acción del bloque.
+**B2. Endpoint `src/routes/api/public/jobs/tick.ts`**
+- Server route pública (autenticada por `apikey = anon key`).
+- Loop: toma jobs `queued` (con lock optimista), los ejecuta usando `supabaseAdmin`, actualiza `progress` incrementalmente.
+- Dispatcher por `kind` que llama a los handlers correspondientes.
 
-## Detalles técnicos
+**B3. pg_cron cada minuto**
+- Habilitar `pg_cron` + `pg_net`.
+- `SELECT cron.schedule('jobs-tick', '* * * * *', ...)` que hace POST al endpoint anterior con apikey.
 
-**Nuevos ficheros / cambios**
+**B4. Refactor de procesos existentes**
+- **WhatsApp/email**: el botón "Enviar" ya no invoca directamente el edge function. Hace `INSERT INTO background_jobs(kind='send_whatsapp', payload={ids, template_id})`. El handler en el tick reutiliza la lógica interna de `send-whatsapp/index.ts` pero con SERVICE_ROLE y sin dependencia del token del usuario.
+- **Importaciones grandes**: `importaciones.nueva.tsx` sigue subiendo el CSV y creando el `import_batch`, pero el procesamiento pesado se convierte en `kind='import_batch'`. La UI hace polling de `background_jobs.progress`.
+- **Exportaciones/informes**: mismo patrón, resultado se guarda en `public-assets` bucket y se devuelve URL.
 
-- `src/lib/imports.functions.ts`
-  - Nueva server fn `analyzeImport({ eventId, sessionId, rows })` que devuelve, sin escribir nada:
-    ```ts
-    { rows: Array<{
-        rowIndex, block: 'A'|'B'|'C'|'D',
-        match_reason: 'dni'|'email'|'phone'|'name'|null,
-        existing: { participant_id?, session_id?, session_name?, status?, has_ticket? } | null
-      }>,
-      counts: { A, B, C, D, B_with_ticket, C_with_ticket }
-    }
-    ```
-  - Refactor de `commitImport`:
-    - Nuevo campo `perRowActions: Record<rowIndex, 'update'|'create_here'|'create_bis'|'skip'|'create_new'>` opcional; si viene, sobreescribe la estrategia global.
-    - Índice de duplicados por DNI/email/teléfono además de nombre.
-    - Comportamientos de las acciones:
-      - `update` → actualiza `people` + `event_participants` de esa sesión (como hoy).
-      - `create_here` → reutiliza `person_id`, crea nueva `event_participants` en la sesión destino.
-      - `create_bis` → aplica sufijo `VIS N`, crea persona nueva + participación.
-      - `create_new` → sólo bloque A/D: crea persona (si D reutiliza `person_id`) + participación.
-      - `skip` → sólo `import_row_results` con outcome `skipped`.
+**B5. Componente genérico `<JobProgress jobId />`**
+- Polling cada 3 s vía `useQuery` con `refetchInterval`.
+- Se integra en banner WhatsApp, página de importación, y futuras pantallas.
+- Sobrevive al cierre de pestaña: al reabrir muestra el estado actual del job.
 
-- `src/lib/import-constants.ts`
-  - Añadir el tipo `RowAction` y helpers `defaultActionForBlock(block)`.
+---
 
-- `src/routes/_authenticated/importaciones.nueva.tsx`
-  - Añadir paso "Análisis" entre mapeo y commit.
-  - Componente `<DuplicateBlocks>` con radios por bloque y accordion de detalle por fila.
-  - Botón "Descargar Excel del análisis" (genera XLSX en cliente con `xlsx`, mismo pattern que `seat-import-dialog`).
+## Capa C — Configuración de Auth
 
-- `src/routes/_authenticated/importaciones.$batchId.tsx`
-  - Mostrar `match_reason` y acción aplicada en el detalle por fila (ya existe `import_row_results`, sólo hay que añadir columnas).
+**C1.** Subir JWT expiry en Cloud Auth de 1 h → 4 h (menos refrescos, sigue seguro porque el refresh token rota). Se hace vía `supabase--configure_auth`.
 
-**Sin cambios de schema.** Todo se resuelve con `people`, `event_participants`, `tickets`, `import_row_results` actuales. `import_row_results.match_reason` ya existe.
+---
 
-## Resultado para el caso del 8 de julio
+## Alcance del "hazlo todo"
+Implemento las tres capas en un único paquete de cambios, en este orden:
 
-1. Subes el Excel de lista de espera y mapeas columnas como hasta ahora.
-2. La plataforma analiza y muestra:
-   - "5 nuevos"
-   - "12 ya en esta sesión (8 con entrada enviada)" → eliges **Saltar** para todo el bloque.
-   - "2 en otra sesión" → eliges **Crear aquí**.
-3. Confirmas → sólo entran los 7 correctos, sin tocar a nadie con entrada ya enviada, y el batch queda auditado con el motivo de cada fila.
+1. **Capa A completa** (5 archivos nuevos/editados) — resuelve el 80% de forma inmediata.
+2. **Capa B**:
+   - Migración `background_jobs`.
+   - `src/routes/api/public/jobs/tick.ts`.
+   - `src/lib/jobs.functions.ts` (crear/consultar/cancelar jobs desde UI).
+   - Componente `<JobProgress>`.
+   - Refactor de WhatsApp: la UI encola en `background_jobs` en vez de invocar el edge function directamente. El edge function `send-whatsapp` se adapta para poder ser llamado por el tick (con lock del propio job).
+   - Refactor de importaciones para usar el mismo patrón.
+   - pg_cron via `supabase--insert`.
+3. **Capa C**: subir JWT expiry a 4 h.
+
+## Riesgos y mitigación
+- El refactor de la cola WhatsApp toca código en producción; mantendré compatibilidad para que los jobs a medio hacer terminen bien.
+- Exportaciones no las migro en esta iteración salvo que ya haya evidencia de que se cuelgan; si prefieres, se añaden luego.
+- pg_cron necesita habilitar extensiones (se hace en la migración).
+
+## Fuera de alcance
+- Sesiones eternas (imposible por diseño).
+- Reescribir edge functions desde cero.
+- UI de administración de jobs (listado, retry manual) — se puede añadir después; por ahora solo el progreso in-context.
+
+¿Confirmo y arranco con las tres capas?

@@ -22,6 +22,8 @@ import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 import { CommLogDetailDialog, type CommLogDetail } from "@/components/comm-log-detail-dialog";
 import { WhatsappQueueStatusBanner } from "@/components/whatsapp-queue-status-banner";
 import { SendWhatsappError, invokeSendWhatsapp } from "@/lib/send-whatsapp-client";
+import { authedInvoke, AuthedInvokeError } from "@/lib/authed-invoke";
+import { useKeepSessionAlive } from "@/hooks/use-keep-session-alive";
 
 export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
   component: QueuePage,
@@ -57,6 +59,10 @@ function QueuePage() {
   const [pendingWaCount, setPendingWaCount] = useState<number | null>(null);
   const [unauthorizedCount, setUnauthorizedCount] = useState<number>(0);
   const [testingWati, setTestingWati] = useState(false);
+
+  // Mantiene viva la sesión mientras haya lote en curso o pendientes por enviar.
+  const hasActiveWork = !!bgBatch || sending || sendingWa || (pendingEmailCount ?? 0) > 0 || (pendingWaCount ?? 0) > 0;
+  useKeepSessionAlive(hasActiveWork);
 
   const refreshPendingCount = async () => {
     const { count } = await supabase
@@ -127,12 +133,20 @@ function QueuePage() {
     setSending(true);
     try {
       const ids = selectedIds.length > 0 ? selectedIds : undefined;
-      const { data, error } = await supabase.functions.invoke("send-email", {
-        body: ids
+      const data = await authedInvoke<{
+        configured?: boolean;
+        message?: string;
+        background?: boolean;
+        queued?: number;
+        queued_ids?: string[];
+        sent?: number;
+        failed?: number;
+      }>(
+        "send-email",
+        ids
           ? { ids, from: senderValue, background: true }
           : { from: senderValue, background: true },
-      });
-      if (error) throw error;
+      );
       if (data?.configured === false) {
         toast.message(data.message ?? "Servicio de email no configurado");
       } else if (data?.background === true) {
@@ -149,7 +163,8 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      toast.error((e as Error).message);
+      if (e instanceof AuthedInvokeError) toast.error(e.message);
+      else toast.error((e as Error).message);
     } finally {
       setSending(false);
     }

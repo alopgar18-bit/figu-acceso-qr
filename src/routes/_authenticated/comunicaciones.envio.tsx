@@ -27,6 +27,7 @@ import { WatiTestSendDialog } from "@/components/wati-test-send-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { BulkProgressCard } from "@/components/bulk-progress-card";
 import { useShowAll } from "@/hooks/use-show-all";
+import { useKeepSessionAlive } from "@/hooks/use-keep-session-alive";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
@@ -99,6 +100,9 @@ function BulkSendPage() {
   } | null>(null);
   const queueCancelRef = useRef(false);
   const queuePauseRef = useRef(false);
+  // Keep-alive de sesión durante creación de cola.
+  const queueActive = !!queueProgress && !queueProgress.done;
+  useKeepSessionAlive(queueActive);
   const tableShowAll = useShowAll(500);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();

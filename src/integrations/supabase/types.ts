@@ -256,6 +256,63 @@ export type Database = {
         }
         Relationships: []
       }
+      background_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          lock_expires_at: string | null
+          lock_owner: string | null
+          max_attempts: number
+          payload: Json
+          progress: Json
+          result: Json | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["background_job_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          lock_expires_at?: string | null
+          lock_owner?: string | null
+          max_attempts?: number
+          payload?: Json
+          progress?: Json
+          result?: Json | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["background_job_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          lock_expires_at?: string | null
+          lock_owner?: string | null
+          max_attempts?: number
+          payload?: Json
+          progress?: Json
+          result?: Json | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["background_job_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       brand_profiles: {
         Row: {
           client_id: string | null
@@ -2232,6 +2289,33 @@ export type Database = {
         Args: { _person_id: string; _reason?: string }
         Returns: undefined
       }
+      claim_next_background_job: {
+        Args: { _kinds?: string[]; _lock_seconds?: number; _owner: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          lock_expires_at: string | null
+          lock_owner: string | null
+          max_attempts: number
+          payload: Json
+          progress: Json
+          result: Json | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["background_job_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "background_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       client_user_has_event: {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
@@ -2304,6 +2388,13 @@ export type Database = {
         | "equipo"
         | "acompanante"
         | "otro"
+      background_job_status:
+        | "queued"
+        | "running"
+        | "done"
+        | "failed"
+        | "paused"
+        | "cancelled"
       checkin_result:
         | "ok"
         | "duplicado"
@@ -2551,6 +2642,14 @@ export const Constants = {
         "equipo",
         "acompanante",
         "otro",
+      ],
+      background_job_status: [
+        "queued",
+        "running",
+        "done",
+        "failed",
+        "paused",
+        "cancelled",
       ],
       checkin_result: [
         "ok",

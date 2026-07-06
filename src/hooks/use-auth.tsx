@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { resetSessionExpiredToast, tryRefreshSession } from "@/lib/session-refresh";
 
 type Profile = {
   id: string;
@@ -176,6 +177,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Refresh proactivo: al volver el foco / cambiar visibilidad y cada 4 min
+  // mientras la pestaña esté visible. Evita que un JWT expirado corte
+  // procesos largos (envíos WhatsApp, importaciones) cuando el usuario
+  // vuelve a la pestaña.
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const maybeRefresh = async () => {
+      const { data } = await supabase.auth.getSession();
+      const s = data?.session;
+      if (!s) return;
+      const expMs = s.expires_at ? s.expires_at * 1000 : null;
+      // Si quedan menos de 5 min, refresca.
+      if (expMs && expMs - Date.now() < 5 * 60 * 1000) {
+        const ok = await tryRefreshSession();
+        if (ok) resetSessionExpiredToast();
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void maybeRefresh();
+    };
+    const onFocus = () => { void maybeRefresh(); };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+
+    const startInterval = () => {
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        if (document.visibilityState === "visible") void maybeRefresh();
+      }, 4 * 60 * 1000);
+    };
+    startInterval();
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   const signIn: AuthContextValue["signIn"] = async (email, password) => {
