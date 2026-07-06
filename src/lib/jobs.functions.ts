@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { Json } from "@/integrations/supabase/types";
 
 export type JobKind =
   | "send_whatsapp"
@@ -13,11 +14,11 @@ export type JobStatus = "queued" | "running" | "done" | "failed" | "paused" | "c
 
 export interface JobRow {
   id: string;
-  kind: JobKind;
-  payload: Record<string, unknown>;
-  status: JobStatus;
-  progress: Record<string, unknown>;
-  result: Record<string, unknown> | null;
+  kind: string;
+  payload: Json;
+  status: string;
+  progress: Json;
+  result: Json | null;
   error: string | null;
   created_at: string;
   started_at: string | null;
@@ -35,7 +36,7 @@ const createSchema = z.object({
     "export_report",
     "bulk_assign",
   ]),
-  payload: z.record(z.string(), z.unknown()).default({}),
+  payload: z.any().default({}),
 });
 
 /** Encola un job de fondo con el usuario actual como autor. */
@@ -46,7 +47,7 @@ export const enqueueBackgroundJob = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("background_jobs")
-      .insert({ kind: data.kind, payload: data.payload, created_by: userId })
+      .insert({ kind: data.kind, payload: data.payload as Json, created_by: userId })
       .select()
       .single();
     if (error) throw new Error(error.message);
