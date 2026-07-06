@@ -263,12 +263,30 @@ function BulkSendPage() {
     queryKey: ["bulk_tickets", loadedIds],
     enabled: loadedIds.length > 0,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tickets")
-        .select("participant_id, qr_token")
-        .in("participant_id", loadedIds)
-        .eq("revoked", false);
-      return new Set((data ?? []).map((t) => t.participant_id));
+      // Paginar en chunks de IDs para evitar el límite de URL y el cap de
+      // 1000 filas de PostgREST cuando la sesión tiene muchos participantes.
+      const CHUNK = 300;
+      const set = new Set<string>();
+      for (let i = 0; i < loadedIds.length; i += CHUNK) {
+        const slice = loadedIds.slice(i, i + CHUNK);
+        let from = 0;
+        const pageSize = 1000;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { data, error } = await supabase
+            .from("tickets")
+            .select("participant_id")
+            .in("participant_id", slice)
+            .eq("revoked", false)
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          const rows = data ?? [];
+          for (const t of rows) if (t.participant_id) set.add(t.participant_id);
+          if (rows.length < pageSize) break;
+          from += pageSize;
+        }
+      }
+      return set;
     },
   });
 
