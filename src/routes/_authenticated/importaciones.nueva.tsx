@@ -871,6 +871,231 @@ function ValidationStep({
   );
 }
 
+function AnalysisStep({
+  analysis,
+  analyzing,
+  onRunAnalysis,
+  blockActions,
+  setBlockActions,
+  rowOverrides,
+  setRowOverrides,
+  validRows,
+}: {
+  analysis: AnalysisResult | null;
+  analyzing: boolean;
+  onRunAnalysis: () => void;
+  blockActions: Record<DuplicateBlock, RowAction>;
+  setBlockActions: (u: Record<DuplicateBlock, RowAction>) => void;
+  rowOverrides: Record<number, RowAction>;
+  setRowOverrides: (u: Record<number, RowAction>) => void;
+  validRows: Array<Record<string, unknown> & { rowIndex: number }>;
+}) {
+  const [expanded, setExpanded] = useState<DuplicateBlock | null>(null);
+  const rowsByIdx = useMemo(() => {
+    const m = new Map<number, Record<string, unknown> & { rowIndex: number }>();
+    for (const r of validRows) m.set(r.rowIndex, r);
+    return m;
+  }, [validRows]);
+
+  if (analyzing || !analysis) {
+    return (
+      <Card>
+        <CardContent className="pt-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Analizando duplicados contra el evento…
+          </div>
+          <Button variant="outline" size="sm" onClick={onRunAnalysis} disabled={analyzing}>
+            Reintentar
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const blocks: DuplicateBlock[] = ["A", "B", "C", "D"];
+  const rowsByBlock: Record<DuplicateBlock, AnalysisRow[]> = { A: [], B: [], C: [], D: [] };
+  for (const r of analysis.rows) rowsByBlock[r.block].push(r);
+
+  const willImport = analysis.rows.filter((r) => {
+    const act = rowOverrides[r.rowIndex] ?? blockActions[r.block];
+    return act !== "skip";
+  }).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard label="Nuevos (A)" value={analysis.counts.A} tone="success" />
+        <StatCard
+          label="En esta sesión (B)"
+          value={analysis.counts.B}
+          tone={analysis.counts.B_with_ticket > 0 ? "danger" : "warning"}
+          action={
+            analysis.counts.B_with_ticket > 0 ? (
+              <span className="text-xs text-destructive">
+                {analysis.counts.B_with_ticket} con entrada enviada
+              </span>
+            ) : null
+          }
+        />
+        <StatCard
+          label="En otra sesión (C)"
+          value={analysis.counts.C}
+          tone={analysis.counts.C > 0 ? "info" : "neutral"}
+          action={
+            analysis.counts.C_with_ticket > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                {analysis.counts.C_with_ticket} con entrada
+              </span>
+            ) : null
+          }
+        />
+        <StatCard label="Persona conocida (D)" value={analysis.counts.D} tone="info" />
+      </div>
+
+      <Alert>
+        <AlertTitle>Se importarán {willImport} de {analysis.rows.length} filas</AlertTitle>
+        <AlertDescription>
+          Elige qué hacer con cada bloque de duplicados. Puedes sobreescribir fila a fila expandiendo el bloque.
+        </AlertDescription>
+      </Alert>
+
+      {blocks.map((block) => {
+        const rows = rowsByBlock[block];
+        if (rows.length === 0) return null;
+        const { options, default: defaultAction } = actionsForBlock(block);
+        const current = blockActions[block] ?? defaultAction;
+        const isOpen = expanded === block;
+        return (
+          <Card key={block}>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Badge variant="outline">{block}</Badge>
+                    {BLOCK_LABEL[block]}
+                    <Badge variant="secondary">{rows.length}</Badge>
+                  </CardTitle>
+                  <CardDescription className="mt-1">{BLOCK_DESCRIPTION[block]}</CardDescription>
+                </div>
+                <div className="min-w-[240px]">
+                  {options.length === 1 ? (
+                    <Badge>{ACTION_LABEL[options[0]]}</Badge>
+                  ) : (
+                    <Select
+                      value={current}
+                      onValueChange={(v) =>
+                        setBlockActions({ ...blockActions, [block]: v as RowAction })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {options.map((o) => (
+                          <SelectItem key={o} value={o}>
+                            {ACTION_LABEL[o]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setExpanded(isOpen ? null : block)}
+              >
+                {isOpen ? "Ocultar detalle" : "Ver detalle por fila"}
+              </Button>
+              {isOpen && (
+                <ScrollArea className="h-[320px] mt-3">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>Nombre</TableHead>
+                        <TableHead>Motivo</TableHead>
+                        <TableHead>Coincidencia</TableHead>
+                        <TableHead>Acción</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((r) => {
+                        const src = rowsByIdx.get(r.rowIndex);
+                        const act = rowOverrides[r.rowIndex] ?? current;
+                        return (
+                          <TableRow key={r.rowIndex}>
+                            <TableCell className="tabular-nums">{r.rowIndex}</TableCell>
+                            <TableCell className="text-xs">
+                              {String(src?.first_name ?? "")} {String(src?.last_name ?? "")}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {r.match_reason ? (
+                                <Badge variant="outline">{r.match_reason}</Badge>
+                              ) : (
+                                "—"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {r.existing?.sessionName && (
+                                <div>{r.existing.sessionName}</div>
+                              )}
+                              {r.existing?.status && (
+                                <div className="text-muted-foreground">
+                                  {statusLabel(r.existing.status as never)}
+                                </div>
+                              )}
+                              {r.existing?.hasTicket && (
+                                <Badge variant="destructive" className="mt-1">
+                                  entrada enviada
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {options.length === 1 ? (
+                                <span className="text-xs">{ACTION_LABEL[options[0]]}</span>
+                              ) : (
+                                <Select
+                                  value={act}
+                                  onValueChange={(v) =>
+                                    setRowOverrides({
+                                      ...rowOverrides,
+                                      [r.rowIndex]: v as RowAction,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {options.map((o) => (
+                                      <SelectItem key={o} value={o}>
+                                        {ACTION_LABEL[o]}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function ResultStep({
   result,
   eventId,
