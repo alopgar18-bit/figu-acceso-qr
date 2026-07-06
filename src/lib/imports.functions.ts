@@ -301,8 +301,224 @@ export const commitImport = createServerFn({ method: "POST" })
       return k ? planSeatKeys.has(k) : false;
     };
 
+    // ------- helpers para el modo perRowActions -------
+    async function insertNewPerson(row: typeof data.rows[number]): Promise<string> {
+      const { data: created, error: pErr } = await supabase
+        .from("people")
+        .insert({
+          first_name: row.first_name,
+          last_name: row.last_name ?? null,
+          dni: row.dni ?? null,
+          email: row.email ?? null,
+          phone: row.phone ?? null,
+          birth_date: row.birth_date ?? null,
+          city: row.city ?? null,
+          province: row.province ?? null,
+          gender: row.gender ?? null,
+          notes: row.notes ?? null,
+          source: data.source ?? `import:${data.filename}`,
+          created_by: userId,
+        })
+        .select("id")
+        .single();
+      if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
+      return created.id as string;
+    }
+
+    async function insertParticipationFor(
+      personId: string,
+      row: typeof data.rows[number],
+    ): Promise<{ id: string; status: string }> {
+      const status = row.initial_status ?? data.defaultStatus;
+      const approvedLike =
+        status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
+      const attendeeType = row.attendee_type ?? data.defaultAttendeeType;
+      const { data: participant, error: partErr } = await supabase
+        .from("event_participants")
+        .insert({
+          event_id: data.eventId,
+          session_id: data.sessionId,
+          person_id: personId,
+          status,
+          attendee_type: attendeeType,
+          companions_count: row.companions_count ?? 0,
+          approved_by: approvedLike ? userId : null,
+          approved_at: approvedLike ? new Date().toISOString() : null,
+          confirmed_at:
+            status === "confirmado" || status === "acceso_validado"
+              ? new Date().toISOString()
+              : null,
+          import_batch_id: batch.id,
+          seat_zone: row.seat_zone ?? null,
+          seat_row: row.seat_row ?? null,
+          seat_number: row.seat_number ?? null,
+          seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
+        })
+        .select("id")
+        .single();
+      if (partErr) throw new Error(`No se pudo crear la participación (${partErr.message})`);
+      if (
+        planSeatKeys &&
+        row.seat_zone &&
+        row.seat_row &&
+        row.seat_number &&
+        !seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number)
+      ) {
+        seatsNotInPlan++;
+      }
+      return { id: participant.id as string, status };
+    }
+
+    async function maybeGenerateTicketFor(
+      participantId: string,
+      status: string,
+      row: typeof data.rows[number],
+    ) {
+      if (!QR_STATES.has(status)) return;
+      const token = genToken();
+      const { data: ticket, error: tErr } = await supabase
+        .from("tickets")
+        .insert({
+          event_id: data.eventId,
+          session_id: data.sessionId,
+          participant_id: participantId,
+          qr_token: token,
+          qr_payload: {
+            token,
+            event_id: data.eventId,
+            session_id: data.sessionId,
+            participant_id: participantId,
+          },
+        })
+        .select("id")
+        .single();
+      if (tErr) throw new Error(`No se pudo crear el ticket (${tErr.message})`);
+      qrGenerated++;
+      if (status === "acceso_validado") {
+        await supabase.from("checkins").insert({
+          event_id: data.eventId,
+          session_id: data.sessionId,
+          participant_id: participantId,
+          ticket_id: ticket?.id ?? null,
+          validator_id: userId,
+          result: "ok",
+          companions_validated: row.companions_count ?? 0,
+          notes: "Check-in registrado durante importación",
+        });
+      }
+      if (!row.email && !row.phone) noContactChannel++;
+    }
+
     for (const row of data.rows) {
       try {
+        // ---- Rama nueva: acción explícita por fila (paso "Análisis") ----
+        const explicitAction = data.perRowActions?.[String(row.rowIndex)];
+        if (explicitAction) {
+          const match = resolveEventMatch(row);
+
+          if (explicitAction === "skip") {
+            skipped++;
+            logRow(row, "skipped", match?.participantId ?? null, "acción manual: no importar");
+            continue;
+          }
+
+          if (explicitAction === "update" && match && match.sessionId === data.sessionId) {
+            await supabase
+              .from("people")
+              .update({
+                first_name: row.first_name,
+                last_name: row.last_name ?? null,
+                dni: row.dni ?? null,
+                email: row.email ?? null,
+                phone: row.phone ?? null,
+              })
+              .eq("id", match.personId);
+            await supabase
+              .from("event_participants")
+              .update({
+                import_batch_id: batch.id,
+                seat_zone: row.seat_zone?.trim() || null,
+                seat_row: row.seat_row?.trim() || null,
+                seat_number: row.seat_number?.trim() || null,
+                seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
+              })
+              .eq("id", match.participantId);
+            if (
+              planSeatKeys &&
+              row.seat_zone &&
+              row.seat_row &&
+              row.seat_number &&
+              !seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number)
+            ) {
+              seatsNotInPlan++;
+            }
+            updated++;
+            logRow(row, "updated", match.participantId, "acción manual: actualizar en esta sesión");
+            continue;
+          }
+
+          if (explicitAction === "create_here" && match) {
+            // Reutiliza la persona pero crea nueva participación en la sesión destino.
+            const part = await insertParticipationFor(match.personId, row);
+            await maybeGenerateTicketFor(part.id, part.status, row);
+            imported++;
+            logRow(
+              row,
+              "inserted",
+              part.id,
+              "acción manual: crear participación en esta sesión (persona ya existente en el evento)",
+            );
+            continue;
+          }
+
+          if (explicitAction === "create_bis") {
+            // Sufijo VIS N para tratar como persona distinta.
+            const baseLast = (row.last_name ?? "").trim();
+            let n = 2;
+            const collides = (last: string) =>
+              eventByName.has(nameKey(row.first_name, last)) ||
+              nameToPersonId.has(nameKey(row.first_name, last));
+            while (collides(`${baseLast} VIS ${n}`.trim())) n++;
+            row.last_name = `${baseLast} VIS ${n}`.trim();
+            const personId = await insertNewPerson(row);
+            const part = await insertParticipationFor(personId, row);
+            await maybeGenerateTicketFor(part.id, part.status, row);
+            nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
+            eventByName.set(nameKey(row.first_name, row.last_name), {
+              participantId: part.id,
+              sessionId: data.sessionId,
+              personId,
+            });
+            imported++;
+            logRow(row, "inserted", part.id, "acción manual: crear bis (sufijo VIS)");
+            continue;
+          }
+
+          if (explicitAction === "create_new") {
+            // Bloque A: crea persona nueva. Bloque D: reutiliza la persona conocida.
+            let personId: string;
+            const known = await resolvePersonOutsideEvent(row);
+            if (known) {
+              personId = known;
+            } else {
+              personId = await insertNewPerson(row);
+            }
+            const part = await insertParticipationFor(personId, row);
+            await maybeGenerateTicketFor(part.id, part.status, row);
+            nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
+            imported++;
+            logRow(
+              row,
+              "inserted",
+              part.id,
+              known ? "acción manual: crear participación (persona ya existía)" : "acción manual: crear",
+            );
+            continue;
+          }
+
+          // Si la acción no era aplicable al estado real (ej. update sin match), cae al legado.
+        }
+
         let key = nameKey(row.first_name, row.last_name);
         let existingPersonId = nameToPersonId.get(key);
         let suffixApplied = false;
