@@ -295,12 +295,28 @@ function BulkSendPage() {
     queryKey: ["bulk_sent", loadedIds, templateId],
     enabled: loadedIds.length > 0 && !!templateId,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("communication_logs")
-        .select("participant_id, status")
-        .eq("template_id", templateId!)
-        .in("participant_id", loadedIds);
-      return data ?? [];
+      const CHUNK = 300;
+      const all: { participant_id: string | null; status: string }[] = [];
+      for (let i = 0; i < loadedIds.length; i += CHUNK) {
+        const slice = loadedIds.slice(i, i + CHUNK);
+        let from = 0;
+        const pageSize = 1000;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { data, error } = await supabase
+            .from("communication_logs")
+            .select("participant_id, status")
+            .eq("template_id", templateId!)
+            .in("participant_id", slice)
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          const rows = (data ?? []) as { participant_id: string | null; status: string }[];
+          all.push(...rows);
+          if (rows.length < pageSize) break;
+          from += pageSize;
+        }
+      }
+      return all;
     },
   });
 
