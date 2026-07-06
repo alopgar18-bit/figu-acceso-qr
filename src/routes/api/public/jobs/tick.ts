@@ -1,0 +1,144 @@
+import { createFileRoute } from "@tanstack/react-router";
+
+/**
+ * Endpoint público invocado por pg_cron cada minuto.
+ * Toma jobs en cola con lock atómico y los ejecuta con SERVICE_ROLE,
+ * independientemente de si el usuario que los creó sigue conectado.
+ *
+ * Autenticación: `apikey` header debe coincidir con SUPABASE_PUBLISHABLE_KEY
+ * o con SUPABASE_ANON_KEY. No devuelve PII.
+ */
+export const Route = createFileRoute("/api/public/jobs/tick")({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const anon = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
+        const provided = request.headers.get("apikey") ?? "";
+        if (!anon || provided !== anon) {
+          return new Response(JSON.stringify({ error: "unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const owner = `worker-${crypto.randomUUID()}`;
+        const results: Array<{ id: string; kind: string; status: string; error?: string }> = [];
+        const maxJobs = 5;
+        const budgetMs = 25_000; // deja margen dentro del límite del worker
+        const startedAt = Date.now();
+
+        for (let i = 0; i < maxJobs; i++) {
+          if (Date.now() - startedAt > budgetMs) break;
+
+          const { data: job, error: claimErr } = await supabaseAdmin.rpc(
+            "claim_next_background_job",
+            { _owner: owner, _kinds: null, _lock_seconds: 120 },
+          );
+          if (claimErr) {
+            console.error("[jobs.tick] claim failed", claimErr);
+            break;
+          }
+          if (!job) break;
+
+          const j = job as unknown as {
+            id: string;
+            kind: string;
+            payload: Record<string, unknown>;
+            attempts: number;
+            max_attempts: number;
+          };
+
+          try {
+            await runJob(j, supabaseAdmin);
+            await supabaseAdmin
+              .from("background_jobs")
+              .update({
+                status: "done",
+                finished_at: new Date().toISOString(),
+                lock_owner: null,
+                lock_expires_at: null,
+              })
+              .eq("id", j.id);
+            results.push({ id: j.id, kind: j.kind, status: "done" });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            const nextStatus = j.attempts >= j.max_attempts ? "failed" : "queued";
+            await supabaseAdmin
+              .from("background_jobs")
+              .update({
+                status: nextStatus,
+                error: msg,
+                finished_at: nextStatus === "failed" ? new Date().toISOString() : null,
+                lock_owner: null,
+                lock_expires_at: null,
+              })
+              .eq("id", j.id);
+            results.push({ id: j.id, kind: j.kind, status: nextStatus, error: msg });
+          }
+        }
+
+        return new Response(JSON.stringify({ processed: results.length, results }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    },
+  },
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runJob(job: { id: string; kind: string; payload: Record<string, unknown> }, admin: any): Promise<void> {
+  switch (job.kind) {
+    case "send_whatsapp":
+      return dispatchSendWhatsapp(job, admin);
+    case "send_email":
+      return dispatchSendEmail(job, admin);
+    default:
+      throw new Error(`Kind no soportado por el tick: ${job.kind}`);
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function dispatchSendWhatsapp(job: { id: string; payload: Record<string, unknown> }, admin: any): Promise<void> {
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no disponibles");
+  const ids = Array.isArray(job.payload?.ids) ? (job.payload.ids as string[]) : undefined;
+  const res = await fetch(`${url.replace(/\/+$/, "")}/functions/v1/send-whatsapp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+    },
+    body: JSON.stringify(ids ? { ids } : {}),
+  });
+  const text = await res.text();
+  let parsed: Record<string, unknown> = {};
+  try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text }; }
+  await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  if (!res.ok && res.status !== 409) throw new Error(`send-whatsapp ${res.status}: ${text.slice(0, 200)}`);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function dispatchSendEmail(job: { id: string; payload: Record<string, unknown> }, admin: any): Promise<void> {
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no disponibles");
+  const body: Record<string, unknown> = { background: true, ...job.payload };
+  const res = await fetch(`${url.replace(/\/+$/, "")}/functions/v1/send-email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let parsed: Record<string, unknown> = {};
+  try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text }; }
+  await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  if (!res.ok) throw new Error(`send-email ${res.status}: ${text.slice(0, 200)}`);
+}
