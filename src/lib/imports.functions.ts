@@ -1026,3 +1026,257 @@ export const getImportBatchRowResults = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return rows ?? [];
   });
+
+// ============================================================
+// Análisis previo de duplicados — sin escribir en la base.
+// Clasifica cada fila en A/B/C/D y devuelve la coincidencia
+// existente para que el usuario decida qué hacer con cada bloque.
+// ============================================================
+
+const analyzeSchema = z.object({
+  eventId: z.string().uuid(),
+  sessionId: z.string().uuid(),
+  rows: z
+    .array(
+      z.object({
+        rowIndex: z.number().int().min(0),
+        first_name: z.string().trim().min(1).max(120),
+        last_name: z.string().trim().max(150).optional().nullable(),
+        dni: z.string().trim().max(30).optional().nullable(),
+        email: z.string().trim().max(255).optional().nullable(),
+        phone: z.string().trim().max(40).optional().nullable(),
+      }),
+    )
+    .min(1)
+    .max(10000),
+});
+
+export const analyzeImport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => analyzeSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireRole(supabase, userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+    ]);
+
+    const normStr = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+    const normDni = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toUpperCase().replace(/[\s-]/g, "");
+    const normEmail = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase();
+    const normPhone = (s: string | null | undefined) => {
+      const d = (s ?? "").toString().replace(/\D/g, "");
+      return d.length >= 9 ? d.slice(-9) : d;
+    };
+    const nameKey = (f: string | null | undefined, l: string | null | undefined) =>
+      `${normStr(f)}|${normStr(l)}`;
+
+    // Roster completo del evento con tickets asociados.
+    const { data: roster } = await supabase
+      .from("event_participants")
+      .select(
+        "id, session_id, status, person_id, people:person_id(first_name, last_name, dni, email, phone), event_sessions:session_id(name), tickets(id)",
+      )
+      .eq("event_id", data.eventId);
+
+    type RosterEntry = {
+      participantId: string;
+      sessionId: string;
+      sessionName: string | null;
+      personId: string;
+      status: string | null;
+      hasTicket: boolean;
+    };
+    const byDni = new Map<string, RosterEntry[]>();
+    const byEmail = new Map<string, RosterEntry[]>();
+    const byPhone = new Map<string, RosterEntry[]>();
+    const byName = new Map<string, RosterEntry[]>();
+    const push = (m: Map<string, RosterEntry[]>, k: string, e: RosterEntry) => {
+      if (!k) return;
+      const a = m.get(k);
+      if (a) a.push(e);
+      else m.set(k, [e]);
+    };
+    for (const ep of roster ?? []) {
+      const ppl = ep.people as {
+        first_name?: string | null;
+        last_name?: string | null;
+        dni?: string | null;
+        email?: string | null;
+        phone?: string | null;
+      } | null;
+      if (!ppl) continue;
+      const sess = ep.event_sessions as { name?: string | null } | null;
+      const tk = ep.tickets as { id: string }[] | null;
+      const entry: RosterEntry = {
+        participantId: ep.id as string,
+        sessionId: (ep.session_id as string | null) ?? "",
+        sessionName: sess?.name ?? null,
+        personId: ep.person_id as string,
+        status: (ep.status as string | null) ?? null,
+        hasTicket: Array.isArray(tk) && tk.length > 0,
+      };
+      push(byDni, normDni(ppl.dni), entry);
+      push(byEmail, normEmail(ppl.email), entry);
+      push(byPhone, normPhone(ppl.phone), entry);
+      push(byName, nameKey(ppl.first_name, ppl.last_name), entry);
+    }
+
+    // Personas fuera del evento — sólo por DNI y email para no inflar la consulta.
+    const rowDnis = new Set<string>();
+    const rowEmails = new Set<string>();
+    for (const r of data.rows) {
+      const d = normDni(r.dni);
+      if (d) rowDnis.add(d);
+      const e = normEmail(r.email);
+      if (e) rowEmails.add(e);
+    }
+    const peopleByDni = new Map<string, string>();
+    const peopleByEmail = new Map<string, string>();
+    const chunkArr = <T,>(arr: T[], n: number) => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+      return out;
+    };
+    for (const chunk of chunkArr([...rowDnis], 200)) {
+      const { data: ppl } = await supabase
+        .from("people")
+        .select("id, dni")
+        .in("dni", chunk);
+      for (const p of ppl ?? []) {
+        const k = normDni(p.dni);
+        if (k) peopleByDni.set(k, p.id as string);
+      }
+    }
+    for (const chunk of chunkArr([...rowEmails], 200)) {
+      const { data: ppl } = await supabase
+        .from("people")
+        .select("id, email")
+        .in("email", chunk);
+      for (const p of ppl ?? []) {
+        const k = normEmail(p.email);
+        if (k) peopleByEmail.set(k, p.id as string);
+      }
+    }
+
+    type Block = "A" | "B" | "C" | "D";
+    type MatchReason = "dni" | "email" | "phone" | "name" | null;
+    type RowAnalysis = {
+      rowIndex: number;
+      block: Block;
+      match_reason: MatchReason;
+      existing: {
+        participantId?: string;
+        personId?: string;
+        sessionId?: string | null;
+        sessionName?: string | null;
+        status?: string | null;
+        hasTicket?: boolean;
+      } | null;
+    };
+
+    const analyses: RowAnalysis[] = [];
+    const counts = {
+      A: 0,
+      B: 0,
+      C: 0,
+      D: 0,
+      B_with_ticket: 0,
+      C_with_ticket: 0,
+    };
+
+    for (const r of data.rows) {
+      const dni = normDni(r.dni);
+      const email = normEmail(r.email);
+      const phone = normPhone(r.phone);
+      const nk = nameKey(r.first_name, r.last_name);
+      const candidates: Array<{ reason: MatchReason; hits: RosterEntry[] }> = [];
+      if (dni && byDni.has(dni)) candidates.push({ reason: "dni", hits: byDni.get(dni)! });
+      if (email && byEmail.has(email)) candidates.push({ reason: "email", hits: byEmail.get(email)! });
+      if (phone && byPhone.has(phone)) candidates.push({ reason: "phone", hits: byPhone.get(phone)! });
+      if (byName.has(nk)) candidates.push({ reason: "name", hits: byName.get(nk)! });
+
+      if (candidates.length > 0) {
+        // Preferimos coincidencia en la sesión destino.
+        let inSession: RosterEntry | undefined;
+        let inSessionReason: MatchReason = null;
+        for (const c of candidates) {
+          const s = c.hits.find((h) => h.sessionId === data.sessionId);
+          if (s) {
+            inSession = s;
+            inSessionReason = c.reason;
+            break;
+          }
+        }
+        if (inSession) {
+          analyses.push({
+            rowIndex: r.rowIndex,
+            block: "B",
+            match_reason: inSessionReason,
+            existing: {
+              participantId: inSession.participantId,
+              personId: inSession.personId,
+              sessionId: inSession.sessionId,
+              sessionName: inSession.sessionName,
+              status: inSession.status,
+              hasTicket: inSession.hasTicket,
+            },
+          });
+          counts.B++;
+          if (inSession.hasTicket) counts.B_with_ticket++;
+        } else {
+          const first = candidates[0];
+          const hit = first.hits[0];
+          analyses.push({
+            rowIndex: r.rowIndex,
+            block: "C",
+            match_reason: first.reason,
+            existing: {
+              participantId: hit.participantId,
+              personId: hit.personId,
+              sessionId: hit.sessionId,
+              sessionName: hit.sessionName,
+              status: hit.status,
+              hasTicket: hit.hasTicket,
+            },
+          });
+          counts.C++;
+          if (hit.hasTicket) counts.C_with_ticket++;
+        }
+      } else {
+        // Bloque D: existe en `people` pero sin participación en el evento.
+        let pid: string | undefined;
+        let reason: MatchReason = null;
+        if (dni && peopleByDni.has(dni)) {
+          pid = peopleByDni.get(dni)!;
+          reason = "dni";
+        } else if (email && peopleByEmail.has(email)) {
+          pid = peopleByEmail.get(email)!;
+          reason = "email";
+        }
+        if (pid) {
+          analyses.push({
+            rowIndex: r.rowIndex,
+            block: "D",
+            match_reason: reason,
+            existing: { personId: pid },
+          });
+          counts.D++;
+        } else {
+          analyses.push({
+            rowIndex: r.rowIndex,
+            block: "A",
+            match_reason: null,
+            existing: null,
+          });
+          counts.A++;
+        }
+      }
+    }
+
+    return { rows: analyses, counts };
+  });
