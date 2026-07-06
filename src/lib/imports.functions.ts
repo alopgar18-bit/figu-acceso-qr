@@ -175,6 +175,14 @@ export const commitImport = createServerFn({ method: "POST" })
       (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
     const nameKey = (first: string | null | undefined, last: string | null | undefined) =>
       `${normalize(first)}|${normalize(last)}`;
+    const normDniLocal = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toUpperCase().replace(/[\s-]/g, "");
+    const normEmailLocal = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase();
+    const normPhoneLocal = (s: string | null | undefined) => {
+      const d = (s ?? "").toString().replace(/\D/g, "");
+      return d.length >= 9 ? d.slice(-9) : d;
+    };
 
     const { data: sessionRoster } = await supabase
       .from("event_participants")
@@ -186,6 +194,80 @@ export const commitImport = createServerFn({ method: "POST" })
       if (!ppl) continue;
       nameToPersonId.set(nameKey(ppl.first_name, ppl.last_name), ep.person_id as string);
     }
+
+    // Índices globales de todo el evento para el modo `perRowActions`.
+    // Sólo se cargan si el cliente envió acciones explícitas (paso "Análisis").
+    type EventEntry = {
+      participantId: string;
+      sessionId: string;
+      personId: string;
+    };
+    const eventByDni = new Map<string, EventEntry>();
+    const eventByEmail = new Map<string, EventEntry>();
+    const eventByPhone = new Map<string, EventEntry>();
+    const eventByName = new Map<string, EventEntry>();
+    if (data.perRowActions && Object.keys(data.perRowActions).length > 0) {
+      const { data: fullRoster } = await supabase
+        .from("event_participants")
+        .select(
+          "id, session_id, person_id, people:person_id(first_name, last_name, dni, email, phone)",
+        )
+        .eq("event_id", data.eventId);
+      for (const ep of fullRoster ?? []) {
+        const ppl = ep.people as {
+          first_name?: string | null;
+          last_name?: string | null;
+          dni?: string | null;
+          email?: string | null;
+          phone?: string | null;
+        } | null;
+        if (!ppl) continue;
+        const entry: EventEntry = {
+          participantId: ep.id as string,
+          sessionId: (ep.session_id as string | null) ?? "",
+          personId: ep.person_id as string,
+        };
+        const dK = normDniLocal(ppl.dni);
+        const eK = normEmailLocal(ppl.email);
+        const pK = normPhoneLocal(ppl.phone);
+        const nK = nameKey(ppl.first_name, ppl.last_name);
+        // Preferimos la participación de la sesión destino cuando hay varias.
+        const pref = (prev: EventEntry | undefined, cur: EventEntry) =>
+          prev && prev.sessionId === data.sessionId ? prev : cur;
+        if (dK) eventByDni.set(dK, pref(eventByDni.get(dK), entry));
+        if (eK) eventByEmail.set(eK, pref(eventByEmail.get(eK), entry));
+        if (pK) eventByPhone.set(pK, pref(eventByPhone.get(pK), entry));
+        eventByName.set(nK, pref(eventByName.get(nK), entry));
+      }
+    }
+
+    const resolveEventMatch = (row: typeof data.rows[number]): EventEntry | undefined => {
+      const d = normDniLocal(row.dni);
+      if (d && eventByDni.has(d)) return eventByDni.get(d);
+      const e = normEmailLocal(row.email);
+      if (e && eventByEmail.has(e)) return eventByEmail.get(e);
+      const p = normPhoneLocal(row.phone);
+      if (p && eventByPhone.has(p)) return eventByPhone.get(p);
+      return eventByName.get(nameKey(row.first_name, row.last_name));
+    };
+
+    // Persona existente sin participación en este evento (para acción "create_new"
+    // en el bloque D: reutilizamos la persona).
+    const resolvePersonOutsideEvent = async (
+      row: typeof data.rows[number],
+    ): Promise<string | null> => {
+      const d = normDniLocal(row.dni);
+      if (d) {
+        const { data: p } = await supabase.from("people").select("id").eq("dni", d).maybeSingle();
+        if (p?.id) return p.id as string;
+      }
+      const e = normEmailLocal(row.email);
+      if (e) {
+        const { data: p } = await supabase.from("people").select("id").eq("email", e).maybeSingle();
+        if (p?.id) return p.id as string;
+      }
+      return null;
+    };
 
     // Load physical plan seats (only if the session has one assigned). The
     // import marks every imported participant whose seat exists in the plan as
