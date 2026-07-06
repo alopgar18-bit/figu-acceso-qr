@@ -6,6 +6,34 @@ import { INCIDENT_TYPE_LABELS, INCIDENT_CATEGORY_LABELS, type IncidentType, type
 
 export type ReportScope = { eventId: string; sessionId?: string };
 
+export function inferReportPhase(startsAt: string | null, endsAt: string | null): "previo" | "tiempo-real" | "final" {
+  if (!startsAt) return "previo";
+  const now = Date.now();
+  const start = new Date(startsAt).getTime();
+  const end = endsAt ? new Date(endsAt).getTime() : start + 6 * 3600_000;
+  if (now < start) return "previo";
+  if (now > end) return "final";
+  return "tiempo-real";
+}
+
+// Lista ligera de sesiones para el desplegable — carga rápida y cacheable.
+export function useEventSessionsLite(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["report", "sessions-lite", eventId],
+    enabled: !!eventId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_sessions")
+        .select("id, name, starts_at, capacity")
+        .eq("event_id", eventId!)
+        .order("starts_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; starts_at: string | null; capacity: number }>;
+    },
+  });
+}
+
 // "Confirmado" en el informe = tiene plaza asegurada (aprobado y aceptado).
 // Incluye los estados intermedios del flujo de envío de QR porque en la práctica
 // muchos asistentes nunca cambian de "aceptado_pendiente_envio" antes de la sesión.
@@ -140,7 +168,12 @@ export function useEventReport(scope: ReportScope | null) {
   return useQuery({
     queryKey: ["report", scope?.eventId, scope?.sessionId ?? "all"],
     enabled: !!scope?.eventId,
-    refetchInterval: 10_000,
+    // Refresco adaptativo: en vivo cada 10 s; en previo/final cada 60 s.
+    refetchInterval: (query) => {
+      const d = (query.state.data as ReportData | undefined) ?? undefined;
+      if (!d) return 30_000;
+      return inferReportPhase(d.event.starts_at, d.event.ends_at) === "tiempo-real" ? 10_000 : 60_000;
+    },
     queryFn: async (): Promise<ReportData> => {
       const { eventId, sessionId } = scope!;
       type PartRow = {
@@ -180,35 +213,73 @@ export function useEventReport(scope: ReportScope | null) {
       };
       type ConsentRow = { participant_id: string | null; consent_kind: string; accepted: boolean };
 
+      // Empujamos el filtro de sesión al SQL para no traer todo el evento cuando
+      // el usuario está mirando una sola sesión (el caso más común).
       const [evt, sessions, participants, checkins, comms, incidents, consents] = await Promise.all([
         supabase.from("events").select("id, name, status, starts_at, ends_at, location_name, city").eq("id", eventId).single(),
         supabase.from("event_sessions").select("id, name, starts_at, capacity").eq("event_id", eventId).order("starts_at"),
         fetchAllPaged<PartRow>((from, to) =>
-          supabase.from("event_participants")
+          (sessionId
+            ? supabase.from("event_participants")
+                .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
+                .eq("event_id", eventId)
+                .eq("session_id", sessionId)
+                .range(from, to)
+            : supabase.from("event_participants")
             .select("id, status, attendee_type, companions_count, confirmed_at, session_id, person_id, people(first_name, last_name, dni, email, phone), event_sessions(name)")
             .eq("event_id", eventId)
-            .range(from, to) as unknown as PromiseLike<{ data: PartRow[] | null; error: { message: string } | null }>,
+                .range(from, to)) as unknown as PromiseLike<{ data: PartRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<CheckinRow>((from, to) =>
-          supabase.from("checkins")
-            .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result")
-            .eq("event_id", eventId)
-            .order("checked_in_at", { ascending: false })
-            .range(from, to) as unknown as PromiseLike<{ data: CheckinRow[] | null; error: { message: string } | null }>,
+          (sessionId
+            ? supabase.from("checkins")
+                .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result")
+                .eq("event_id", eventId)
+                .eq("session_id", sessionId)
+                .order("checked_in_at", { ascending: false })
+                .range(from, to)
+            : supabase.from("checkins")
+                .select("id, participant_id, validator_id, checked_in_at, session_id, device_info, result")
+                .eq("event_id", eventId)
+                .order("checked_in_at", { ascending: false })
+                .range(from, to)) as unknown as PromiseLike<{ data: CheckinRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<CommRow>((from, to) =>
-          supabase
-            .from("communication_logs")
-            .select("id, status, session_id")
-            .eq("event_id", eventId)
-            .or("metadata->>wati_test.is.null,metadata->>wati_test.neq.true")
-            .range(from, to) as unknown as PromiseLike<{ data: CommRow[] | null; error: { message: string } | null }>,
+          (sessionId
+            ? supabase.from("communication_logs")
+                .select("id, status, session_id")
+                .eq("event_id", eventId)
+                .eq("session_id", sessionId)
+                .or("metadata->>wati_test.is.null,metadata->>wati_test.neq.true")
+                .range(from, to)
+            : supabase.from("communication_logs")
+                .select("id, status, session_id")
+                .eq("event_id", eventId)
+                .or("metadata->>wati_test.is.null,metadata->>wati_test.neq.true")
+                .range(from, to)) as unknown as PromiseLike<{ data: CommRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<IncidentRow>((from, to) =>
-          supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions, walk_in_first_name, walk_in_last_name, walk_in_dni, title, description, created_at").eq("event_id", eventId).order("created_at", { ascending: false }).range(from, to) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
+          (sessionId
+            ? supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions, walk_in_first_name, walk_in_last_name, walk_in_dni, title, description, created_at").eq("event_id", eventId).eq("session_id", sessionId).order("created_at", { ascending: false }).range(from, to)
+            : supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions, walk_in_first_name, walk_in_last_name, walk_in_dni, title, description, created_at").eq("event_id", eventId).order("created_at", { ascending: false }).range(from, to)) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
         ),
         fetchAllPaged<ConsentRow>((from, to) =>
-          supabase.from("consent_records").select("participant_id, consent_kind, accepted").range(from, to) as unknown as PromiseLike<{ data: ConsentRow[] | null; error: { message: string } | null }>,
+          // Filtramos por participantes del evento/sesión para no traer TODOS los
+          // consentimientos del sistema (era el mayor cuello de botella).
+          (async () => {
+            const partQ = sessionId
+              ? supabase.from("event_participants").select("id").eq("event_id", eventId).eq("session_id", sessionId)
+              : supabase.from("event_participants").select("id").eq("event_id", eventId);
+            const { data: partIds, error: pErr } = await partQ;
+            if (pErr) return { data: [] as ConsentRow[], error: null };
+            const ids = (partIds ?? []).map((p) => p.id);
+            if (ids.length === 0) return { data: [] as ConsentRow[], error: null };
+            // Paginación externa sigue funcionando: aplicamos range sobre este subconjunto.
+            return supabase.from("consent_records")
+              .select("participant_id, consent_kind, accepted")
+              .in("participant_id", ids)
+              .range(from, to) as unknown as { data: ConsentRow[] | null; error: { message: string } | null };
+          })() as unknown as PromiseLike<{ data: ConsentRow[] | null; error: { message: string } | null }>,
         ),
       ]);
 
