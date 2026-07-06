@@ -27,6 +27,7 @@ import { WatiTestSendDialog } from "@/components/wati-test-send-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { BulkProgressCard } from "@/components/bulk-progress-card";
 import { useShowAll } from "@/hooks/use-show-all";
+import { useKeepSessionAlive } from "@/hooks/use-keep-session-alive";
 
 const searchSchema = z.object({
   batch_id: z.string().uuid().optional(),
