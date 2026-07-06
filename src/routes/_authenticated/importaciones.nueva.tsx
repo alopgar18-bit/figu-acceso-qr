@@ -285,6 +285,15 @@ function ImportWizardPage() {
       const mappingsArr = Object.entries(mapping)
         .filter(([, v]) => v)
         .map(([source_column, target_field]) => ({ source_column, target_field: target_field as string, transform: null }));
+      // Construye perRowActions a partir del análisis (bloque + overrides).
+      let perRowActions: Record<string, RowAction> | undefined;
+      if (analysis) {
+        perRowActions = {};
+        for (const a of analysis.rows) {
+          const act = rowOverrides[a.rowIndex] ?? blockActions[a.block];
+          perRowActions[String(a.rowIndex)] = act;
+        }
+      }
       const res = await commit({
         data: {
           filename: parsed.filename,
@@ -297,15 +306,40 @@ function ImportWizardPage() {
           mappings: mappingsArr,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           rows: validRows as any,
+          perRowActions,
         },
       });
       setResult(res);
-      setStep(4);
+      setStep(5);
       toast.success(`Importación completada: ${res.imported} de ${res.total}`);
     } catch (err) {
       toast.error("Error en la importación", { description: err instanceof Error ? err.message : "Error" });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function runAnalysis() {
+    if (validRows.length === 0 || !eventId || !sessionId) return;
+    setAnalyzing(true);
+    try {
+      const slim = validRows.map((r) => ({
+        rowIndex: r.rowIndex,
+        first_name: String(r.first_name ?? ""),
+        last_name: (r.last_name as string | null) ?? null,
+        dni: (r.dni as string | null) ?? null,
+        email: (r.email as string | null) ?? null,
+        phone: (r.phone as string | null) ?? null,
+      }));
+      const res = await analyze({ data: { eventId, sessionId, rows: slim } });
+      setAnalysis(res as AnalysisResult);
+      setRowOverrides({});
+    } catch (err) {
+      toast.error("No se pudo analizar", {
+        description: err instanceof Error ? err.message : "Error",
+      });
+    } finally {
+      setAnalyzing(false);
     }
   }
 
