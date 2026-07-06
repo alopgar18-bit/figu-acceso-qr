@@ -47,6 +47,7 @@ import {
   type FieldKey,
   type FieldRule,
 } from "@/lib/field-requirements";
+import { useKeepSessionAlive } from "@/hooks/use-keep-session-alive";
 
 export const Route = createFileRoute("/_authenticated/importaciones/nueva")({
   component: ImportWizardPage,
@@ -100,6 +101,9 @@ function ImportWizardPage() {
   const [duplicateHits, setDuplicateHits] = useState<number | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+
+  // Mantiene viva la sesión mientras se analiza/importa un fichero grande.
+  useKeepSessionAlive(submitting || analyzing);
   const [blockActions, setBlockActions] = useState<Record<DuplicateBlock, RowAction>>({
     A: "create_new",
     B: "update",
