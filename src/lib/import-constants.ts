@@ -82,6 +82,50 @@ export const DUPLICATE_STRATEGIES: { value: DuplicateStrategy; label: string; de
   { value: "suffix_distinct", label: "Tratar como personas distintas (VIS 2, VIS 3…)", description: "Si dentro de la sesión / del archivo hay dos filas con el mismo nombre y apellido, al segundo y siguientes se les añade 'VIS 2', 'VIS 3'… en el apellido y se crean como participantes nuevos con su propio asiento y QR. El sufijo solo aparece en BBDD; el saludo en plantillas usa el primer apellido." },
 ];
 
+// -----------------------------------------------------------------------------
+// Análisis previo de duplicados (paso "Análisis" del asistente).
+// Cada fila queda clasificada en un bloque y el usuario decide qué hacer.
+// -----------------------------------------------------------------------------
+
+export type DuplicateBlock = "A" | "B" | "C" | "D";
+export type RowAction = "update" | "create_here" | "create_bis" | "skip" | "create_new";
+
+export const BLOCK_LABEL: Record<DuplicateBlock, string> = {
+  A: "Nuevos",
+  B: "Ya en esta sesión",
+  C: "Ya en otra sesión del evento",
+  D: "Persona conocida sin participación",
+};
+
+export const BLOCK_DESCRIPTION: Record<DuplicateBlock, string> = {
+  A: "No coinciden con nadie. Se crean como personas y participaciones nuevas.",
+  B: "La persona ya participa en la sesión destino (por DNI, email, teléfono o nombre+apellidos).",
+  C: "La persona ya participa en otra sesión del evento, pero no en la sesión destino.",
+  D: "La persona existe en la base de datos pero no participa en este evento.",
+};
+
+export const ACTION_LABEL: Record<RowAction, string> = {
+  update: "Actualizar datos",
+  create_here: "Crear en esta sesión",
+  create_bis: "Crear como bis (VIS 2, VIS 3…)",
+  skip: "No importar",
+  create_new: "Crear",
+};
+
+/** Opciones disponibles y valor por defecto para cada bloque. */
+export function actionsForBlock(block: DuplicateBlock): { options: RowAction[]; default: RowAction } {
+  switch (block) {
+    case "A":
+      return { options: ["create_new"], default: "create_new" };
+    case "B":
+      return { options: ["update", "skip", "create_bis"], default: "update" };
+    case "C":
+      return { options: ["create_here", "skip", "create_bis"], default: "create_here" };
+    case "D":
+      return { options: ["create_new", "skip"], default: "create_new" };
+  }
+}
+
 /** Auto-detect a target field from a header name. */
 export function guessTarget(header: string): TargetField | null {
   const h = header.toLowerCase().trim().replace(/[._-]/g, " ");
