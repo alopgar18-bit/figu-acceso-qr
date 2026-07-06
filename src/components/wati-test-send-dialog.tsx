@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizarTelefonoES } from "@/lib/phone";
 import { useAuth } from "@/hooks/use-auth";
+import { SendWhatsappError, invokeSendWhatsapp } from "@/lib/send-whatsapp-client";
 
 interface Props {
   open: boolean;
@@ -88,10 +89,7 @@ export function WatiTestSendDialog({ open, onOpenChange, eventId, sessionId }: P
       if (insErr) throw insErr;
 
       // 2. Invocar la edge function con ids:[log.id]
-      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-        body: { ids: [logRow.id] },
-      });
-      if (error) throw error;
+      const data = await invokeSendWhatsapp<{ provider?: string; sent?: number; failed?: number; errors?: Array<{ error: string }>; configured?: boolean; message?: string }>({ ids: [logRow.id] });
       const payload = data as { provider?: string; sent?: number; failed?: number; errors?: Array<{ error: string }>; configured?: boolean; message?: string } | null;
       if (payload?.configured === false) {
         toast.error(payload.message ?? "Wati no configurado");
@@ -105,7 +103,7 @@ export function WatiTestSendDialog({ open, onOpenChange, eventId, sessionId }: P
         toast.error(`Fallido: ${detail}`);
       }
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(e instanceof SendWhatsappError ? e.message : (e as Error).message);
     } finally {
       setSending(false);
     }

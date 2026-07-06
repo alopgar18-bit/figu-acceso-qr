@@ -301,7 +301,7 @@ async function runWati(
         pause_until: (spamLock as { expires_at: string }).expires_at,
         message: `Cola pausada automáticamente por Wati (spam rate limit). Se reanudará a las ${new Date((spamLock as { expires_at: string }).expires_at).toLocaleTimeString("es-ES")}.`,
       }),
-      { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 
@@ -352,7 +352,7 @@ async function runWati(
           until: (existing as { expires_at: string }).expires_at,
           message: "Ya hay un envío masivo de WhatsApp en curso. Espera a que termine antes de lanzar otro.",
         }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 

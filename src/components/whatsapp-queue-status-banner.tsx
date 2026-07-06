@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { SendWhatsappError, invokeSendWhatsapp } from "@/lib/send-whatsapp-client";
 
 interface Status {
   lockActive: boolean;
@@ -96,27 +97,25 @@ export function WhatsappQueueStatusBanner() {
   const resume = async () => {
     setBusy(true);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session?.access_token) {
-        toast.error("Sesión caducada, vuelve a iniciar sesión para reanudar la cola.");
-        return;
-      }
-      const { data, error } = await supabase.functions.invoke("send-whatsapp", { body: {} });
-      if (error) {
-        const ctx = (error as { context?: Response }).context;
-        const status = ctx?.status;
-        if (status === 401 || status === 403) {
-          toast.error("Sesión caducada o sin permisos. Vuelve a iniciar sesión como admin y reintenta.");
-          return;
-        }
-        throw error;
-      }
+      const data = await invokeSendWhatsapp<{
+        busy?: boolean;
+        paused?: boolean;
+        background?: boolean;
+        message?: string;
+        sent?: number;
+        failed?: number;
+      }>({});
       if (data?.busy) toast.message(data.message ?? "Ya hay un envío en curso");
+      else if (data?.paused) toast.message(data.message ?? "Cola pausada por Wati", { duration: 12000 });
       else if (data?.background) toast.success(data.message ?? "Cola reanudada en segundo plano");
       else toast.success(`Enviados: ${data?.sent ?? 0} · Fallidos: ${data?.failed ?? 0}`);
       await load();
     } catch (e) {
-      toast.error((e as Error).message);
+      if (e instanceof SendWhatsappError && (e.status === 401 || e.status === 403)) {
+        toast.error(e.message);
+      } else {
+        toast.error((e as Error).message);
+      }
     } finally {
       setBusy(false);
     }
