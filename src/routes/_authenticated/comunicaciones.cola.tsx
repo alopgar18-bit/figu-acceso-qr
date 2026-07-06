@@ -21,6 +21,7 @@ import { useArchiveCommunicationLogs, useDeleteCommunicationLogs } from "@/lib/u
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 import { CommLogDetailDialog, type CommLogDetail } from "@/components/comm-log-detail-dialog";
 import { WhatsappQueueStatusBanner } from "@/components/whatsapp-queue-status-banner";
+import { SendWhatsappError, invokeSendWhatsapp } from "@/lib/send-whatsapp-client";
 
 export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
   component: QueuePage,
@@ -158,27 +159,18 @@ function QueuePage() {
     setSendingWa(true);
     try {
       const ids = selectedIds.length > 0 ? selectedIds : undefined;
-      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-        body: ids ? { ids } : {},
-      });
-      if (error) {
-        // 409 busy: ya hay un drenaje en curso
-        // deno-lint-ignore no-explicit-any
-        const ctx = (error as any).context;
-        let busyMsg: string | null = null;
-        if (ctx?.status === 409) {
-          try {
-            const j = await ctx.json();
-            if (j?.busy) busyMsg = j.message ?? "Ya hay un envío en curso.";
-            else if (j?.paused) busyMsg = j.message ?? "Cola pausada por Wati (spam rate limit).";
-          } catch (_) { /* ignore */ }
-        }
-        if (busyMsg) {
-          toast.message(busyMsg, { duration: 10000 });
-          return;
-        }
-        throw error;
-      }
+      const data = await invokeSendWhatsapp<{
+        configured?: boolean;
+        message?: string;
+        busy?: boolean;
+        paused?: boolean;
+        background?: boolean;
+        queued?: number;
+        queued_ids?: string[];
+        error_code?: string;
+        sent?: number;
+        failed?: number;
+      }>(ids ? { ids } : {});
       if (data?.configured === false) {
         toast.message(data.message ?? "Wassenger no configurado");
       } else if (data?.busy === true) {
@@ -206,7 +198,7 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(e instanceof SendWhatsappError ? e.message : (e as Error).message);
     } finally {
       setSendingWa(false);
     }
@@ -316,17 +308,14 @@ function QueuePage() {
   const testWatiConnection = async () => {
     setTestingWati(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-        body: { action: "test" },
-      });
-      if (error) throw error;
+      const data = await invokeSendWhatsapp<{ ok?: boolean; message?: string }>({ action: "test" });
       if (data?.ok === true) {
         toast.success(data.message ?? "Conexión Wati OK.");
       } else {
         toast.error(data?.message ?? "Wati no responde correctamente.", { duration: 12000 });
       }
     } catch (e) {
-      toast.error(`Error al probar Wati: ${(e as Error).message}`);
+      toast.error(`Error al probar Wati: ${e instanceof SendWhatsappError ? e.message : (e as Error).message}`);
     } finally {
       setTestingWati(false);
     }
