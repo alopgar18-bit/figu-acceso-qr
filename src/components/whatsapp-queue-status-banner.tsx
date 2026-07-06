@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { SendWhatsappError, invokeSendWhatsapp } from "@/lib/send-whatsapp-client";
+import { useKeepSessionAlive } from "@/hooks/use-keep-session-alive";
 
 interface Status {
   lockActive: boolean;
@@ -32,6 +33,11 @@ function fmtAgo(iso: string | null): string {
 export function WhatsappQueueStatusBanner() {
   const [st, setSt] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Keep-alive: mientras haya lock activo, pausa por spam o mensajes pendientes,
+  // mantener refrescando el token para que "Reanudar cola" nunca falle por 401.
+  const active = !!st && (st.lockActive || st.spamPauseActive || st.pending > 0);
+  useKeepSessionAlive(active);
 
   const load = async () => {
     const sinceIso = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
