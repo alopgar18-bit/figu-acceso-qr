@@ -89,16 +89,21 @@ function QueuePage() {
   useEffect(() => { void refreshPendingCount(); }, [logs]);
 
   const pollBatchProgress = async (ids: string[]) => {
-    const { data, error } = await supabase
-      .from("communication_logs")
-      .select("id, status")
-      .in("id", ids);
-    if (error) return;
+    // Chunk para evitar exceder el límite de URL de PostgREST (~8KB) con lotes grandes.
+    const CHUNK = 200;
     let sent = 0, failed = 0, pending = 0;
-    for (const r of data ?? []) {
-      if (r.status === "enviado") sent++;
-      else if (r.status === "fallido") failed++;
-      else pending++;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK);
+      const { data, error } = await supabase
+        .from("communication_logs")
+        .select("id, status")
+        .in("id", slice);
+      if (error) return;
+      for (const r of data ?? []) {
+        if (r.status === "enviado") sent++;
+        else if (r.status === "fallido") failed++;
+        else pending++;
+      }
     }
     setBgBatch((prev) => prev ? { ...prev, sent, failed, pending } : prev);
     if (pending === 0 && pollRef.current) {
