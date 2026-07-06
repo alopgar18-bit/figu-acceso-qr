@@ -60,6 +60,7 @@ import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authe
 import { Route as AuthenticatedControlAccesoSessionIdRouteImport } from './routes/_authenticated/control-acceso.$sessionId'
 import { Route as AuthenticatedComunicacionesEnvioRouteImport } from './routes/_authenticated/comunicaciones.envio'
 import { Route as AuthenticatedComunicacionesColaRouteImport } from './routes/_authenticated/comunicaciones.cola'
+import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs/tick'
 import { Route as AuthenticatedSesionesSessionIdPlanoRouteImport } from './routes/_authenticated/sesiones.$sessionId.plano'
 import { Route as AuthenticatedSesionesSessionIdAsignacionRouteImport } from './routes/_authenticated/sesiones.$sessionId.asignacion'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
@@ -338,6 +339,11 @@ const AuthenticatedComunicacionesColaRoute =
     path: '/cola',
     getParentRoute: () => AuthenticatedComunicacionesRoute,
   } as any)
+const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
+  id: '/api/public/jobs/tick',
+  path: '/api/public/jobs/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSesionesSessionIdPlanoRoute =
   AuthenticatedSesionesSessionIdPlanoRouteImport.update({
     id: '/$sessionId/plano',
@@ -423,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/sesiones/$sessionId/asignacion': typeof AuthenticatedSesionesSessionIdAsignacionRoute
   '/sesiones/$sessionId/plano': typeof AuthenticatedSesionesSessionIdPlanoRoute
+  '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
@@ -477,6 +484,7 @@ export interface FileRoutesByTo {
   '/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/sesiones/$sessionId/asignacion': typeof AuthenticatedSesionesSessionIdAsignacionRoute
   '/sesiones/$sessionId/plano': typeof AuthenticatedSesionesSessionIdPlanoRoute
+  '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
   '/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
@@ -536,6 +544,7 @@ export interface FileRoutesById {
   '/_authenticated/eventos/$eventId/editar': typeof AuthenticatedEventosEventIdEditarRoute
   '/_authenticated/sesiones/$sessionId/asignacion': typeof AuthenticatedSesionesSessionIdAsignacionRoute
   '/_authenticated/sesiones/$sessionId/plano': typeof AuthenticatedSesionesSessionIdPlanoRoute
+  '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
   '/_authenticated/eventos/$eventId/sesiones/$sessionId': typeof AuthenticatedEventosEventIdSesionesSessionIdRoute
   '/_authenticated/eventos/$eventId/sesiones/nueva': typeof AuthenticatedEventosEventIdSesionesNuevaRoute
 }
@@ -595,6 +604,7 @@ export interface FileRouteTypes {
     | '/eventos/$eventId/editar'
     | '/sesiones/$sessionId/asignacion'
     | '/sesiones/$sessionId/plano'
+    | '/api/public/jobs/tick'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
   fileRoutesByTo: FileRoutesByTo
@@ -649,6 +659,7 @@ export interface FileRouteTypes {
     | '/eventos/$eventId/editar'
     | '/sesiones/$sessionId/asignacion'
     | '/sesiones/$sessionId/plano'
+    | '/api/public/jobs/tick'
     | '/eventos/$eventId/sesiones/$sessionId'
     | '/eventos/$eventId/sesiones/nueva'
   id:
@@ -707,6 +718,7 @@ export interface FileRouteTypes {
     | '/_authenticated/eventos/$eventId/editar'
     | '/_authenticated/sesiones/$sessionId/asignacion'
     | '/_authenticated/sesiones/$sessionId/plano'
+    | '/api/public/jobs/tick'
     | '/_authenticated/eventos/$eventId/sesiones/$sessionId'
     | '/_authenticated/eventos/$eventId/sesiones/nueva'
   fileRoutesById: FileRoutesById
@@ -722,6 +734,7 @@ export interface RootRouteChildren {
   FFormSlugRoute: typeof FFormSlugRoute
   TQrTokenRoute: typeof TQrTokenRoute
   OgCTokenRoute: typeof OgCTokenRoute
+  ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1083,6 +1096,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComunicacionesColaRouteImport
       parentRoute: typeof AuthenticatedComunicacionesRoute
     }
+    '/api/public/jobs/tick': {
+      id: '/api/public/jobs/tick'
+      path: '/api/public/jobs/tick'
+      fullPath: '/api/public/jobs/tick'
+      preLoaderRoute: typeof ApiPublicJobsTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/sesiones/$sessionId/plano': {
       id: '/_authenticated/sesiones/$sessionId/plano'
       path: '/$sessionId/plano'
@@ -1372,6 +1392,7 @@ const rootRouteChildren: RootRouteChildren = {
   FFormSlugRoute: FFormSlugRoute,
   TQrTokenRoute: TQrTokenRoute,
   OgCTokenRoute: OgCTokenRoute,
+  ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

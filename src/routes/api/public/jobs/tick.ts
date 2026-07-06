@@ -33,7 +33,7 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
 
           const { data: job, error: claimErr } = await supabaseAdmin.rpc(
             "claim_next_background_job",
-            { _owner: owner, _kinds: null, _lock_seconds: 120 },
+            { _owner: owner, _lock_seconds: 120 },
           );
           if (claimErr) {
             console.error("[jobs.tick] claim failed", claimErr);
