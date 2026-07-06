@@ -400,7 +400,20 @@ function ImportWizardPage() {
         />
       )}
 
-      {step === 4 && result && (
+      {step === 4 && parsed && (
+        <AnalysisStep
+          analysis={analysis}
+          analyzing={analyzing}
+          onRunAnalysis={runAnalysis}
+          blockActions={blockActions}
+          setBlockActions={setBlockActions}
+          rowOverrides={rowOverrides}
+          setRowOverrides={setRowOverrides}
+          validRows={validRows}
+        />
+      )}
+
+      {step === 5 && result && (
         <ResultStep
           result={result}
           eventId={eventId}
@@ -408,18 +421,20 @@ function ImportWizardPage() {
           onNew={() => {
             setParsed(null);
             setResult(null);
+            setAnalysis(null);
+            setRowOverrides({});
             setStep(0);
           }}
           onViewBatch={() => navigate({ to: "/importaciones/$batchId", params: { batchId: result.batchId } })}
         />
       )}
 
-      {step < 4 && (
+      {step < 5 && (
         <div className="flex justify-between mt-8 pt-6 border-t">
           <Button variant="outline" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
             <ArrowLeft className="h-4 w-4 mr-2" />Anterior
           </Button>
-          {step === 3 ? (
+          {step === 4 ? (
             <Button onClick={handleCommit} disabled={submitting || validRows.length === 0}>
               {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
               Importar {validRows.length} filas
@@ -432,7 +447,10 @@ function ImportWizardPage() {
                   return;
                 }
                 setUploadError(false);
-                setStep((s) => s + 1);
+                const next = step + 1;
+                setStep(next);
+                // Al entrar al paso "Análisis", lanza el análisis automáticamente.
+                if (next === 4) void runAnalysis();
               }}
               disabled={
                 (step === 1 && !canNextFromConfig) ||
