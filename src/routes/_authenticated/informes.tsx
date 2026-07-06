@@ -21,7 +21,7 @@ function Page() {
       <PageHeader
         eyebrow="Análisis"
         title="Informes"
-        description="Informes previos, en tiempo real y finales por evento y sesión. Abre un evento y pulsa “Excel completo” para descargar el .xlsx con todas las hojas (Resumen, Sesiones, Asistentes, Detalle titulares + acompañantes con nombre, email, teléfono y asiento e Incidencias)."
+        description="Abre un evento para ver el informe de la sesión más próxima (carga rápida). Puedes cambiar de sesión desde el desplegable o pulsar “Excel detallado (titulares + acompañantes)” para descargar el .xlsx con nombre, DNI, email, teléfono, formulario de origen y asiento de cada persona."
       />
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
