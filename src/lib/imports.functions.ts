@@ -302,6 +302,7 @@ export const commitImport = createServerFn({ method: "POST" })
     };
 
     // ------- helpers para el modo perRowActions -------
+    const batchId = batch.id;
     async function insertNewPerson(row: typeof data.rows[number]): Promise<string> {
       const { data: created, error: pErr } = await supabase
         .from("people")
@@ -348,7 +349,7 @@ export const commitImport = createServerFn({ method: "POST" })
             status === "confirmado" || status === "acceso_validado"
               ? new Date().toISOString()
               : null,
-          import_batch_id: batch.id,
+          import_batch_id: batchId,
           seat_zone: row.seat_zone ?? null,
           seat_row: row.seat_row ?? null,
           seat_number: row.seat_number ?? null,
