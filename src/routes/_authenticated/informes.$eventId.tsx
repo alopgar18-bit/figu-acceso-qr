@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEventReport } from "@/lib/use-reports";
+import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/use-reports";
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
 
 export const Route = createFileRoute("/_authenticated/informes/$eventId")({
@@ -17,15 +17,26 @@ export const Route = createFileRoute("/_authenticated/informes/$eventId")({
 
 function EventReportPage() {
   const { eventId } = Route.useParams();
-  const [sessionFilter, setSessionFilter] = useState<string>("all");
-  const scope = { eventId, sessionId: sessionFilter === "all" ? undefined : sessionFilter };
+  const { data: sessionsLite = [] } = useEventSessionsLite(eventId);
+  // Por defecto abrimos la sesión más próxima (a partir de hoy) o la primera —
+  // así evitamos cargar TODO el evento en la primera visita.
+  const [sessionFilter, setSessionFilter] = useState<string>("");
+  const defaultSession = (() => {
+    if (sessionFilter) return sessionFilter;
+    if (sessionsLite.length === 0) return "";
+    const now = Date.now();
+    const upcoming = sessionsLite.find((s) => s.starts_at && new Date(s.starts_at).getTime() >= now);
+    return (upcoming ?? sessionsLite[0]).id;
+  })();
+  const effective = sessionFilter || defaultSession;
+  const scope = { eventId, sessionId: effective === "all" ? undefined : effective };
   const { data, isLoading } = useEventReport(scope);
 
   if (isLoading || !data) {
     return <p className="text-sm text-muted-foreground">Cargando informe…</p>;
   }
 
-  const phase = inferPhase(data.event.starts_at, data.event.ends_at);
+  const phase = inferReportPhase(data.event.starts_at, data.event.ends_at);
 
   const handleExcel = async () => {
     try { await exportReportExcel(data, { sessionId: scope.sessionId }); toast.success("Excel generado"); }
@@ -52,13 +63,13 @@ function EventReportPage() {
         description={[data.event.location_name, data.event.city].filter(Boolean).join(" · ") || undefined}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={sessionFilter} onValueChange={setSessionFilter}>
+            <Select value={effective} onValueChange={setSessionFilter}>
               <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las sesiones</SelectItem>
-                {data.sessions.map((s) => (
+                {sessionsLite.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
+                <SelectItem value="all">Todas las sesiones (más lento)</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -73,9 +84,9 @@ function EventReportPage() {
               variant="outline"
               size="sm"
               onClick={handleDetail}
-              title="Hojas: Asistentes (con check-in + walk-ins), Inscritos (titulares + acompañantes con origen y detalle), No asistentes, Resumen del evento"
+              title="Excel detallado: cada titular + acompañantes con nombre, DNI, email, teléfono, formulario de origen, sesión, asiento, check-in e incidencias"
             >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />Detalle por sesión
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Excel detallado (titulares + acompañantes)
             </Button>
             <Button size="sm" onClick={handlePDF}>
               <Download className="h-4 w-4 mr-2" />PDF
@@ -206,16 +217,6 @@ function EventReportPage() {
       </Tabs>
     </div>
   );
-}
-
-function inferPhase(startsAt: string | null, endsAt: string | null): "previo" | "tiempo-real" | "final" {
-  if (!startsAt) return "previo";
-  const now = Date.now();
-  const start = new Date(startsAt).getTime();
-  const end = endsAt ? new Date(endsAt).getTime() : start + 6 * 3600_000;
-  if (now < start) return "previo";
-  if (now > end) return "final";
-  return "tiempo-real";
 }
 
 function Stat({ icon, label, value, tone = "neutral" }: { icon?: React.ReactNode; label: string; value: number | string; tone?: "neutral" | "danger" | "warning" }) {
