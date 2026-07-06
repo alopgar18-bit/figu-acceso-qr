@@ -96,8 +96,21 @@ export function WhatsappQueueStatusBanner() {
   const resume = async () => {
     setBusy(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        toast.error("Sesión caducada, vuelve a iniciar sesión para reanudar la cola.");
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("send-whatsapp", { body: {} });
-      if (error) throw error;
+      if (error) {
+        const ctx = (error as { context?: Response }).context;
+        const status = ctx?.status;
+        if (status === 401 || status === 403) {
+          toast.error("Sesión caducada o sin permisos. Vuelve a iniciar sesión como admin y reintenta.");
+          return;
+        }
+        throw error;
+      }
       if (data?.busy) toast.message(data.message ?? "Ya hay un envío en curso");
       else if (data?.background) toast.success(data.message ?? "Cola reanudada en segundo plano");
       else toast.success(`Enviados: ${data?.sent ?? 0} · Fallidos: ${data?.failed ?? 0}`);
