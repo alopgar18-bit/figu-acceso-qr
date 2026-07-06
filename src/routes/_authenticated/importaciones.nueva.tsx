@@ -435,10 +435,27 @@ function ImportWizardPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />Anterior
           </Button>
           {step === 4 ? (
-            <Button onClick={handleCommit} disabled={submitting || validRows.length === 0}>
-              {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-              Importar {validRows.length} filas
-            </Button>
+            (() => {
+              const willImport = analysis
+                ? analysis.rows.filter((r) => {
+                    const act = rowOverrides[r.rowIndex] ?? blockActions[r.block];
+                    return act !== "skip";
+                  }).length
+                : validRows.length;
+              return (
+                <Button
+                  onClick={handleCommit}
+                  disabled={submitting || analyzing || !analysis || willImport === 0}
+                >
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-2" />
+                  )}
+                  Importar {willImport} filas
+                </Button>
+              );
+            })()
           ) : (
             <Button
               onClick={() => {
