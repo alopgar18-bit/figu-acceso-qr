@@ -71,6 +71,17 @@ const commitSchema = z.object({
     )
     .max(60),
   rows: z.array(rowSchema).min(1).max(5000),
+  /**
+   * Acción explícita por fila decidida en el paso "Análisis". Cuando viene,
+   * sobreescribe la estrategia global (`duplicateStrategy`) para esa fila.
+   * La clave es `rowIndex` (mismo valor que `rowSchema.rowIndex`).
+   */
+  perRowActions: z
+    .record(
+      z.string(),
+      z.enum(["update", "create_here", "create_bis", "skip", "create_new"]),
+    )
+    .optional(),
 });
 
 function genToken(): string {
