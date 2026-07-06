@@ -26,8 +26,21 @@ import {
   type TargetField,
   type DuplicateStrategy,
 } from "@/lib/import-constants";
-import { ATTENDEE_TYPE_OPTIONS, type ParticipantStatus, type AttendeeType } from "@/lib/participant-constants";
-import { commitImport } from "@/lib/imports.functions";
+import {
+  ATTENDEE_TYPE_OPTIONS,
+  type ParticipantStatus,
+  type AttendeeType,
+  statusLabel,
+} from "@/lib/participant-constants";
+import { commitImport, analyzeImport } from "@/lib/imports.functions";
+import {
+  BLOCK_LABEL,
+  BLOCK_DESCRIPTION,
+  ACTION_LABEL,
+  actionsForBlock,
+  type DuplicateBlock,
+  type RowAction,
+} from "@/lib/import-constants";
 import {
   FIELD_DEFS,
   resolveFieldRequirements,
@@ -47,11 +60,30 @@ interface ParsedFile {
   rows: RawRow[];
 }
 
-const STEPS = ["Archivo", "Evento", "Mapeo", "Validación", "Resultado"] as const;
+const STEPS = ["Archivo", "Evento", "Mapeo", "Validación", "Análisis", "Resultado"] as const;
+
+type AnalysisRow = {
+  rowIndex: number;
+  block: DuplicateBlock;
+  match_reason: "dni" | "email" | "phone" | "name" | null;
+  existing: {
+    participantId?: string;
+    personId?: string;
+    sessionId?: string | null;
+    sessionName?: string | null;
+    status?: string | null;
+    hasTicket?: boolean;
+  } | null;
+};
+type AnalysisResult = {
+  rows: AnalysisRow[];
+  counts: { A: number; B: number; C: number; D: number; B_with_ticket: number; C_with_ticket: number };
+};
 
 function ImportWizardPage() {
   const navigate = useNavigate();
   const commit = useServerFn(commitImport);
+  const analyze = useServerFn(analyzeImport);
 
   const [step, setStep] = useState(0);
   const [parsed, setParsed] = useState<ParsedFile | null>(null);
@@ -66,6 +98,15 @@ function ImportWizardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Awaited<ReturnType<typeof commitImport>> | null>(null);
   const [duplicateHits, setDuplicateHits] = useState<number | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [blockActions, setBlockActions] = useState<Record<DuplicateBlock, RowAction>>({
+    A: "create_new",
+    B: "update",
+    C: "create_here",
+    D: "create_new",
+  });
+  const [rowOverrides, setRowOverrides] = useState<Record<number, RowAction>>({});
 
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId || undefined);
