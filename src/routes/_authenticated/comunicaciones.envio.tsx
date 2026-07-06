@@ -99,6 +99,8 @@ function BulkSendPage() {
   } | null>(null);
   const queueCancelRef = useRef(false);
   const queuePauseRef = useRef(false);
+  // Keep-alive de sesión durante creación de cola.
+  const queueActive = !!queueProgress && !queueProgress.done;
   const tableShowAll = useShowAll(500);
   const batchId = search.batch_id;
   const { data: events = [] } = useEvents();
