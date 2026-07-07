@@ -256,15 +256,33 @@ export const commitImport = createServerFn({ method: "POST" })
     const resolvePersonOutsideEvent = async (
       row: typeof data.rows[number],
     ): Promise<string | null> => {
+      // Only reuse a `people` row if that person is NOT already participating
+      // in the target session. Otherwise we would collide with the unique
+      // constraint `(session_id, person_id)` — which is exactly the bug we
+      // saw when several distinct people share the same email/DNI (parejas,
+      // familiares, correos de gestor…).
+      const isInThisSession = async (personId: string) => {
+        const { data: ep } = await supabase
+          .from("event_participants")
+          .select("id")
+          .eq("session_id", data.sessionId)
+          .eq("person_id", personId)
+          .maybeSingle();
+        return !!ep;
+      };
       const d = normDniLocal(row.dni);
       if (d) {
-        const { data: p } = await supabase.from("people").select("id").eq("dni", d).maybeSingle();
-        if (p?.id) return p.id as string;
+        const { data: ps } = await supabase.from("people").select("id").eq("dni", d);
+        for (const p of ps ?? []) {
+          if (!(await isInThisSession(p.id as string))) return p.id as string;
+        }
       }
       const e = normEmailLocal(row.email);
       if (e) {
-        const { data: p } = await supabase.from("people").select("id").eq("email", e).maybeSingle();
-        if (p?.id) return p.id as string;
+        const { data: ps } = await supabase.from("people").select("id").eq("email", e);
+        for (const p of ps ?? []) {
+          if (!(await isInThisSession(p.id as string))) return p.id as string;
+        }
       }
       return null;
     };
