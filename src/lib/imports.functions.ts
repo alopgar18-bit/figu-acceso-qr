@@ -689,6 +689,17 @@ export const commitImport = createServerFn({ method: "POST" })
           .select("id")
           .single();
         if (partErr) {
+          if (
+            partErr.code === "23505" ||
+            /event_participants_session_id_person_id_key/.test(partErr.message)
+          ) {
+            // La persona recién creada colisiona con una participación existente
+            // (persona ya estaba en la sesión con otro person_id equivalente):
+            // tratamos como duplicado silencioso.
+            skipped++;
+            logRow(row, "skipped", null, "persona ya participaba en la sesión");
+            continue;
+          }
           throw new Error(`No se pudo crear la participación (${partErr.message})`);
         }
         if (
