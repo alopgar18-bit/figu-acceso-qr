@@ -43,16 +43,17 @@ function EventReportPage() {
 
   const phase = inferReportPhase(data.event.starts_at, data.event.ends_at);
 
+  const currentSessionId = scope?.sessionId;
   const handleExcel = async () => {
-    try { await exportReportExcel(data, { sessionId: scope.sessionId }); toast.success("Excel generado"); }
+    try { await exportReportExcel(data, { sessionId: currentSessionId }); toast.success("Excel generado"); }
     catch (e) { toast.error("Error generando Excel"); console.error(e); }
   };
   const handleDetail = async () => {
-    try { await exportReportDetailExcel(data, { sessionId: scope.sessionId }); toast.success("Detalle generado"); }
+    try { await exportReportDetailExcel(data, { sessionId: currentSessionId }); toast.success("Detalle generado"); }
     catch (e) { toast.error("Error generando detalle"); console.error(e); }
   };
   const handlePDF = async () => {
-    try { await exportReportPDF(data, { sessionId: scope.sessionId }); toast.success("PDF generado"); }
+    try { await exportReportPDF(data, { sessionId: currentSessionId }); toast.success("PDF generado"); }
     catch (e) { toast.error("Error generando PDF"); console.error(e); }
   };
 
@@ -71,7 +72,7 @@ function EventReportPage() {
             <Select value={effective} onValueChange={setSessionFilter}>
               <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {sessionsLite.map((s) => (
+                {list.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
                 <SelectItem value="all">Todas las sesiones (más lento)</SelectItem>
