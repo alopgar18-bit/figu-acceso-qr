@@ -329,7 +329,7 @@ export const commitImport = createServerFn({ method: "POST" })
     async function insertParticipationFor(
       personId: string,
       row: typeof data.rows[number],
-    ): Promise<{ id: string; status: string }> {
+    ): Promise<{ id: string; status: string; reused?: boolean }> {
       const status = row.initial_status ?? data.defaultStatus;
       const approvedLike =
         status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
@@ -357,7 +357,45 @@ export const commitImport = createServerFn({ method: "POST" })
         })
         .select("id")
         .single();
-      if (partErr) throw new Error(`No se pudo crear la participación (${partErr.message})`);
+      if (partErr) {
+        // Persona ya participa en la sesión → actualizamos la ficha existente
+        // (re-etiquetamos el lote y refrescamos asiento) en lugar de fallar.
+        if (
+          partErr.code === "23505" ||
+          /duplicate key value/i.test(partErr.message) ||
+          /event_participants_session_id_person_id_key/.test(partErr.message)
+        ) {
+          const { data: existing } = await supabase
+            .from("event_participants")
+            .select("id, status")
+            .eq("session_id", data.sessionId)
+            .eq("person_id", personId)
+            .maybeSingle();
+          if (existing) {
+            await supabase
+              .from("event_participants")
+              .update({
+                import_batch_id: batchId,
+                seat_zone: row.seat_zone?.trim() || null,
+                seat_row: row.seat_row?.trim() || null,
+                seat_number: row.seat_number?.trim() || null,
+                seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
+              })
+              .eq("id", existing.id);
+            if (
+              planSeatKeys &&
+              row.seat_zone &&
+              row.seat_row &&
+              row.seat_number &&
+              !seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number)
+            ) {
+              seatsNotInPlan++;
+            }
+            return { id: existing.id as string, status: (existing.status as string) ?? status, reused: true };
+          }
+        }
+        throw new Error(`No se pudo crear la participación (${partErr.message})`);
+      }
       if (
         planSeatKeys &&
         row.seat_zone &&
