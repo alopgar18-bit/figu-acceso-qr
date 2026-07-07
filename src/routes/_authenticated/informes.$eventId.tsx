@@ -17,37 +17,43 @@ export const Route = createFileRoute("/_authenticated/informes/$eventId")({
 
 function EventReportPage() {
   const { eventId } = Route.useParams();
-  const { data: sessionsLite = [] } = useEventSessionsLite(eventId);
+  const { data: sessionsLite, isLoading: sessionsLoading } = useEventSessionsLite(eventId);
   // Por defecto abrimos la sesión más próxima (a partir de hoy) o la primera —
   // así evitamos cargar TODO el evento en la primera visita.
   const [sessionFilter, setSessionFilter] = useState<string>("");
+  const list = sessionsLite ?? [];
   const defaultSession = (() => {
     if (sessionFilter) return sessionFilter;
-    if (sessionsLite.length === 0) return "";
+    if (list.length === 0) return "";
     const now = Date.now();
-    const upcoming = sessionsLite.find((s) => s.starts_at && new Date(s.starts_at).getTime() >= now);
-    return (upcoming ?? sessionsLite[0]).id;
+    const upcoming = list.find((s) => s.starts_at && new Date(s.starts_at).getTime() >= now);
+    return (upcoming ?? list[0]).id;
   })();
   const effective = sessionFilter || defaultSession;
-  const scope = { eventId, sessionId: effective === "all" ? undefined : effective };
+  // Solo lanzamos el informe cuando ya hay una sesión seleccionada — así
+  // evitamos disparar la consulta pesada de "todas las sesiones" mientras
+  // aún se está cargando la lista de sesiones.
+  const ready = !sessionsLoading && !!effective;
+  const scope = ready ? { eventId, sessionId: effective === "all" ? undefined : effective } : null;
   const { data, isLoading } = useEventReport(scope);
 
-  if (isLoading || !data) {
+  if (!ready || isLoading || !data) {
     return <p className="text-sm text-muted-foreground">Cargando informe…</p>;
   }
 
   const phase = inferReportPhase(data.event.starts_at, data.event.ends_at);
 
+  const currentSessionId = scope?.sessionId;
   const handleExcel = async () => {
-    try { await exportReportExcel(data, { sessionId: scope.sessionId }); toast.success("Excel generado"); }
+    try { await exportReportExcel(data, { sessionId: currentSessionId }); toast.success("Excel generado"); }
     catch (e) { toast.error("Error generando Excel"); console.error(e); }
   };
   const handleDetail = async () => {
-    try { await exportReportDetailExcel(data, { sessionId: scope.sessionId }); toast.success("Detalle generado"); }
+    try { await exportReportDetailExcel(data, { sessionId: currentSessionId }); toast.success("Detalle generado"); }
     catch (e) { toast.error("Error generando detalle"); console.error(e); }
   };
   const handlePDF = async () => {
-    try { await exportReportPDF(data, { sessionId: scope.sessionId }); toast.success("PDF generado"); }
+    try { await exportReportPDF(data, { sessionId: currentSessionId }); toast.success("PDF generado"); }
     catch (e) { toast.error("Error generando PDF"); console.error(e); }
   };
 
@@ -66,7 +72,7 @@ function EventReportPage() {
             <Select value={effective} onValueChange={setSessionFilter}>
               <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {sessionsLite.map((s) => (
+                {list.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
                 <SelectItem value="all">Todas las sesiones (más lento)</SelectItem>
