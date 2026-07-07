@@ -274,11 +274,22 @@ export function useEventReport(scope: ReportScope | null) {
             if (pErr) return { data: [] as ConsentRow[], error: null };
             const ids = (partIds ?? []).map((p) => p.id);
             if (ids.length === 0) return { data: [] as ConsentRow[], error: null };
-            // Paginación externa sigue funcionando: aplicamos range sobre este subconjunto.
-            return supabase.from("consent_records")
-              .select("participant_id, consent_kind, accepted")
-              .in("participant_id", ids)
-              .range(from, to) as unknown as { data: ConsentRow[] | null; error: { message: string } | null };
+            // Solo cargamos consentimientos en la primera "página" del bucle externo
+            // (from=0). Trocear .in() en lotes pequeños evita el 400 "Bad Request"
+            // que PostgREST devuelve cuando la URL supera ~8KB (eventos grandes
+            // con miles de participantes).
+            if (from > 0) return { data: [] as ConsentRow[], error: null };
+            const CHUNK = 200;
+            const rows: ConsentRow[] = [];
+            for (let i = 0; i < ids.length; i += CHUNK) {
+              const slice = ids.slice(i, i + CHUNK);
+              const { data, error } = await supabase.from("consent_records")
+                .select("participant_id, consent_kind, accepted")
+                .in("participant_id", slice);
+              if (error) return { data: [] as ConsentRow[], error: null };
+              rows.push(...((data ?? []) as ConsentRow[]));
+            }
+            return { data: rows, error: null };
           })() as unknown as PromiseLike<{ data: ConsentRow[] | null; error: { message: string } | null }>,
         ),
       ]);
