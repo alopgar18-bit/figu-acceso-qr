@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Download, FileSpreadsheet, AlertTriangle, Activity, Users, CheckCircle2, Clock } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, AlertTriangle, Activity, Users, CheckCircle2, Clock, Loader2, RefreshCw, MousePointerClick } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/use-reports";
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
 
@@ -18,41 +19,31 @@ export const Route = createFileRoute("/_authenticated/informes/$eventId")({
 function EventReportPage() {
   const { eventId } = Route.useParams();
   const { data: sessionsLite, isLoading: sessionsLoading } = useEventSessionsLite(eventId);
-  // Por defecto abrimos la sesión más próxima (a partir de hoy) o la primera —
-  // así evitamos cargar TODO el evento en la primera visita.
+  // El usuario elige explícitamente la sesión (o "todas") — así evitamos
+  // lanzar la consulta pesada del evento completo por accidente.
   const [sessionFilter, setSessionFilter] = useState<string>("");
   const list = sessionsLite ?? [];
-  const defaultSession = (() => {
-    if (sessionFilter) return sessionFilter;
-    if (list.length === 0) return "";
-    const now = Date.now();
-    const upcoming = list.find((s) => s.starts_at && new Date(s.starts_at).getTime() >= now);
-    return (upcoming ?? list[0]).id;
-  })();
-  const effective = sessionFilter || defaultSession;
-  // Solo lanzamos el informe cuando ya hay una sesión seleccionada — así
-  // evitamos disparar la consulta pesada de "todas las sesiones" mientras
-  // aún se está cargando la lista de sesiones.
-  const ready = !sessionsLoading && !!effective;
-  const scope = ready ? { eventId, sessionId: effective === "all" ? undefined : effective } : null;
-  const { data, isLoading } = useEventReport(scope);
+  const scope = sessionFilter
+    ? { eventId, sessionId: sessionFilter === "all" ? undefined : sessionFilter }
+    : null;
+  const { data, isLoading, isFetching, error, refetch } = useEventReport(scope);
 
-  if (!ready || isLoading || !data) {
-    return <p className="text-sm text-muted-foreground">Cargando informe…</p>;
-  }
-
-  const phase = inferReportPhase(data.event.starts_at, data.event.ends_at);
-
+  const phase = data ? inferReportPhase(data.event.starts_at, data.event.ends_at) : "previo";
   const currentSessionId = scope?.sessionId;
+  const hasReport = !!data;
+
   const handleExcel = async () => {
+    if (!data) return;
     try { await exportReportExcel(data, { sessionId: currentSessionId }); toast.success("Excel generado"); }
     catch (e) { toast.error("Error generando Excel"); console.error(e); }
   };
   const handleDetail = async () => {
+    if (!data) return;
     try { await exportReportDetailExcel(data, { sessionId: currentSessionId }); toast.success("Detalle generado"); }
     catch (e) { toast.error("Error generando detalle"); console.error(e); }
   };
   const handlePDF = async () => {
+    if (!data) return;
     try { await exportReportPDF(data, { sessionId: currentSessionId }); toast.success("PDF generado"); }
     catch (e) { toast.error("Error generando PDF"); console.error(e); }
   };
@@ -64,13 +55,19 @@ function EventReportPage() {
       </Button>
 
       <PageHeader
-        eyebrow={`Informe ${phase}`}
-        title={data.event.name}
-        description={[data.event.location_name, data.event.city].filter(Boolean).join(" · ") || undefined}
+        eyebrow={hasReport ? `Informe ${phase}` : "Informe"}
+        title={data?.event.name ?? "Selecciona una sesión"}
+        description={
+          hasReport
+            ? [data!.event.location_name, data!.event.city].filter(Boolean).join(" · ") || undefined
+            : "Elige la sesión que quieres analizar para cargar el informe."
+        }
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={effective} onValueChange={setSessionFilter}>
-              <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+            <Select value={sessionFilter} onValueChange={setSessionFilter} disabled={sessionsLoading}>
+              <SelectTrigger className="w-[240px]">
+                <SelectValue placeholder={sessionsLoading ? "Cargando sesiones…" : "Selecciona sesión"} />
+              </SelectTrigger>
               <SelectContent>
                 {list.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
@@ -78,10 +75,16 @@ function EventReportPage() {
                 <SelectItem value="all">Todas las sesiones (más lento)</SelectItem>
               </SelectContent>
             </Select>
+            {isFetching && hasReport && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />Actualizando…
+              </span>
+            )}
             <Button
               variant="outline"
               size="sm"
               onClick={handleExcel}
+              disabled={!hasReport}
               title="Incluye hojas: Resumen, Sesiones, Asistentes, Detalle (titulares + acompañantes con nombre, email, teléfono, asiento) e Incidencias"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />Excel completo
@@ -90,18 +93,26 @@ function EventReportPage() {
               variant="outline"
               size="sm"
               onClick={handleDetail}
+              disabled={!hasReport}
               title="Excel detallado: cada titular + acompañantes con nombre, DNI, email, teléfono, formulario de origen, sesión, asiento, check-in e incidencias"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />Excel detallado (titulares + acompañantes)
             </Button>
-            <Button size="sm" onClick={handlePDF}>
+            <Button size="sm" onClick={handlePDF} disabled={!hasReport}>
               <Download className="h-4 w-4 mr-2" />PDF
             </Button>
           </div>
         }
       />
 
-      <Tabs defaultValue={phase === "previo" ? "previo" : phase === "tiempo-real" ? "vivo" : "final"}>
+      {!scope ? (
+        <EmptySelectPrompt sessionsLoading={sessionsLoading} hasSessions={list.length > 0} />
+      ) : error ? (
+        <ErrorState message={(error as Error)?.message} onRetry={() => refetch()} />
+      ) : isLoading || !data ? (
+        <ReportSkeleton />
+      ) : (
+        <Tabs defaultValue={phase === "previo" ? "previo" : phase === "tiempo-real" ? "vivo" : "final"}>
         <TabsList>
           <TabsTrigger value="previo">Previo</TabsTrigger>
           <TabsTrigger value="vivo">Tiempo real</TabsTrigger>
@@ -221,6 +232,7 @@ function EventReportPage() {
           </div>
         </TabsContent>
       </Tabs>
+      )}
     </div>
   );
 }
@@ -237,5 +249,76 @@ function Stat({ icon, label, value, tone = "neutral" }: { icon?: React.ReactNode
         <div className="text-2xl font-black mt-1">{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+function EmptySelectPrompt({ sessionsLoading, hasSessions }: { sessionsLoading: boolean; hasSessions: boolean }) {
+  return (
+    <Card className="rounded-none border-dashed">
+      <CardContent className="p-10 flex flex-col items-center text-center gap-3">
+        {sessionsLoading ? (
+          <>
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Cargando sesiones del evento…</p>
+          </>
+        ) : !hasSessions ? (
+          <>
+            <AlertTriangle className="h-8 w-8 text-amber-500" />
+            <p className="text-sm font-medium">Este evento no tiene sesiones</p>
+            <p className="text-xs text-muted-foreground">Crea al menos una sesión para poder generar informes.</p>
+          </>
+        ) : (
+          <>
+            <MousePointerClick className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm font-medium">Selecciona una sesión para cargar el informe</p>
+            <p className="text-xs text-muted-foreground max-w-md">
+              Los eventos grandes pueden tardar varios segundos. Elegir una sesión concreta
+              acelera la carga; "Todas las sesiones" carga el evento completo.
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message?: string; onRetry: () => void }) {
+  return (
+    <Card className="rounded-none border-destructive/50">
+      <CardContent className="p-10 flex flex-col items-center text-center gap-3">
+        <AlertTriangle className="h-8 w-8 text-destructive" />
+        <p className="text-sm font-medium">No se pudo cargar el informe</p>
+        {message && <p className="text-xs text-muted-foreground max-w-lg break-words">{message}</p>}
+        <p className="text-xs text-muted-foreground max-w-md">
+          Puede deberse a un timeout por volumen de datos. Prueba con una sesión concreta
+          o vuelve a intentarlo.
+        </p>
+        <Button size="sm" variant="outline" onClick={onRetry}>
+          <RefreshCw className="h-4 w-4 mr-2" />Reintentar
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReportSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Generando informe… en eventos grandes puede tardar hasta un minuto.
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Card key={i} className="rounded-none border-l-4 border-l-primary/40">
+            <CardContent className="p-4 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-7 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Skeleton className="h-40 w-full" />
+    </div>
   );
 }
