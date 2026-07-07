@@ -17,22 +17,27 @@ export const Route = createFileRoute("/_authenticated/informes/$eventId")({
 
 function EventReportPage() {
   const { eventId } = Route.useParams();
-  const { data: sessionsLite = [] } = useEventSessionsLite(eventId);
+  const { data: sessionsLite, isLoading: sessionsLoading } = useEventSessionsLite(eventId);
   // Por defecto abrimos la sesión más próxima (a partir de hoy) o la primera —
   // así evitamos cargar TODO el evento en la primera visita.
   const [sessionFilter, setSessionFilter] = useState<string>("");
+  const list = sessionsLite ?? [];
   const defaultSession = (() => {
     if (sessionFilter) return sessionFilter;
-    if (sessionsLite.length === 0) return "";
+    if (list.length === 0) return "";
     const now = Date.now();
-    const upcoming = sessionsLite.find((s) => s.starts_at && new Date(s.starts_at).getTime() >= now);
-    return (upcoming ?? sessionsLite[0]).id;
+    const upcoming = list.find((s) => s.starts_at && new Date(s.starts_at).getTime() >= now);
+    return (upcoming ?? list[0]).id;
   })();
   const effective = sessionFilter || defaultSession;
-  const scope = { eventId, sessionId: effective === "all" ? undefined : effective };
+  // Solo lanzamos el informe cuando ya hay una sesión seleccionada — así
+  // evitamos disparar la consulta pesada de "todas las sesiones" mientras
+  // aún se está cargando la lista de sesiones.
+  const ready = !sessionsLoading && !!effective;
+  const scope = ready ? { eventId, sessionId: effective === "all" ? undefined : effective } : null;
   const { data, isLoading } = useEventReport(scope);
 
-  if (isLoading || !data) {
+  if (!ready || isLoading || !data) {
     return <p className="text-sm text-muted-foreground">Cargando informe…</p>;
   }
 
