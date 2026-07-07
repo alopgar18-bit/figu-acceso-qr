@@ -499,14 +499,19 @@ export const commitImport = createServerFn({ method: "POST" })
           if (explicitAction === "create_here" && match) {
             // Reutiliza la persona pero crea nueva participación en la sesión destino.
             const part = await insertParticipationFor(match.personId, row);
-            await maybeGenerateTicketFor(part.id, part.status, row);
-            imported++;
-            logRow(
-              row,
-              "inserted",
-              part.id,
-              "acción manual: crear participación en esta sesión (persona ya existente en el evento)",
-            );
+            if (part.reused) {
+              updated++;
+              logRow(row, "updated", part.id, "ya existía en la sesión (asiento/lote actualizado)");
+            } else {
+              await maybeGenerateTicketFor(part.id, part.status, row);
+              imported++;
+              logRow(
+                row,
+                "inserted",
+                part.id,
+                "acción manual: crear participación en esta sesión (persona ya existente en el evento)",
+              );
+            }
             continue;
           }
 
@@ -543,15 +548,20 @@ export const commitImport = createServerFn({ method: "POST" })
               personId = await insertNewPerson(row);
             }
             const part = await insertParticipationFor(personId, row);
-            await maybeGenerateTicketFor(part.id, part.status, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
-            imported++;
-            logRow(
-              row,
-              "inserted",
-              part.id,
-              known ? "acción manual: crear participación (persona ya existía)" : "acción manual: crear",
-            );
+            if (part.reused) {
+              updated++;
+              logRow(row, "updated", part.id, "persona ya participaba en la sesión (asiento/lote actualizado)");
+            } else {
+              await maybeGenerateTicketFor(part.id, part.status, row);
+              imported++;
+              logRow(
+                row,
+                "inserted",
+                part.id,
+                known ? "acción manual: crear participación (persona ya existía)" : "acción manual: crear",
+              );
+            }
             continue;
           }
 
