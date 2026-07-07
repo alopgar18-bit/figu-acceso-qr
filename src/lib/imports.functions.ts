@@ -189,8 +189,10 @@ export const commitImport = createServerFn({ method: "POST" })
       .select("id, person_id, people:person_id(first_name, last_name)")
       .eq("session_id", data.sessionId);
     const nameToPersonId = new Map<string, string>();
+    const sessionPersonIds = new Set<string>();
     for (const ep of sessionRoster ?? []) {
       const ppl = ep.people as { first_name?: string | null; last_name?: string | null } | null;
+      if (ep.person_id) sessionPersonIds.add(ep.person_id as string);
       if (!ppl) continue;
       nameToPersonId.set(nameKey(ppl.first_name, ppl.last_name), ep.person_id as string);
     }
@@ -261,27 +263,19 @@ export const commitImport = createServerFn({ method: "POST" })
       // constraint `(session_id, person_id)` — which is exactly the bug we
       // saw when several distinct people share the same email/DNI (parejas,
       // familiares, correos de gestor…).
-      const isInThisSession = async (personId: string) => {
-        const { data: ep } = await supabase
-          .from("event_participants")
-          .select("id")
-          .eq("session_id", data.sessionId)
-          .eq("person_id", personId)
-          .maybeSingle();
-        return !!ep;
-      };
+      const isInThisSession = (personId: string) => sessionPersonIds.has(personId);
       const d = normDniLocal(row.dni);
       if (d) {
         const { data: ps } = await supabase.from("people").select("id").eq("dni", d);
         for (const p of ps ?? []) {
-          if (!(await isInThisSession(p.id as string))) return p.id as string;
+          if (!isInThisSession(p.id as string)) return p.id as string;
         }
       }
       const e = normEmailLocal(row.email);
       if (e) {
         const { data: ps } = await supabase.from("people").select("id").eq("email", e);
         for (const p of ps ?? []) {
-          if (!(await isInThisSession(p.id as string))) return p.id as string;
+          if (!isInThisSession(p.id as string)) return p.id as string;
         }
       }
       return null;
