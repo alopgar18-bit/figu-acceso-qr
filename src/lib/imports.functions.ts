@@ -177,13 +177,6 @@ export const commitImport = createServerFn({ method: "POST" })
       `${normalize(first)}|${normalize(last)}`;
     const normDniLocal = (s: string | null | undefined) =>
       (s ?? "").toString().trim().toUpperCase().replace(/[\s-]/g, "");
-    const normEmailLocal = (s: string | null | undefined) =>
-      (s ?? "").toString().trim().toLowerCase();
-    const normPhoneLocal = (s: string | null | undefined) => {
-      const d = (s ?? "").toString().replace(/\D/g, "");
-      return d.length >= 9 ? d.slice(-9) : d;
-    };
-
     const { data: sessionRoster } = await supabase
       .from("event_participants")
       .select("id, person_id, people:person_id(first_name, last_name)")
@@ -205,14 +198,12 @@ export const commitImport = createServerFn({ method: "POST" })
       personId: string;
     };
     const eventByDni = new Map<string, EventEntry>();
-    const eventByEmail = new Map<string, EventEntry>();
-    const eventByPhone = new Map<string, EventEntry>();
     const eventByName = new Map<string, EventEntry>();
     if (data.perRowActions && Object.keys(data.perRowActions).length > 0) {
       const { data: fullRoster } = await supabase
         .from("event_participants")
         .select(
-          "id, session_id, person_id, people:person_id(first_name, last_name, dni, email, phone)",
+          "id, session_id, person_id, people:person_id(first_name, last_name, dni)",
         )
         .eq("event_id", data.eventId);
       for (const ep of fullRoster ?? []) {
@@ -220,8 +211,6 @@ export const commitImport = createServerFn({ method: "POST" })
           first_name?: string | null;
           last_name?: string | null;
           dni?: string | null;
-          email?: string | null;
-          phone?: string | null;
         } | null;
         if (!ppl) continue;
         const entry: EventEntry = {
@@ -230,15 +219,11 @@ export const commitImport = createServerFn({ method: "POST" })
           personId: ep.person_id as string,
         };
         const dK = normDniLocal(ppl.dni);
-        const eK = normEmailLocal(ppl.email);
-        const pK = normPhoneLocal(ppl.phone);
         const nK = nameKey(ppl.first_name, ppl.last_name);
         // Preferimos la participación de la sesión destino cuando hay varias.
         const pref = (prev: EventEntry | undefined, cur: EventEntry) =>
           prev && prev.sessionId === data.sessionId ? prev : cur;
         if (dK) eventByDni.set(dK, pref(eventByDni.get(dK), entry));
-        if (eK) eventByEmail.set(eK, pref(eventByEmail.get(eK), entry));
-        if (pK) eventByPhone.set(pK, pref(eventByPhone.get(pK), entry));
         eventByName.set(nK, pref(eventByName.get(nK), entry));
       }
     }
@@ -246,10 +231,6 @@ export const commitImport = createServerFn({ method: "POST" })
     const resolveEventMatch = (row: typeof data.rows[number]): EventEntry | undefined => {
       const d = normDniLocal(row.dni);
       if (d && eventByDni.has(d)) return eventByDni.get(d);
-      const e = normEmailLocal(row.email);
-      if (e && eventByEmail.has(e)) return eventByEmail.get(e);
-      const p = normPhoneLocal(row.phone);
-      if (p && eventByPhone.has(p)) return eventByPhone.get(p);
       return eventByName.get(nameKey(row.first_name, row.last_name));
     };
 
@@ -265,11 +246,6 @@ export const commitImport = createServerFn({ method: "POST" })
       if (d) {
         const found = await findPersonIdByDni(row.dni);
         if (found) return found;
-      }
-      const e = normEmailLocal(row.email);
-      if (e) {
-        const { data: ps } = await supabase.from("people").select("id").eq("email", e).limit(1);
-        if (ps && ps.length > 0) return ps[0].id as string;
       }
       return null;
     };
@@ -660,7 +636,7 @@ export const commitImport = createServerFn({ method: "POST" })
               nameToPersonId.has(nameKey(row.first_name, last));
             while (collides(`${baseLast} VIS ${n}`.trim())) n++;
             row.last_name = `${baseLast} VIS ${n}`.trim();
-            const personId = await insertNewPerson(row);
+            const personId = await insertNewPerson(row, { omitDni: true });
             const part = await insertParticipationFor(personId, row);
             await maybeGenerateTicketFor(part.id, part.status, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
@@ -788,126 +764,20 @@ export const commitImport = createServerFn({ method: "POST" })
           continue;
         }
 
-        // Not a duplicate → always create a brand-new person. Email or phone
-        // collisions with other people are allowed on purpose.
-        const { data: created, error: pErr } = await supabase
-          .from("people")
-          .insert({
-            first_name: row.first_name,
-            last_name: row.last_name ?? null,
-            dni: row.dni ?? null,
-            email: row.email ?? null,
-            phone: row.phone ?? null,
-            birth_date: row.birth_date ?? null,
-            city: row.city ?? null,
-            province: row.province ?? null,
-            gender: row.gender ?? null,
-            notes: row.notes ?? null,
-            source: data.source ?? `import:${data.filename}`,
-            created_by: userId,
-          })
-          .select("id")
-          .single();
-        if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
-        const personId = created.id;
-
-        const status = row.initial_status ?? data.defaultStatus;
-        const approvedLike =
-          status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
-        const attendeeType = row.attendee_type ?? data.defaultAttendeeType;
-
-        const { data: participant, error: partErr } = await supabase
-          .from("event_participants")
-          .insert({
-            event_id: data.eventId,
-            session_id: data.sessionId,
-            person_id: personId,
-            status,
-            attendee_type: attendeeType,
-            companions_count: row.companions_count ?? 0,
-            approved_by: approvedLike ? userId : null,
-            approved_at: approvedLike ? new Date().toISOString() : null,
-            confirmed_at:
-              status === "confirmado" || status === "acceso_validado"
-                ? new Date().toISOString()
-                : null,
-            import_batch_id: batch.id,
-            seat_zone: row.seat_zone ?? null,
-            seat_row: row.seat_row ?? null,
-            seat_number: row.seat_number ?? null,
-            seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
-          })
-          .select("id")
-          .single();
-        if (partErr) {
-          if (
-            partErr.code === "23505" ||
-            /event_participants_session_id_person_id_key/.test(partErr.message)
-          ) {
-            // La persona recién creada colisiona con una participación existente
-            // (persona ya estaba en la sesión con otro person_id equivalente):
-            // tratamos como duplicado silencioso.
-            skipped++;
-            logRow(row, "skipped", null, "persona ya participaba en la sesión");
-            continue;
-          }
-          throw new Error(`No se pudo crear la participación (${partErr.message})`);
-        }
-        if (
-          planSeatKeys &&
-          row.seat_zone &&
-          row.seat_row &&
-          row.seat_number &&
-          !seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number)
-        ) {
-          seatsNotInPlan++;
-        }
-        // Register so subsequent rows in the same file with the same name
-        // are treated as duplicates instead of creating another person.
+        // Not a duplicate → create a brand-new person. Email or phone collisions
+        // with other people are allowed on purpose. If VIS was applied, omit DNI
+        // so a deliberate separate person cannot collide with the original DNI.
+        const personId = await insertNewPerson(row, { omitDni: suffixApplied });
+        const part = await insertParticipationFor(personId, row);
         nameToPersonId.set(key, personId);
-
-        // Generate ticket/QR only for statuses that need one ready to send.
-        if (QR_STATES.has(status)) {
-          const token = genToken();
-          const { data: ticket, error: tErr } = await supabase
-            .from("tickets")
-            .insert({
-              event_id: data.eventId,
-              session_id: data.sessionId,
-              participant_id: participant.id,
-              qr_token: token,
-              qr_payload: {
-                token,
-                event_id: data.eventId,
-                session_id: data.sessionId,
-                participant_id: participant.id,
-              },
-            })
-            .select("id")
-            .single();
-          if (tErr) throw new Error(`No se pudo crear el ticket (${tErr.message})`);
-          qrGenerated++;
-
-          // For acceso_validado, register the check-in with the ticket marked as used.
-          if (status === "acceso_validado") {
-            await supabase.from("checkins").insert({
-              event_id: data.eventId,
-              session_id: data.sessionId,
-              participant_id: participant.id,
-              ticket_id: ticket?.id ?? null,
-              validator_id: userId,
-              result: "ok",
-              companions_validated: row.companions_count ?? 0,
-              notes: "Check-in registrado durante importación",
-            });
-          }
-
-          // Track contact channel availability for mass sending follow-ups.
-          if (!row.email && !row.phone) noContactChannel++;
+        await maybeGenerateTicketFor(part.id, part.status, row);
+        if (part.reused) {
+          updated++;
+          logRow(row, "updated", part.id, "persona ya participaba en la sesión (QR emitido si faltaba)");
+        } else {
+          imported++;
+          logRow(row, "inserted", part.id, suffixApplied ? "sufijo VIS aplicado por duplicado nombre+apellido" : null);
         }
-
-        imported++;
-        logRow(row, "inserted", participant.id, suffixApplied ? "sufijo VIS aplicado por duplicado nombre+apellido" : null);
       } catch (err) {
         errored++;
         errors.push({ row: row.rowIndex, reason: err instanceof Error ? err.message : "error" });
@@ -1302,8 +1172,6 @@ export const analyzeImport = createServerFn({ method: "POST" })
       hasTicket: boolean;
     };
     const byDni = new Map<string, RosterEntry[]>();
-    const byEmail = new Map<string, RosterEntry[]>();
-    const byPhone = new Map<string, RosterEntry[]>();
     const byName = new Map<string, RosterEntry[]>();
     const push = (m: Map<string, RosterEntry[]>, k: string, e: RosterEntry) => {
       if (!k) return;
@@ -1331,22 +1199,17 @@ export const analyzeImport = createServerFn({ method: "POST" })
         hasTicket: Array.isArray(tk) && tk.length > 0,
       };
       push(byDni, normDni(ppl.dni), entry);
-      push(byEmail, normEmail(ppl.email), entry);
-      push(byPhone, normPhone(ppl.phone), entry);
       push(byName, nameKey(ppl.first_name, ppl.last_name), entry);
     }
 
-    // Personas fuera del evento — sólo por DNI y email para no inflar la consulta.
+    // Personas fuera del evento: sólo por DNI. Email y teléfono se ignoran
+    // deliberadamente porque grupos y acompañantes comparten contacto.
     const rowDnis = new Set<string>();
-    const rowEmails = new Set<string>();
     for (const r of data.rows) {
       const d = normDni(r.dni);
       if (d) rowDnis.add(d);
-      const e = normEmail(r.email);
-      if (e) rowEmails.add(e);
     }
     const peopleByDni = new Map<string, string>();
-    const peopleByEmail = new Map<string, string>();
     const chunkArr = <T,>(arr: T[], n: number) => {
       const out: T[][] = [];
       for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
@@ -1362,19 +1225,9 @@ export const analyzeImport = createServerFn({ method: "POST" })
         if (k) peopleByDni.set(k, p.id as string);
       }
     }
-    for (const chunk of chunkArr([...rowEmails], 200)) {
-      const { data: ppl } = await supabase
-        .from("people")
-        .select("id, email")
-        .in("email", chunk);
-      for (const p of ppl ?? []) {
-        const k = normEmail(p.email);
-        if (k) peopleByEmail.set(k, p.id as string);
-      }
-    }
 
     type Block = "A" | "B" | "C" | "D";
-    type MatchReason = "dni" | "email" | "phone" | "name" | null;
+    type MatchReason = "dni" | "name" | null;
     type RowAnalysis = {
       rowIndex: number;
       block: Block;
@@ -1401,13 +1254,9 @@ export const analyzeImport = createServerFn({ method: "POST" })
 
     for (const r of data.rows) {
       const dni = normDni(r.dni);
-      const email = normEmail(r.email);
-      const phone = normPhone(r.phone);
       const nk = nameKey(r.first_name, r.last_name);
       const candidates: Array<{ reason: MatchReason; hits: RosterEntry[] }> = [];
       if (dni && byDni.has(dni)) candidates.push({ reason: "dni", hits: byDni.get(dni)! });
-      if (email && byEmail.has(email)) candidates.push({ reason: "email", hits: byEmail.get(email)! });
-      if (phone && byPhone.has(phone)) candidates.push({ reason: "phone", hits: byPhone.get(phone)! });
       if (byName.has(nk)) candidates.push({ reason: "name", hits: byName.get(nk)! });
 
       if (candidates.length > 0) {
@@ -1464,9 +1313,6 @@ export const analyzeImport = createServerFn({ method: "POST" })
         if (dni && peopleByDni.has(dni)) {
           pid = peopleByDni.get(dni)!;
           reason = "dni";
-        } else if (email && peopleByEmail.has(email)) {
-          pid = peopleByEmail.get(email)!;
-          reason = "email";
         }
         if (pid) {
           analyses.push({
