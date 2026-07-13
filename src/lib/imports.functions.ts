@@ -1688,8 +1688,8 @@ export const repairImportBatch = createServerFn({ method: "POST" })
           event_id: eventId,
           session_id: sessionId,
           person_id: personId!,
-          status,
-          attendee_type: raw.attendee_type ?? "publico",
+          status: status as never,
+          attendee_type: (raw.attendee_type ?? "publico") as never,
           companions_count: raw.companions_count ?? 0,
           approved_by: approvedLike ? userId : null,
           approved_at: approvedLike ? nowIso : null,
@@ -1723,7 +1723,7 @@ export const repairImportBatch = createServerFn({ method: "POST" })
               await supabase
                 .from("event_participants")
                 .update({
-                  status: finalStatus,
+                  status: finalStatus as never,
                   import_batch_id: data.batchId,
                 })
                 .eq("id", existing.id as string);
