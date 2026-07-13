@@ -1,35 +1,47 @@
-## Problema
+## Objetivo
 
-Tras importar 382 filas: 256 nuevas → con QR, pero 126 "actualizadas" no reciben QR aunque su estado final sea con entrada (aceptado/enviado/confirmado). Al abrir "Ver solicitudes" o "Envío masivo" no aparecen para envío porque no tienen ticket.
+Reparar el lote `5f5e1821-6dcd-4d1c-9521-215902cc8c51` (y cualquier otro ya importado) sin re-subir el Excel, para que:
+- Los 47 registros que se fusionaron por email/teléfono queden recuperados como participaciones independientes cuando corresponda.
+- Todos los participantes del lote tengan QR si su estado lo permite.
+- Aparezcan íntegramente en “Envío masivo” filtrando por `import_batch_id`.
 
-Causa: `maybeGenerateTicketFor(...)` solo se llama cuando `insertParticipationFor` inserta una participación nueva. Cuando reutiliza una participación existente (bloques update / create_here / create_new / legado / carrera 23505), se salta la generación de QR aunque la persona no tenga ticket.
+## Alcance
 
-## Solución
+Solo backend de importación + UI de lotes. No se toca formulario público, comunicaciones ni control de acceso.
 
-Garantizar QR para toda fila importada cuyo estado final sea "con entrada", incluso si la participación ya existía y solo se actualiza. La función `maybeGenerateTicketFor` ya evita duplicados (busca ticket previo), así que llamarla siempre es seguro.
+## Cambios
 
-### Cambios en `src/lib/imports.functions.ts`
+### 1. Nueva server function `repairImportBatch(batchId)` en `src/lib/imports.functions.ts`
 
-1. **Rama "update" manual (≈ línea 570-606)**: tras el `update` a `event_participants`, si el `finalStatus` (aplicando no-degradación) está en `QR_STATES` y no hay ticket, llamar a `maybeGenerateTicketFor(match.participantId, finalStatus, row)`. Hoy solo actualiza campos y no toca tickets.
+Para el lote indicado:
 
-2. **Rama "create_here" con `part.reused`** (línea 611-614): añadir `await maybeGenerateTicketFor(part.id, part.status, row);` antes del `logRow`.
+1. Cargar `import_row_results` originales del lote (payload de cada fila del Excel).
+2. Cargar roster actual de la sesión y construir índice `nameKey → person_id` (mismas reglas actuales: nombre+apellido normalizados, DNI normalizado sin guiones).
+3. Para cada fila del Excel:
+   - **Si la fila ya está correctamente vinculada** a un participante cuyo nombre+apellido coincide → asegurar `import_batch_id = batchId` en `event_participants` y llamar `maybeGenerateTicketFor` si el estado lo permite y no tiene ticket.
+   - **Si la fila fue absorbida por otro participante con distinto nombre** (colisión por email/teléfono en el algoritmo antiguo) → aplicar el flujo nuevo:
+     - Buscar/crear persona por DNI o crear nueva (con sufijo VIS si colisiona nombre+apellido en la sesión).
+     - Insertar participación en la sesión con estado del Excel, respetando la regla de no-degradación si ya existiera.
+     - Etiquetar con `import_batch_id`, generar QR si procede.
+4. Devolver resumen: `{ recovered, ticketsCreated, tagged, skipped }` y registrar en `audit_logs` (`import_batch.repair`).
 
-3. **Rama "create_new" con `part.reused`** (línea 660-664): mismo añadido.
+Idempotente: repetible sin efectos secundarios.
 
-4. **Rama legado (no acción manual)**: revisar las llamadas a `insertParticipationFor` y añadir `maybeGenerateTicketFor` también cuando reutilice, con el mismo patrón.
+### 2. UI en `src/routes/_authenticated/importaciones.$batchId.tsx` (o listado de lotes)
 
-5. **KPI "Actualizadas"**: el contador `updated++` se mantiene igual, pero el marcador de la fila (`logRow`) pasa a incluir "· QR generado" cuando corresponda, para que en la auditoría se vea que se emitió ticket sobre una participación previa.
+- Botón “Reparar lote” con `dangerous-action-dialog` explicando qué hará.
+- Al terminar, mostrar toast con el resumen y refrescar la vista.
 
-6. **Contador `qrGenerated`**: ya se incrementa dentro de `maybeGenerateTicketFor`, así el cuadro "QR GENERADOS" del resumen final subirá para reflejar todos los QR (nuevos + reemitidos sobre actualizadas). No hace falta tocar la UI del resumen.
+### 3. Verificación
 
-### Sin cambios necesarios
+Tras ejecutarlo sobre el lote `5f5e…`:
+- Contar filas del lote en `event_participants` → debe ser 382.
+- Contar tickets emitidos para esos participantes → debe cubrir todos los estados con derecho a entrada.
+- Abrir “Envío masivo” filtrado por ese lote → total esperado 382 (o el número real con entrada).
 
-- Lista de solicitudes y "Envío masivo": ya listan por `import_batch_id` y filtran por presencia de ticket; en cuanto se generen los QR, aparecerán automáticamente.
-- Regla de no-degradación: intacta. Nunca se sobrescribe un estado superior ni un ticket existente.
-- `create_bis`: ya llama a `maybeGenerateTicketFor`.
+## Detalles técnicos
 
-## Verificación tras aplicar
-
-1. Repetir la importación del Excel del 15 de julio.
-2. Comprobar en el resumen que `QR GENERADOS ≈ 256 + N` (donde N son las 126 actualizadas cuyo estado sea con entrada y no tuvieran ticket).
-3. En "Envío masivo" filtrando por ese lote deben aparecer todas las personas del Excel con entrada, no solo las 256 nuevas.
+- Reutiliza helpers existentes: `nameKey`, `normDniLocal`, `insertNewPerson`, `insertParticipationFor`, `maybeGenerateTicketFor`, `rank()` para no-degradación.
+- No borra participantes existentes; solo añade los que faltan y re-etiqueta.
+- Respeta la regla del proyecto: dedupe SOLO por nombre+apellido / DNI, nunca por email/teléfono.
+- Sin cambios de esquema, sin migraciones.

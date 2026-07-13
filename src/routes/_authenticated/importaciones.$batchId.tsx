@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2, Inbox, Download, Upload } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, Send, Eraser, Trash2, Inbox, Download, Upload, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { read, utils, write } from "xlsx";
 import { PageHeader } from "@/components/page-header";
@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useImportBatch } from "@/lib/use-imports";
 import { cleanDniTimestamps } from "@/lib/bulk-send.functions";
-import { getImportBatchRowResults, backfillBatchRowResults } from "@/lib/imports.functions";
+import { getImportBatchRowResults, backfillBatchRowResults, repairImportBatch } from "@/lib/imports.functions";
 import { useDeleteImportBatch } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 import { BulkProgressCard } from "@/components/bulk-progress-card";
@@ -34,10 +34,13 @@ function BatchDetailPage() {
   const [includeParticipants, setIncludeParticipants] = useState(false);
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
   const [backfilling, setBackfilling] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [repairOpen, setRepairOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const qc = useQueryClient();
   const fetchRows = useServerFn(getImportBatchRowResults);
   const backfillFn = useServerFn(backfillBatchRowResults);
+  const repairFn = useServerFn(repairImportBatch);
   const { data: rowResults = [] } = useQuery({
     queryKey: ["import_row_results", batchId],
     queryFn: () => fetchRows({ data: { batchId } }),
@@ -157,6 +160,13 @@ function BatchDetailPage() {
             </Button>
             <Button
               variant="outline"
+              onClick={() => setRepairOpen(true)}
+              disabled={repairing}
+            >
+              <Wrench className="h-4 w-4 mr-2" />Reparar lote
+            </Button>
+            <Button
+              variant="outline"
               className="text-destructive hover:text-destructive"
               onClick={() => { setIncludeParticipants(false); setConfirmOpen(true); }}
             >
@@ -173,6 +183,41 @@ function BatchDetailPage() {
             </Button>
           </div>
         }
+      />
+
+      <DangerousActionDialog
+        open={repairOpen}
+        onOpenChange={setRepairOpen}
+        title="Reparar lote de importación"
+        affectedCount={batch.total_rows ?? 0}
+        loading={repairing}
+        destructiveLabel="Reparar ahora"
+        description={
+          <>
+            <p>Esta acción es <strong>segura e idempotente</strong>. Sobre este lote:</p>
+            <ul className="list-disc pl-5">
+              <li>Recupera filas que quedaron fusionadas por email/teléfono en el algoritmo antiguo (se crearán participaciones independientes con VIS si hace falta).</li>
+              <li>Vuelve a etiquetar todas las participaciones con este lote para que aparezcan en «Envío masivo» y «Ver solicitudes».</li>
+              <li>Emite QR pendientes para los que estén en un estado con entrada (regla de no-degradación: nunca borra QR ni baja el estado).</li>
+            </ul>
+            <p className="text-muted-foreground">No es necesario volver a subir el Excel: se usa la auditoría guardada del lote.</p>
+          </>
+        }
+        onConfirm={async () => {
+          setRepairing(true);
+          try {
+            const res = await repairFn({ data: { batchId } });
+            toast.success(
+              `Reparado: ${res.recovered} recuperados · ${res.tagged} re-etiquetados · ${res.ticketsCreated} QR emitidos · ${res.rowResultsFixed} filas corregidas · total vinculado: ${res.linkedCount ?? "?"}`,
+            );
+            qc.invalidateQueries({ queryKey: ["import_row_results", batchId] });
+            qc.invalidateQueries({ queryKey: ["import_batch", batchId] });
+          } catch (e) {
+            toast.error((e as Error).message);
+          } finally {
+            setRepairing(false);
+          }
+        }}
       />
 
       <DangerousActionDialog
