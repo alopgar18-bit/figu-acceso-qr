@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Trash2, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SessionForm } from "@/components/session-form";
 import { useEvent, useSession, useDeleteSession } from "@/lib/use-events";
+import { promoteAssignedSeatsToQR } from "@/lib/seats.functions";
 
 export const Route = createFileRoute("/_authenticated/eventos/$eventId/sesiones/$sessionId")({
   component: Page,
@@ -51,6 +54,7 @@ function Page() {
                 Ver plano
               </Link>
             </Button>
+            <PromoteSeatsButton sessionId={sessionId} />
             <Button asChild>
               <Link
                 to="/comunicaciones/envio"
