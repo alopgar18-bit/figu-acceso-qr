@@ -592,6 +592,26 @@ export const commitImport = createServerFn({ method: "POST" })
                 seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
               })
               .eq("id", match.participantId);
+            // No-degradación de estado y emisión de QR si corresponde.
+            {
+              const { data: existingPart } = await supabase
+                .from("event_participants")
+                .select("status")
+                .eq("id", match.participantId)
+                .maybeSingle();
+              const desiredStatus = row.initial_status ?? data.defaultStatus;
+              const currentStatus =
+                (existingPart?.status as typeof desiredStatus | undefined) ?? desiredStatus;
+              const finalStatus =
+                rank(currentStatus) >= rank(desiredStatus) ? currentStatus : desiredStatus;
+              if (finalStatus !== currentStatus) {
+                await supabase
+                  .from("event_participants")
+                  .update({ status: finalStatus })
+                  .eq("id", match.participantId);
+              }
+              await maybeGenerateTicketFor(match.participantId, finalStatus, row);
+            }
             if (
               planSeatKeys &&
               row.seat_zone &&
@@ -602,7 +622,12 @@ export const commitImport = createServerFn({ method: "POST" })
               seatsNotInPlan++;
             }
             updated++;
-            logRow(row, "updated", match.participantId, "acción manual: actualizar en esta sesión");
+            logRow(
+              row,
+              "updated",
+              match.participantId,
+              "acción manual: actualizar en esta sesión (QR emitido si faltaba)",
+            );
             continue;
           }
 
@@ -610,8 +635,9 @@ export const commitImport = createServerFn({ method: "POST" })
             // Reutiliza la persona pero crea nueva participación en la sesión destino.
             const part = await insertParticipationFor(match.personId, row);
             if (part.reused) {
+              await maybeGenerateTicketFor(part.id, part.status, row);
               updated++;
-              logRow(row, "updated", part.id, "ya existía en la sesión (asiento/lote actualizado)");
+              logRow(row, "updated", part.id, "ya existía en la sesión (asiento/lote actualizado, QR emitido si faltaba)");
             } else {
               await maybeGenerateTicketFor(part.id, part.status, row);
               imported++;
@@ -660,8 +686,9 @@ export const commitImport = createServerFn({ method: "POST" })
             const part = await insertParticipationFor(personId, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
             if (part.reused) {
+              await maybeGenerateTicketFor(part.id, part.status, row);
               updated++;
-              logRow(row, "updated", part.id, "persona ya participaba en la sesión (asiento/lote actualizado)");
+              logRow(row, "updated", part.id, "persona ya participaba en la sesión (asiento/lote actualizado, QR emitido si faltaba)");
             } else {
               await maybeGenerateTicketFor(part.id, part.status, row);
               imported++;
@@ -729,10 +756,24 @@ export const commitImport = createServerFn({ method: "POST" })
             .eq("person_id", existingPersonId);
           const { data: existingPart } = await supabase
             .from("event_participants")
-            .select("id")
+            .select("id, status")
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId)
             .maybeSingle();
+          if (existingPart?.id) {
+            const desiredStatus = row.initial_status ?? data.defaultStatus;
+            const currentStatus =
+              (existingPart.status as typeof desiredStatus | undefined) ?? desiredStatus;
+            const finalStatus =
+              rank(currentStatus) >= rank(desiredStatus) ? currentStatus : desiredStatus;
+            if (finalStatus !== currentStatus) {
+              await supabase
+                .from("event_participants")
+                .update({ status: finalStatus })
+                .eq("id", existingPart.id as string);
+            }
+            await maybeGenerateTicketFor(existingPart.id as string, finalStatus, row);
+          }
           if (
             planSeatKeys &&
             row.seat_zone &&
@@ -743,7 +784,7 @@ export const commitImport = createServerFn({ method: "POST" })
             seatsNotInPlan++;
           }
           updated++;
-          logRow(row, "updated", existingPart?.id ?? null, "nombre+apellido coincide en la sesión");
+          logRow(row, "updated", existingPart?.id ?? null, "nombre+apellido coincide en la sesión (QR emitido si faltaba)");
           continue;
         }
 
