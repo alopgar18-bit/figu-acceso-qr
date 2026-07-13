@@ -756,10 +756,24 @@ export const commitImport = createServerFn({ method: "POST" })
             .eq("person_id", existingPersonId);
           const { data: existingPart } = await supabase
             .from("event_participants")
-            .select("id")
+            .select("id, status")
             .eq("session_id", data.sessionId)
             .eq("person_id", existingPersonId)
             .maybeSingle();
+          if (existingPart?.id) {
+            const desiredStatus = row.initial_status ?? data.defaultStatus;
+            const currentStatus =
+              (existingPart.status as typeof desiredStatus | undefined) ?? desiredStatus;
+            const finalStatus =
+              rank(currentStatus) >= rank(desiredStatus) ? currentStatus : desiredStatus;
+            if (finalStatus !== currentStatus) {
+              await supabase
+                .from("event_participants")
+                .update({ status: finalStatus })
+                .eq("id", existingPart.id as string);
+            }
+            await maybeGenerateTicketFor(existingPart.id as string, finalStatus, row);
+          }
           if (
             planSeatKeys &&
             row.seat_zone &&
@@ -770,7 +784,7 @@ export const commitImport = createServerFn({ method: "POST" })
             seatsNotInPlan++;
           }
           updated++;
-          logRow(row, "updated", existingPart?.id ?? null, "nombre+apellido coincide en la sesión");
+          logRow(row, "updated", existingPart?.id ?? null, "nombre+apellido coincide en la sesión (QR emitido si faltaba)");
           continue;
         }
 
