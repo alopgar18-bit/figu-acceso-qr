@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { ATTENDEE_TYPE_OPTIONS, attendeeLabel } from "@/lib/participant-constants";
 import { SEAT_OVERRIDE_LABELS } from "@/lib/seats.functions";
+import { promoteAssignedSeatsToQR } from "@/lib/seats.functions";
 import {
   listAssignmentRules,
   upsertAssignmentRule,
@@ -151,6 +152,7 @@ function AsignacionPage() {
       <PageHeader
         title="Asignación automática de butacas"
           description={sessionQuery.data?.name ?? ""}
+        actions={<PromoteSeatsButton sessionId={sessionId} />}
       />
 
       {/* Reglas */}
