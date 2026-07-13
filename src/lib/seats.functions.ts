@@ -780,6 +780,66 @@ export const setSeatManual = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", data.occupant_id);
     if (error) throw new Error(error.message);
+    // Regla de negocio: si se asigna una butaca (los tres campos completos) a
+    // un titular en un estado sin entrada, promover a `aceptado_pendiente_envio`
+    // y emitir el QR pendiente. Nunca degrada estados con entrada emitida ni
+    // reactiva a cancelados/rechazados.
+    if (
+      data.occupant_kind === "titular" &&
+      patch.seat_zone &&
+      patch.seat_row &&
+      patch.seat_number
+    ) {
+      const { data: part } = await supabaseAdmin
+        .from("event_participants")
+        .select("id, status, event_id")
+        .eq("id", data.occupant_id)
+        .maybeSingle();
+      const status = String(part?.status ?? "");
+      const alreadyOk = new Set<string>([
+        "aceptado_pendiente_envio",
+        "invitacion_enviada",
+        "pendiente_confirmacion",
+        "confirmado",
+        "qr_generado",
+        "acceso_validado",
+      ]);
+      const skip = new Set<string>([
+        "cancelado_asistente",
+        "no_asistira",
+        "baja",
+        "rechazado",
+      ]);
+      if (part && !skip.has(status)) {
+        if (!alreadyOk.has(status)) {
+          await supabaseAdmin
+            .from("event_participants")
+            .update({ status: "aceptado_pendiente_envio" } as never)
+            .eq("id", part.id);
+        }
+        const { data: existing } = await supabaseAdmin
+          .from("tickets")
+          .select("id, revoked, companion_id")
+          .eq("participant_id", part.id);
+        const hasActive = (existing ?? []).some((t) => !t.companion_id && !t.revoked);
+        if (!hasActive) {
+          const token = genQrToken();
+          await supabaseAdmin.from("tickets").insert({
+            event_id: part.event_id,
+            session_id: data.session_id,
+            participant_id: part.id,
+            qr_token: token,
+            qr_payload: {
+              kind: "grupo",
+              token,
+              event_id: part.event_id,
+              session_id: data.session_id,
+              participant_id: part.id,
+            },
+          } as never);
+        }
+      }
+    }
     const { data: sess } = await supabaseAdmin
       .from("event_sessions")
       .select("event_id")
@@ -1040,4 +1100,175 @@ export const bulkAssignSeats = createServerFn({ method: "POST" })
     } as never);
 
     return results;
+  });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Promoción a "aceptado_pendiente_envio" + emisión de QR para participantes
+// que ya tienen butaca asignada pero siguen en un estado sin entrada.
+// Regla de negocio (usuario): «todo el que tenga asiento asignado pasa siempre
+// a QR y se le envía entrada». Idempotente: nunca degrada estados con entrada
+// ya emitida, nunca duplica tickets, nunca toca a cancelados/rechazados/baja.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Estados en los que la persona ya tiene entrada (no hay que promover).
+// Añadimos también los estados "post-envío" para no revertir nada.
+const SEAT_QR_ALREADY = new Set<string>([
+  "aceptado_pendiente_envio",
+  "invitacion_enviada",
+  "pendiente_confirmacion",
+  "confirmado",
+  "qr_generado",
+  "acceso_validado",
+]);
+
+// Estados finales/negativos: no se promueven aunque tengan butaca.
+const SEAT_QR_SKIP = new Set<string>([
+  "cancelado_asistente",
+  "no_asistira",
+  "baja",
+  "rechazado",
+]);
+
+function genQrToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Promociona a `aceptado_pendiente_envio` a todos los titulares de una sesión
+ * que tengan butaca (seat_zone+row+number) y sigan en un estado sin entrada,
+ * y emite el QR pendiente para los que no lo tengan.
+ *
+ * Devuelve el desglose para mostrarlo en la UI y auditar.
+ */
+export const promoteAssignedSeatsToQR = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ session_id: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRole(context.supabase, context.userId, [
+      "superadmin",
+      "admin_figurarte",
+      "coordinador",
+    ]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: sess, error: sErr } = await supabaseAdmin
+      .from("event_sessions")
+      .select("id, event_id")
+      .eq("id", data.session_id)
+      .maybeSingle();
+    if (sErr || !sess) throw new Error(sErr?.message ?? "Sesión no encontrada");
+
+    // Titulares con butaca asignada (los tres campos completos).
+    const { data: withSeat, error: pErr } = await supabaseAdmin
+      .from("event_participants")
+      .select("id, status, seat_zone, seat_row, seat_number")
+      .eq("session_id", data.session_id)
+      .not("seat_zone", "is", null)
+      .not("seat_row", "is", null)
+      .not("seat_number", "is", null)
+      .limit(5000);
+    if (pErr) throw new Error(pErr.message);
+
+    const promoted: string[] = [];
+    const skippedCancelled: string[] = [];
+    let alreadyOk = 0;
+
+    for (const p of withSeat ?? []) {
+      const status = String(p.status ?? "");
+      if (SEAT_QR_SKIP.has(status)) {
+        skippedCancelled.push(p.id as string);
+        continue;
+      }
+      if (SEAT_QR_ALREADY.has(status)) {
+        alreadyOk++;
+        continue;
+      }
+      promoted.push(p.id as string);
+    }
+
+    if (promoted.length > 0) {
+      const { error: uErr } = await supabaseAdmin
+        .from("event_participants")
+        .update({ status: "aceptado_pendiente_envio" } as never)
+        .in("id", promoted);
+      if (uErr) throw new Error(`No se pudo promover: ${uErr.message}`);
+    }
+
+    // Ids que ahora deberían tener entrada (promovidos + los que ya estaban ok).
+    const targetIds = [
+      ...promoted,
+      ...(withSeat ?? [])
+        .filter((p) => SEAT_QR_ALREADY.has(String(p.status ?? "")))
+        .map((p) => p.id as string),
+    ];
+
+    let ticketsCreated = 0;
+    if (targetIds.length > 0) {
+      // Tickets ya existentes (de titular).
+      const { data: existing } = await supabaseAdmin
+        .from("tickets")
+        .select("participant_id, companion_id, revoked")
+        .in("participant_id", targetIds);
+      const haveTicket = new Set(
+        (existing ?? [])
+          .filter((t) => !t.companion_id && !t.revoked)
+          .map((t) => t.participant_id as string),
+      );
+      const toEmit = targetIds.filter((id) => !haveTicket.has(id));
+      if (toEmit.length > 0) {
+        const rows = toEmit.map((pid) => {
+          const token = genQrToken();
+          return {
+            event_id: sess.event_id,
+            session_id: data.session_id,
+            participant_id: pid,
+            qr_token: token,
+            qr_payload: {
+              kind: "grupo",
+              token,
+              event_id: sess.event_id,
+              session_id: data.session_id,
+              participant_id: pid,
+            },
+          };
+        });
+        // Insert por lotes de 500 para no exceder el payload.
+        for (let i = 0; i < rows.length; i += 500) {
+          const chunk = rows.slice(i, i + 500);
+          const { error: tErr, count } = await supabaseAdmin
+            .from("tickets")
+            .insert(chunk as never, { count: "exact" });
+          if (tErr) throw new Error(`No se pudieron emitir QR: ${tErr.message}`);
+          ticketsCreated += count ?? chunk.length;
+        }
+      }
+    }
+
+    await supabaseAdmin.from("audit_logs").insert({
+      action: "seats.promote_to_qr",
+      entity_type: "event_sessions",
+      entity_id: data.session_id,
+      event_id: sess.event_id,
+      session_id: data.session_id,
+      actor_id: context.userId,
+      changes: {
+        promoted: promoted.length,
+        tickets_created: ticketsCreated,
+        already_ok: alreadyOk,
+        skipped_cancelled: skippedCancelled.length,
+        total_with_seat: (withSeat ?? []).length,
+      },
+    } as never);
+
+    return {
+      promoted: promoted.length,
+      ticketsCreated,
+      alreadyOk,
+      skippedCancelled: skippedCancelled.length,
+      totalWithSeat: (withSeat ?? []).length,
+    };
   });
