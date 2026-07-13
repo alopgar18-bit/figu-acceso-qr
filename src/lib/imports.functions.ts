@@ -636,7 +636,7 @@ export const commitImport = createServerFn({ method: "POST" })
               nameToPersonId.has(nameKey(row.first_name, last));
             while (collides(`${baseLast} VIS ${n}`.trim())) n++;
             row.last_name = `${baseLast} VIS ${n}`.trim();
-            const personId = await insertNewPerson(row);
+            const personId = await insertNewPerson(row, { omitDni: true });
             const part = await insertParticipationFor(personId, row);
             await maybeGenerateTicketFor(part.id, part.status, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
