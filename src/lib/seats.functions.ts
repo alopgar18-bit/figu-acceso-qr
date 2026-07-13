@@ -780,6 +780,66 @@ export const setSeatManual = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", data.occupant_id);
     if (error) throw new Error(error.message);
+    // Regla de negocio: si se asigna una butaca (los tres campos completos) a
+    // un titular en un estado sin entrada, promover a `aceptado_pendiente_envio`
+    // y emitir el QR pendiente. Nunca degrada estados con entrada emitida ni
+    // reactiva a cancelados/rechazados.
+    if (
+      data.occupant_kind === "titular" &&
+      patch.seat_zone &&
+      patch.seat_row &&
+      patch.seat_number
+    ) {
+      const { data: part } = await supabaseAdmin
+        .from("event_participants")
+        .select("id, status, event_id")
+        .eq("id", data.occupant_id)
+        .maybeSingle();
+      const status = String(part?.status ?? "");
+      const alreadyOk = new Set<string>([
+        "aceptado_pendiente_envio",
+        "invitacion_enviada",
+        "pendiente_confirmacion",
+        "confirmado",
+        "qr_generado",
+        "acceso_validado",
+      ]);
+      const skip = new Set<string>([
+        "cancelado_asistente",
+        "no_asistira",
+        "baja",
+        "rechazado",
+      ]);
+      if (part && !skip.has(status)) {
+        if (!alreadyOk.has(status)) {
+          await supabaseAdmin
+            .from("event_participants")
+            .update({ status: "aceptado_pendiente_envio" } as never)
+            .eq("id", part.id);
+        }
+        const { data: existing } = await supabaseAdmin
+          .from("tickets")
+          .select("id, revoked, companion_id")
+          .eq("participant_id", part.id);
+        const hasActive = (existing ?? []).some((t) => !t.companion_id && !t.revoked);
+        if (!hasActive) {
+          const token = genQrToken();
+          await supabaseAdmin.from("tickets").insert({
+            event_id: part.event_id,
+            session_id: data.session_id,
+            participant_id: part.id,
+            qr_token: token,
+            qr_payload: {
+              kind: "grupo",
+              token,
+              event_id: part.event_id,
+              session_id: data.session_id,
+              participant_id: part.id,
+            },
+          } as never);
+        }
+      }
+    }
     const { data: sess } = await supabaseAdmin
       .from("event_sessions")
       .select("event_id")
