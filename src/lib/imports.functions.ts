@@ -177,13 +177,6 @@ export const commitImport = createServerFn({ method: "POST" })
       `${normalize(first)}|${normalize(last)}`;
     const normDniLocal = (s: string | null | undefined) =>
       (s ?? "").toString().trim().toUpperCase().replace(/[\s-]/g, "");
-    const normEmailLocal = (s: string | null | undefined) =>
-      (s ?? "").toString().trim().toLowerCase();
-    const normPhoneLocal = (s: string | null | undefined) => {
-      const d = (s ?? "").toString().replace(/\D/g, "");
-      return d.length >= 9 ? d.slice(-9) : d;
-    };
-
     const { data: sessionRoster } = await supabase
       .from("event_participants")
       .select("id, person_id, people:person_id(first_name, last_name)")
@@ -205,14 +198,12 @@ export const commitImport = createServerFn({ method: "POST" })
       personId: string;
     };
     const eventByDni = new Map<string, EventEntry>();
-    const eventByEmail = new Map<string, EventEntry>();
-    const eventByPhone = new Map<string, EventEntry>();
     const eventByName = new Map<string, EventEntry>();
     if (data.perRowActions && Object.keys(data.perRowActions).length > 0) {
       const { data: fullRoster } = await supabase
         .from("event_participants")
         .select(
-          "id, session_id, person_id, people:person_id(first_name, last_name, dni, email, phone)",
+          "id, session_id, person_id, people:person_id(first_name, last_name, dni)",
         )
         .eq("event_id", data.eventId);
       for (const ep of fullRoster ?? []) {
@@ -220,8 +211,6 @@ export const commitImport = createServerFn({ method: "POST" })
           first_name?: string | null;
           last_name?: string | null;
           dni?: string | null;
-          email?: string | null;
-          phone?: string | null;
         } | null;
         if (!ppl) continue;
         const entry: EventEntry = {
@@ -230,15 +219,11 @@ export const commitImport = createServerFn({ method: "POST" })
           personId: ep.person_id as string,
         };
         const dK = normDniLocal(ppl.dni);
-        const eK = normEmailLocal(ppl.email);
-        const pK = normPhoneLocal(ppl.phone);
         const nK = nameKey(ppl.first_name, ppl.last_name);
         // Preferimos la participación de la sesión destino cuando hay varias.
         const pref = (prev: EventEntry | undefined, cur: EventEntry) =>
           prev && prev.sessionId === data.sessionId ? prev : cur;
         if (dK) eventByDni.set(dK, pref(eventByDni.get(dK), entry));
-        if (eK) eventByEmail.set(eK, pref(eventByEmail.get(eK), entry));
-        if (pK) eventByPhone.set(pK, pref(eventByPhone.get(pK), entry));
         eventByName.set(nK, pref(eventByName.get(nK), entry));
       }
     }
@@ -246,10 +231,6 @@ export const commitImport = createServerFn({ method: "POST" })
     const resolveEventMatch = (row: typeof data.rows[number]): EventEntry | undefined => {
       const d = normDniLocal(row.dni);
       if (d && eventByDni.has(d)) return eventByDni.get(d);
-      const e = normEmailLocal(row.email);
-      if (e && eventByEmail.has(e)) return eventByEmail.get(e);
-      const p = normPhoneLocal(row.phone);
-      if (p && eventByPhone.has(p)) return eventByPhone.get(p);
       return eventByName.get(nameKey(row.first_name, row.last_name));
     };
 
@@ -265,11 +246,6 @@ export const commitImport = createServerFn({ method: "POST" })
       if (d) {
         const found = await findPersonIdByDni(row.dni);
         if (found) return found;
-      }
-      const e = normEmailLocal(row.email);
-      if (e) {
-        const { data: ps } = await supabase.from("people").select("id").eq("email", e).limit(1);
-        if (ps && ps.length > 0) return ps[0].id as string;
       }
       return null;
     };
@@ -1302,8 +1278,6 @@ export const analyzeImport = createServerFn({ method: "POST" })
       hasTicket: boolean;
     };
     const byDni = new Map<string, RosterEntry[]>();
-    const byEmail = new Map<string, RosterEntry[]>();
-    const byPhone = new Map<string, RosterEntry[]>();
     const byName = new Map<string, RosterEntry[]>();
     const push = (m: Map<string, RosterEntry[]>, k: string, e: RosterEntry) => {
       if (!k) return;
@@ -1331,22 +1305,17 @@ export const analyzeImport = createServerFn({ method: "POST" })
         hasTicket: Array.isArray(tk) && tk.length > 0,
       };
       push(byDni, normDni(ppl.dni), entry);
-      push(byEmail, normEmail(ppl.email), entry);
-      push(byPhone, normPhone(ppl.phone), entry);
       push(byName, nameKey(ppl.first_name, ppl.last_name), entry);
     }
 
-    // Personas fuera del evento — sólo por DNI y email para no inflar la consulta.
+    // Personas fuera del evento: sólo por DNI. Email y teléfono se ignoran
+    // deliberadamente porque grupos y acompañantes comparten contacto.
     const rowDnis = new Set<string>();
-    const rowEmails = new Set<string>();
     for (const r of data.rows) {
       const d = normDni(r.dni);
       if (d) rowDnis.add(d);
-      const e = normEmail(r.email);
-      if (e) rowEmails.add(e);
     }
     const peopleByDni = new Map<string, string>();
-    const peopleByEmail = new Map<string, string>();
     const chunkArr = <T,>(arr: T[], n: number) => {
       const out: T[][] = [];
       for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
@@ -1362,19 +1331,9 @@ export const analyzeImport = createServerFn({ method: "POST" })
         if (k) peopleByDni.set(k, p.id as string);
       }
     }
-    for (const chunk of chunkArr([...rowEmails], 200)) {
-      const { data: ppl } = await supabase
-        .from("people")
-        .select("id, email")
-        .in("email", chunk);
-      for (const p of ppl ?? []) {
-        const k = normEmail(p.email);
-        if (k) peopleByEmail.set(k, p.id as string);
-      }
-    }
 
     type Block = "A" | "B" | "C" | "D";
-    type MatchReason = "dni" | "email" | "phone" | "name" | null;
+    type MatchReason = "dni" | "name" | null;
     type RowAnalysis = {
       rowIndex: number;
       block: Block;
@@ -1401,13 +1360,9 @@ export const analyzeImport = createServerFn({ method: "POST" })
 
     for (const r of data.rows) {
       const dni = normDni(r.dni);
-      const email = normEmail(r.email);
-      const phone = normPhone(r.phone);
       const nk = nameKey(r.first_name, r.last_name);
       const candidates: Array<{ reason: MatchReason; hits: RosterEntry[] }> = [];
       if (dni && byDni.has(dni)) candidates.push({ reason: "dni", hits: byDni.get(dni)! });
-      if (email && byEmail.has(email)) candidates.push({ reason: "email", hits: byEmail.get(email)! });
-      if (phone && byPhone.has(phone)) candidates.push({ reason: "phone", hits: byPhone.get(phone)! });
       if (byName.has(nk)) candidates.push({ reason: "name", hits: byName.get(nk)! });
 
       if (candidates.length > 0) {
@@ -1464,9 +1419,6 @@ export const analyzeImport = createServerFn({ method: "POST" })
         if (dni && peopleByDni.has(dni)) {
           pid = peopleByDni.get(dni)!;
           reason = "dni";
-        } else if (email && peopleByEmail.has(email)) {
-          pid = peopleByEmail.get(email)!;
-          reason = "email";
         }
         if (pid) {
           analyses.push({
