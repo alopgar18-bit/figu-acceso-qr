@@ -391,9 +391,9 @@ export const commitImport = createServerFn({ method: "POST" })
         .eq("person_id", personId)
         .maybeSingle();
       if (existingParticipation) {
-        const currentStatus = (existingParticipation.status as string) ?? status;
+        const currentStatus = (existingParticipation.status as typeof status) ?? status;
         // No degradar un estado superior (con entrada) a uno inferior.
-        const finalStatus =
+        const finalStatus: typeof status =
           rank(currentStatus) >= rank(status) ? currentStatus : status;
         const currComp = (existingParticipation.companions_count as number) ?? 0;
         const finalComp = Math.max(currComp, row.companions_count ?? 0);
@@ -467,9 +467,9 @@ export const commitImport = createServerFn({ method: "POST" })
             .eq("session_id", data.sessionId)
             .eq("person_id", personId)
             .maybeSingle();
-          if (existing) {
-            const currentStatus = (existing.status as string) ?? status;
-            const finalStatus =
+           if (existing) {
+            const currentStatus = (existing.status as typeof status) ?? status;
+            const finalStatus: typeof status =
               rank(currentStatus) >= rank(status) ? currentStatus : status;
             const currComp = (existing.companions_count as number) ?? 0;
             const finalComp = Math.max(currComp, row.companions_count ?? 0);
