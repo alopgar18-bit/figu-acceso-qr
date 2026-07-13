@@ -635,8 +635,9 @@ export const commitImport = createServerFn({ method: "POST" })
             // Reutiliza la persona pero crea nueva participación en la sesión destino.
             const part = await insertParticipationFor(match.personId, row);
             if (part.reused) {
+              await maybeGenerateTicketFor(part.id, part.status, row);
               updated++;
-              logRow(row, "updated", part.id, "ya existía en la sesión (asiento/lote actualizado)");
+              logRow(row, "updated", part.id, "ya existía en la sesión (asiento/lote actualizado, QR emitido si faltaba)");
             } else {
               await maybeGenerateTicketFor(part.id, part.status, row);
               imported++;
@@ -685,8 +686,9 @@ export const commitImport = createServerFn({ method: "POST" })
             const part = await insertParticipationFor(personId, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
             if (part.reused) {
+              await maybeGenerateTicketFor(part.id, part.status, row);
               updated++;
-              logRow(row, "updated", part.id, "persona ya participaba en la sesión (asiento/lote actualizado)");
+              logRow(row, "updated", part.id, "persona ya participaba en la sesión (asiento/lote actualizado, QR emitido si faltaba)");
             } else {
               await maybeGenerateTicketFor(part.id, part.status, row);
               imported++;
