@@ -601,7 +601,7 @@ export const commitImport = createServerFn({ method: "POST" })
                 .maybeSingle();
               const desiredStatus = row.initial_status ?? data.defaultStatus;
               const currentStatus =
-                (existingPart?.status as string | undefined) ?? desiredStatus;
+                (existingPart?.status as typeof desiredStatus | undefined) ?? desiredStatus;
               const finalStatus =
                 rank(currentStatus) >= rank(desiredStatus) ? currentStatus : desiredStatus;
               if (finalStatus !== currentStatus) {
