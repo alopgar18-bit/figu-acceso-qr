@@ -160,6 +160,13 @@ function BatchDetailPage() {
             </Button>
             <Button
               variant="outline"
+              onClick={() => setRepairOpen(true)}
+              disabled={repairing}
+            >
+              <Wrench className="h-4 w-4 mr-2" />Reparar lote
+            </Button>
+            <Button
+              variant="outline"
               className="text-destructive hover:text-destructive"
               onClick={() => { setIncludeParticipants(false); setConfirmOpen(true); }}
             >
