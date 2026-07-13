@@ -258,25 +258,18 @@ export const commitImport = createServerFn({ method: "POST" })
     const resolvePersonOutsideEvent = async (
       row: typeof data.rows[number],
     ): Promise<string | null> => {
-      // Only reuse a `people` row if that person is NOT already participating
-      // in the target session. Otherwise we would collide with the unique
-      // constraint `(session_id, person_id)` — which is exactly the bug we
-      // saw when several distinct people share the same email/DNI (parejas,
-      // familiares, correos de gestor…).
-      const isInThisSession = (personId: string) => sessionPersonIds.has(personId);
+      // DNI is unique en `people`: si existe hay que reutilizar SIEMPRE la
+      // persona (aunque ya esté en esta sesión). `insertParticipationFor` se
+      // encarga de fusionar sin degradar estado ni ticket.
       const d = normDniLocal(row.dni);
       if (d) {
-        const { data: ps } = await supabase.from("people").select("id").eq("dni", d);
-        for (const p of ps ?? []) {
-          if (!isInThisSession(p.id as string)) return p.id as string;
-        }
+        const found = await findPersonIdByDni(row.dni);
+        if (found) return found;
       }
       const e = normEmailLocal(row.email);
       if (e) {
-        const { data: ps } = await supabase.from("people").select("id").eq("email", e);
-        for (const p of ps ?? []) {
-          if (!isInThisSession(p.id as string)) return p.id as string;
-        }
+        const { data: ps } = await supabase.from("people").select("id").eq("email", e).limit(1);
+        if (ps && ps.length > 0) return ps[0].id as string;
       }
       return null;
     };
@@ -315,13 +308,46 @@ export const commitImport = createServerFn({ method: "POST" })
 
     // ------- helpers para el modo perRowActions -------
     const batchId = batch.id;
-    async function insertNewPerson(row: typeof data.rows[number]): Promise<string> {
+
+    // Estados con entrada (QR) emitida. Nunca se degradan al reimportar.
+    const RANK: Record<string, number> = {
+      rechazado: 0,
+      lista_espera: 1,
+      pendiente_revision: 2,
+      aceptado_pendiente_envio: 3,
+      invitacion_enviada: 4,
+      confirmado: 5,
+      acceso_validado: 6,
+    };
+    const rank = (s: string | null | undefined) =>
+      (s && s in RANK ? RANK[s] : -1);
+
+    // Busca una persona por DNI probando variantes (con/sin guion, mayúsculas).
+    async function findPersonIdByDni(rawDni: string | null | undefined): Promise<string | null> {
+      const raw = (rawDni ?? "").toString().trim();
+      if (!raw) return null;
+      const stripped = normDniLocal(raw);
+      if (!stripped) return null;
+      const withHyphen = stripped.replace(/^(\d{5,10})([A-Z])$/, "$1-$2");
+      const variants = Array.from(new Set([raw, stripped, withHyphen].filter(Boolean)));
+      const { data: ps } = await supabase
+        .from("people")
+        .select("id")
+        .in("dni", variants)
+        .limit(1);
+      return ps && ps.length > 0 ? (ps[0].id as string) : null;
+    }
+
+    async function insertNewPerson(
+      row: typeof data.rows[number],
+      opts: { omitDni?: boolean } = {},
+    ): Promise<string> {
       const { data: created, error: pErr } = await supabase
         .from("people")
         .insert({
           first_name: row.first_name,
           last_name: row.last_name ?? null,
-          dni: row.dni ?? null,
+          dni: opts.omitDni ? null : (row.dni ?? null),
           email: row.email ?? null,
           phone: row.phone ?? null,
           birth_date: row.birth_date ?? null,
@@ -334,7 +360,17 @@ export const commitImport = createServerFn({ method: "POST" })
         })
         .select("id")
         .single();
-      if (pErr) throw new Error(`No se pudo crear la persona (${pErr.message})`);
+      if (pErr) {
+        // DNI ya existente → reutilizar en vez de fallar.
+        if (
+          !opts.omitDni &&
+          (pErr.code === "23505" || /uq_people_dni|people_dni/.test(pErr.message))
+        ) {
+          const existing = await findPersonIdByDni(row.dni);
+          if (existing) return existing;
+        }
+        throw new Error(`No se pudo crear la persona (${pErr.message})`);
+      }
       return created.id as string;
     }
 
@@ -346,6 +382,54 @@ export const commitImport = createServerFn({ method: "POST" })
       const approvedLike =
         status !== "pendiente_revision" && status !== "lista_espera" && status !== "rechazado";
       const attendeeType = row.attendee_type ?? data.defaultAttendeeType;
+
+      // Si ya existe participación en la sesión: fusionar con regla de no-degradación.
+      const { data: existingParticipation } = await supabase
+        .from("event_participants")
+        .select("id, status, companions_count, seat_zone, seat_row, seat_number")
+        .eq("session_id", data.sessionId)
+        .eq("person_id", personId)
+        .maybeSingle();
+      if (existingParticipation) {
+        const currentStatus = (existingParticipation.status as typeof status) ?? status;
+        // No degradar un estado superior (con entrada) a uno inferior.
+        const finalStatus: typeof status =
+          rank(currentStatus) >= rank(status) ? currentStatus : status;
+        const currComp = (existingParticipation.companions_count as number) ?? 0;
+        const finalComp = Math.max(currComp, row.companions_count ?? 0);
+        await supabase
+          .from("event_participants")
+          .update({
+            status: finalStatus,
+            attendee_type: attendeeType,
+            companions_count: finalComp,
+            import_batch_id: batchId,
+            seat_zone: row.seat_zone?.trim() || existingParticipation.seat_zone || null,
+            seat_row: row.seat_row?.trim() || existingParticipation.seat_row || null,
+            seat_number: row.seat_number?.trim() || existingParticipation.seat_number || null,
+            seat_locked: seatExistsInPlan(
+              row.seat_zone ?? existingParticipation.seat_zone as string | null,
+              row.seat_row ?? existingParticipation.seat_row as string | null,
+              row.seat_number ?? existingParticipation.seat_number as string | null,
+            ),
+          })
+          .eq("id", existingParticipation.id as string);
+        if (
+          planSeatKeys &&
+          row.seat_zone &&
+          row.seat_row &&
+          row.seat_number &&
+          !seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number)
+        ) {
+          seatsNotInPlan++;
+        }
+        return {
+          id: existingParticipation.id as string,
+          status: finalStatus,
+          reused: true,
+        };
+      }
+
       const { data: participant, error: partErr } = await supabase
         .from("event_participants")
         .insert({
@@ -370,8 +454,8 @@ export const commitImport = createServerFn({ method: "POST" })
         .select("id")
         .single();
       if (partErr) {
-        // Persona ya participa en la sesión → actualizamos la ficha existente
-        // (re-etiquetamos el lote y refrescamos asiento) en lugar de fallar.
+        // Carrera: alguien insertó la participación entre el select y el insert.
+        // Releemos y aplicamos la misma fusión con no-degradación.
         if (
           partErr.code === "23505" ||
           /duplicate key value/i.test(partErr.message) ||
@@ -379,18 +463,25 @@ export const commitImport = createServerFn({ method: "POST" })
         ) {
           const { data: existing } = await supabase
             .from("event_participants")
-            .select("id, status")
+            .select("id, status, companions_count, seat_zone, seat_row, seat_number")
             .eq("session_id", data.sessionId)
             .eq("person_id", personId)
             .maybeSingle();
-          if (existing) {
+           if (existing) {
+            const currentStatus = (existing.status as typeof status) ?? status;
+            const finalStatus: typeof status =
+              rank(currentStatus) >= rank(status) ? currentStatus : status;
+            const currComp = (existing.companions_count as number) ?? 0;
+            const finalComp = Math.max(currComp, row.companions_count ?? 0);
             await supabase
               .from("event_participants")
               .update({
+                status: finalStatus,
+                companions_count: finalComp,
                 import_batch_id: batchId,
-                seat_zone: row.seat_zone?.trim() || null,
-                seat_row: row.seat_row?.trim() || null,
-                seat_number: row.seat_number?.trim() || null,
+                seat_zone: row.seat_zone?.trim() || existing.seat_zone || null,
+                seat_row: row.seat_row?.trim() || existing.seat_row || null,
+                seat_number: row.seat_number?.trim() || existing.seat_number || null,
                 seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
               })
               .eq("id", existing.id);
@@ -403,7 +494,7 @@ export const commitImport = createServerFn({ method: "POST" })
             ) {
               seatsNotInPlan++;
             }
-            return { id: existing.id as string, status: (existing.status as string) ?? status, reused: true };
+            return { id: existing.id as string, status: finalStatus, reused: true };
           }
         }
         throw new Error(`No se pudo crear la participación (${partErr.message})`);
@@ -426,6 +517,13 @@ export const commitImport = createServerFn({ method: "POST" })
       row: typeof data.rows[number],
     ) {
       if (!QR_STATES.has(status)) return;
+      // No duplicar ticket si ya hay uno emitido para este asistente.
+      const { data: existingTicket } = await supabase
+        .from("tickets")
+        .select("id")
+        .eq("participant_id", participantId)
+        .limit(1);
+      if (existingTicket && existingTicket.length > 0) return;
       const token = genToken();
       const { data: ticket, error: tErr } = await supabase
         .from("tickets")
