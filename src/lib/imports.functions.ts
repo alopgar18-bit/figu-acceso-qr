@@ -1336,3 +1336,488 @@ export const analyzeImport = createServerFn({ method: "POST" })
 
     return { rows: analyses, counts };
   });
+
+// ============================================================
+// Reparar un lote ya importado sin volver a subir el Excel.
+// - Recupera filas absorbidas por email/teléfono (algoritmo antiguo)
+//   creando participaciones independientes cuando el nombre real
+//   del raw_row no coincide con el participante enlazado.
+// - Re-etiqueta con import_batch_id todas las participaciones
+//   asociadas a las filas del lote.
+// - Emite QR pendientes en estados con entrada (regla de no
+//   degradación). Idempotente.
+// ============================================================
+
+const repairSchema = z.object({ batchId: z.string().uuid() });
+
+export const repairImportBatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => repairSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte"]);
+
+    const { data: batch, error: bErr } = await supabase
+      .from("import_batches")
+      .select("id, event_id, session_id, filename, source")
+      .eq("id", data.batchId)
+      .single();
+    if (bErr || !batch) throw new Error("Lote no encontrado");
+    if (!batch.event_id || !batch.session_id)
+      throw new Error("El lote no tiene evento o sesión asociados");
+
+    const eventId = batch.event_id as string;
+    const sessionId = batch.session_id as string;
+
+    const normalize = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+    const nameKey = (f?: string | null, l?: string | null) =>
+      `${normalize(f)}|${normalize(l)}`;
+    const normDni = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toUpperCase().replace(/[\s-]/g, "");
+
+    const RANK: Record<string, number> = {
+      rechazado: 0,
+      lista_espera: 1,
+      pendiente_revision: 2,
+      aceptado_pendiente_envio: 3,
+      invitacion_enviada: 4,
+      confirmado: 5,
+      acceso_validado: 6,
+    };
+    const rank = (s: string | null | undefined) => (s && s in RANK ? RANK[s] : -1);
+    const QR_STATES = new Set([
+      "aceptado_pendiente_envio",
+      "invitacion_enviada",
+      "confirmado",
+      "acceso_validado",
+    ]);
+
+    // 1. Cargar filas originales del lote
+    const { data: rowsRaw, error: rErr } = await supabase
+      .from("import_row_results")
+      .select("id, row_number, participant_id, raw_row")
+      .eq("batch_id", data.batchId)
+      .order("row_number", { ascending: true });
+    if (rErr) throw new Error(`No se pudieron leer las filas del lote: ${rErr.message}`);
+    const rows = rowsRaw ?? [];
+    if (rows.length === 0) {
+      return { total: 0, recovered: 0, tagged: 0, ticketsCreated: 0, rowResultsFixed: 0 };
+    }
+
+    // 2. Roster actual de la sesión, indexado por nombre y persona
+    const { data: sessionRoster } = await supabase
+      .from("event_participants")
+      .select(
+        "id, person_id, status, import_batch_id, people:person_id(first_name, last_name, dni)",
+      )
+      .eq("session_id", sessionId);
+    type RosterEntry = {
+      participantId: string;
+      personId: string;
+      status: string | null;
+      importBatchId: string | null;
+      firstName: string | null;
+      lastName: string | null;
+    };
+    const rosterByName = new Map<string, RosterEntry>();
+    const rosterByDni = new Map<string, RosterEntry>();
+    const rosterByParticipantId = new Map<string, RosterEntry>();
+    for (const ep of sessionRoster ?? []) {
+      const ppl = ep.people as {
+        first_name?: string | null;
+        last_name?: string | null;
+        dni?: string | null;
+      } | null;
+      const entry: RosterEntry = {
+        participantId: ep.id as string,
+        personId: ep.person_id as string,
+        status: (ep.status as string | null) ?? null,
+        importBatchId: (ep.import_batch_id as string | null) ?? null,
+        firstName: ppl?.first_name ?? null,
+        lastName: ppl?.last_name ?? null,
+      };
+      rosterByParticipantId.set(entry.participantId, entry);
+      if (ppl) {
+        rosterByName.set(nameKey(ppl.first_name, ppl.last_name), entry);
+        const d = normDni(ppl.dni);
+        if (d) rosterByDni.set(d, entry);
+      }
+    }
+
+    // 3. Preload plan seats para bloquear asientos existentes
+    let planSeatKeys: Set<string> | null = null;
+    const { data: sessionRow } = await supabase
+      .from("event_sessions")
+      .select("venue_plan_id")
+      .eq("id", sessionId)
+      .maybeSingle();
+    if (sessionRow?.venue_plan_id) {
+      const { data: planSeats } = await supabase
+        .from("venue_seats")
+        .select("row_label, seat_number, venue_zones!inner(name)")
+        .eq("plan_id", sessionRow.venue_plan_id);
+      planSeatKeys = new Set(
+        (planSeats ?? []).map((s: any) =>
+          `${(s.venue_zones?.name ?? "").trim().toLowerCase()}|${String(s.row_label).trim().toLowerCase()}|${String(s.seat_number).trim().toLowerCase()}`,
+        ),
+      );
+    }
+    const seatExistsInPlan = (
+      zone?: string | null,
+      row?: string | null,
+      num?: string | null,
+    ) => {
+      if (!planSeatKeys || !zone || !row || !num) return false;
+      return planSeatKeys.has(
+        `${zone.trim().toLowerCase()}|${row.trim().toLowerCase()}|${num.trim().toLowerCase()}`,
+      );
+    };
+
+    async function findPersonIdByDni(rawDni: string | null | undefined): Promise<string | null> {
+      const raw = (rawDni ?? "").toString().trim();
+      if (!raw) return null;
+      const stripped = normDni(raw);
+      if (!stripped) return null;
+      const withHyphen = stripped.replace(/^(\d{5,10})([A-Z])$/, "$1-$2");
+      const variants = Array.from(new Set([raw, stripped, withHyphen].filter(Boolean)));
+      const { data: ps } = await supabase
+        .from("people")
+        .select("id")
+        .in("dni", variants as string[])
+        .limit(1);
+      return ps && ps.length > 0 ? (ps[0].id as string) : null;
+    }
+
+    function genToken(): string {
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    let recovered = 0;
+    let tagged = 0;
+    let ticketsCreated = 0;
+    let rowResultsFixed = 0;
+    let skipped = 0;
+    const errors: Array<{ row: number; reason: string }> = [];
+
+    type Raw = {
+      first_name?: string;
+      last_name?: string | null;
+      dni?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      birth_date?: string | null;
+      city?: string | null;
+      province?: string | null;
+      gender?: string | null;
+      notes?: string | null;
+      attendee_type?: string | null;
+      initial_status?: string | null;
+      companions_count?: number | null;
+      seat_zone?: string | null;
+      seat_row?: string | null;
+      seat_number?: string | null;
+    };
+
+    async function ensureTicket(
+      participantId: string,
+      status: string | null | undefined,
+    ): Promise<void> {
+      if (!status || !QR_STATES.has(status)) return;
+      const { data: existing } = await supabase
+        .from("tickets")
+        .select("id")
+        .eq("participant_id", participantId)
+        .limit(1);
+      if (existing && existing.length > 0) return;
+      const token = genToken();
+      const { error: tErr } = await supabase.from("tickets").insert({
+        event_id: eventId,
+        session_id: sessionId,
+        participant_id: participantId,
+        qr_token: token,
+        qr_payload: {
+          token,
+          event_id: eventId,
+          session_id: sessionId,
+          participant_id: participantId,
+        },
+      });
+      if (tErr) throw new Error(`No se pudo crear el ticket (${tErr.message})`);
+      ticketsCreated++;
+    }
+
+    for (const rr of rows) {
+      try {
+        const raw = (rr.raw_row ?? {}) as Raw;
+        const rawFirst = raw.first_name ?? "";
+        const rawLast = raw.last_name ?? null;
+        if (!rawFirst) {
+          skipped++;
+          continue;
+        }
+        const rowNameKey = nameKey(rawFirst, rawLast);
+        const rowDni = normDni(raw.dni);
+        const desiredStatus = (raw.initial_status ?? null) as string | null;
+
+        // ¿Está ya bien enlazado?
+        const linked = rr.participant_id
+          ? rosterByParticipantId.get(rr.participant_id as string)
+          : undefined;
+        const linkedMatches =
+          linked && nameKey(linked.firstName, linked.lastName) === rowNameKey;
+
+        // Búsqueda del participante correcto por nombre o DNI en la sesión
+        const correct =
+          rosterByName.get(rowNameKey) ??
+          (rowDni ? rosterByDni.get(rowDni) : undefined);
+
+        if (linkedMatches && linked) {
+          // Sólo asegurar tag + QR
+          if (linked.importBatchId !== data.batchId) {
+            await supabase
+              .from("event_participants")
+              .update({ import_batch_id: data.batchId })
+              .eq("id", linked.participantId);
+            linked.importBatchId = data.batchId;
+            tagged++;
+          }
+          await ensureTicket(linked.participantId, linked.status);
+          continue;
+        }
+
+        if (correct) {
+          // La fila estaba mal enlazada (o sin enlazar) pero existe el
+          // participante correcto: reasignar row_result y re-etiquetar.
+          if (rr.participant_id !== correct.participantId) {
+            await supabase
+              .from("import_row_results")
+              .update({
+                participant_id: correct.participantId,
+                outcome: "updated",
+                match_reason:
+                  "reparación: fila reasignada al participante correcto por nombre/DNI",
+              })
+              .eq("id", rr.id);
+            rowResultsFixed++;
+          }
+          if (correct.importBatchId !== data.batchId) {
+            await supabase
+              .from("event_participants")
+              .update({ import_batch_id: data.batchId })
+              .eq("id", correct.participantId);
+            correct.importBatchId = data.batchId;
+            tagged++;
+          }
+          await ensureTicket(correct.participantId, correct.status);
+          continue;
+        }
+
+        // No existe → crear persona (con VIS si colisiona por nombre en la
+        // sesión) + participación + QR.
+        let personId: string | null = null;
+        if (rowDni) personId = await findPersonIdByDni(raw.dni);
+
+        let workingFirst = rawFirst;
+        let workingLast = rawLast;
+        let workingKey = rowNameKey;
+
+        // Si el nombre ya está en la sesión pero apuntando a otra persona,
+        // aplicar sufijo VIS N.
+        if (rosterByName.has(workingKey)) {
+          const baseLast = (rawLast ?? "").trim();
+          let n = 2;
+          while (rosterByName.has(nameKey(rawFirst, `${baseLast} VIS ${n}`.trim()))) n++;
+          workingLast = `${baseLast} VIS ${n}`.trim();
+          workingKey = nameKey(workingFirst, workingLast);
+          personId = null; // fuerza persona nueva sin DNI para no colisionar
+        }
+
+        if (!personId) {
+          const { data: created, error: pErr } = await supabase
+            .from("people")
+            .insert({
+              first_name: workingFirst,
+              last_name: workingLast,
+              // Omitimos DNI si aplicamos VIS o si no hay DNI válido
+              dni:
+                workingLast !== rawLast
+                  ? null
+                  : raw.dni ?? null,
+              email: raw.email ?? null,
+              phone: raw.phone ?? null,
+              birth_date: raw.birth_date ?? null,
+              city: raw.city ?? null,
+              province: raw.province ?? null,
+              gender: raw.gender ?? null,
+              notes: raw.notes ?? null,
+              source: batch.source ?? `import:${batch.filename ?? "repair"}`,
+              created_by: userId,
+            })
+            .select("id")
+            .single();
+          if (pErr) {
+            // Colisión DNI: reutilizar persona existente.
+            if (
+              pErr.code === "23505" &&
+              raw.dni &&
+              workingLast === rawLast
+            ) {
+              const found = await findPersonIdByDni(raw.dni);
+              if (found) personId = found;
+              else throw new Error(`No se pudo crear persona (${pErr.message})`);
+            } else {
+              throw new Error(`No se pudo crear persona (${pErr.message})`);
+            }
+          } else {
+            personId = created.id as string;
+          }
+        }
+
+        // Crear participación con no-degradación si ya existiera (carrera)
+        const status = desiredStatus ?? "pendiente_revision";
+        const approvedLike =
+          status !== "pendiente_revision" &&
+          status !== "lista_espera" &&
+          status !== "rechazado";
+        const nowIso = new Date().toISOString();
+
+        const insertPayload = {
+          event_id: eventId,
+          session_id: sessionId,
+          person_id: personId!,
+          status,
+          attendee_type: raw.attendee_type ?? "publico",
+          companions_count: raw.companions_count ?? 0,
+          approved_by: approvedLike ? userId : null,
+          approved_at: approvedLike ? nowIso : null,
+          confirmed_at:
+            status === "confirmado" || status === "acceso_validado" ? nowIso : null,
+          import_batch_id: data.batchId,
+          seat_zone: raw.seat_zone ?? null,
+          seat_row: raw.seat_row ?? null,
+          seat_number: raw.seat_number ?? null,
+          seat_locked: seatExistsInPlan(raw.seat_zone, raw.seat_row, raw.seat_number),
+        };
+
+        let newParticipantId: string | null = null;
+        let finalStatus = status;
+        const { data: partRow, error: partErr } = await supabase
+          .from("event_participants")
+          .insert(insertPayload)
+          .select("id, status")
+          .single();
+        if (partErr) {
+          if (partErr.code === "23505") {
+            const { data: existing } = await supabase
+              .from("event_participants")
+              .select("id, status")
+              .eq("session_id", sessionId)
+              .eq("person_id", personId!)
+              .maybeSingle();
+            if (existing) {
+              const curr = (existing.status as string) ?? status;
+              finalStatus = rank(curr) >= rank(status) ? curr : status;
+              await supabase
+                .from("event_participants")
+                .update({
+                  status: finalStatus,
+                  import_batch_id: data.batchId,
+                })
+                .eq("id", existing.id as string);
+              newParticipantId = existing.id as string;
+            } else {
+              throw new Error(`No se pudo crear participación (${partErr.message})`);
+            }
+          } else {
+            throw new Error(`No se pudo crear participación (${partErr.message})`);
+          }
+        } else {
+          newParticipantId = partRow.id as string;
+          finalStatus = (partRow.status as string) ?? status;
+        }
+
+        if (!newParticipantId) continue;
+
+        // Registrar en roster para no repetir en siguientes filas
+        const newEntry: RosterEntry = {
+          participantId: newParticipantId,
+          personId: personId!,
+          status: finalStatus,
+          importBatchId: data.batchId,
+          firstName: workingFirst,
+          lastName: workingLast,
+        };
+        rosterByParticipantId.set(newParticipantId, newEntry);
+        rosterByName.set(workingKey, newEntry);
+        if (rowDni) rosterByDni.set(rowDni, newEntry);
+
+        // Actualizar el row_result para apuntar al nuevo participante
+        await supabase
+          .from("import_row_results")
+          .update({
+            participant_id: newParticipantId,
+            outcome: "inserted",
+            match_reason:
+              workingLast !== rawLast
+                ? "reparación: creado con sufijo VIS por colisión de nombre"
+                : "reparación: creado (fila absorbida por email/teléfono en el algoritmo antiguo)",
+          })
+          .eq("id", rr.id);
+        recovered++;
+        rowResultsFixed++;
+
+        await ensureTicket(newParticipantId, finalStatus);
+      } catch (err) {
+        errors.push({
+          row: rr.row_number as number,
+          reason: err instanceof Error ? err.message : "error",
+        });
+      }
+    }
+
+    // Recalcular imported_rows del lote como nº real de participantes vinculados
+    const { count: linkedCount } = await supabase
+      .from("event_participants")
+      .select("id", { count: "exact", head: true })
+      .eq("import_batch_id", data.batchId);
+
+    if (typeof linkedCount === "number") {
+      await supabase
+        .from("import_batches")
+        .update({ imported_rows: linkedCount })
+        .eq("id", data.batchId);
+    }
+
+    await supabase.from("audit_logs").insert({
+      actor_id: userId,
+      action: "import_batch.repair",
+      entity_type: "import_batch",
+      entity_id: data.batchId,
+      event_id: eventId,
+      session_id: sessionId,
+      changes: {
+        total_rows: rows.length,
+        recovered,
+        tagged,
+        tickets_created: ticketsCreated,
+        row_results_fixed: rowResultsFixed,
+        skipped,
+        errors: errors.slice(0, 50),
+        linked_count: linkedCount ?? null,
+      },
+    });
+
+    return {
+      total: rows.length,
+      recovered,
+      tagged,
+      ticketsCreated,
+      rowResultsFixed,
+      skipped,
+      errors,
+      linkedCount: linkedCount ?? null,
+    };
+  });
