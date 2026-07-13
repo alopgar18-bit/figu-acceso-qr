@@ -592,6 +592,26 @@ export const commitImport = createServerFn({ method: "POST" })
                 seat_locked: seatExistsInPlan(row.seat_zone, row.seat_row, row.seat_number),
               })
               .eq("id", match.participantId);
+            // No-degradación de estado y emisión de QR si corresponde.
+            {
+              const { data: existingPart } = await supabase
+                .from("event_participants")
+                .select("status")
+                .eq("id", match.participantId)
+                .maybeSingle();
+              const desiredStatus = row.initial_status ?? data.defaultStatus;
+              const currentStatus =
+                (existingPart?.status as string | undefined) ?? desiredStatus;
+              const finalStatus =
+                rank(currentStatus) >= rank(desiredStatus) ? currentStatus : desiredStatus;
+              if (finalStatus !== currentStatus) {
+                await supabase
+                  .from("event_participants")
+                  .update({ status: finalStatus })
+                  .eq("id", match.participantId);
+              }
+              await maybeGenerateTicketFor(match.participantId, finalStatus, row);
+            }
             if (
               planSeatKeys &&
               row.seat_zone &&
@@ -602,7 +622,12 @@ export const commitImport = createServerFn({ method: "POST" })
               seatsNotInPlan++;
             }
             updated++;
-            logRow(row, "updated", match.participantId, "acción manual: actualizar en esta sesión");
+            logRow(
+              row,
+              "updated",
+              match.participantId,
+              "acción manual: actualizar en esta sesión (QR emitido si faltaba)",
+            );
             continue;
           }
 
