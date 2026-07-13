@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Trash2, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SessionForm } from "@/components/session-form";
 import { useEvent, useSession, useDeleteSession } from "@/lib/use-events";
+import { promoteAssignedSeatsToQR } from "@/lib/seats.functions";
 
 export const Route = createFileRoute("/_authenticated/eventos/$eventId/sesiones/$sessionId")({
   component: Page,
@@ -51,6 +54,7 @@ function Page() {
                 Ver plano
               </Link>
             </Button>
+            <PromoteSeatsButton sessionId={sessionId} />
             <Button asChild>
               <Link
                 to="/comunicaciones/envio"
@@ -83,5 +87,31 @@ function Page() {
       />
       {isLoading || !event || !session ? <Skeleton className="h-96" /> : <SessionForm event={event} session={session} />}
     </div>
+  );
+}
+
+function PromoteSeatsButton({ sessionId }: { sessionId: string }) {
+  const qc = useQueryClient();
+  const runFn = useServerFn(promoteAssignedSeatsToQR);
+  const mut = useMutation({
+    mutationFn: () => runFn({ data: { session_id: sessionId } }),
+    onSuccess: (r) => {
+      toast.success(
+        `Promovidos: ${r.promoted} · QR emitidos: ${r.ticketsCreated} · ya con entrada: ${r.alreadyOk} · cancelados omitidos: ${r.skippedCancelled} (total con butaca: ${r.totalWithSeat})`,
+      );
+      qc.invalidateQueries({ queryKey: ["session", sessionId] });
+      qc.invalidateQueries({ queryKey: ["session-light", sessionId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  return (
+    <Button onClick={() => mut.mutate()} disabled={mut.isPending} variant="default">
+      {mut.isPending ? (
+        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+      ) : (
+        <CheckCircle2 className="h-4 w-4 mr-2" />
+      )}
+      Pasar a QR los que tengan butaca
+    </Button>
   );
 }
