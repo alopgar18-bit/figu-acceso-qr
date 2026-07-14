@@ -91,17 +91,17 @@ export type DuplicateBlock = "A" | "B" | "C" | "D";
 export type RowAction = "update" | "create_here" | "create_bis" | "skip" | "create_new";
 
 export const BLOCK_LABEL: Record<DuplicateBlock, string> = {
-  A: "Nuevos",
+  A: "Nuevos en esta sesión",
   B: "Ya en esta sesión",
-  C: "Ya en otra sesión del evento",
-  D: "Persona conocida sin participación",
+  C: "(no usado)",
+  D: "(no usado)",
 };
 
 export const BLOCK_DESCRIPTION: Record<DuplicateBlock, string> = {
-  A: "No coinciden con nadie. Se crean como personas y participaciones nuevas.",
-  B: "La persona ya participa en la sesión destino (por DNI, email, teléfono o nombre+apellidos).",
-  C: "La persona ya participa en otra sesión del evento, pero no en la sesión destino.",
-  D: "La persona existe en la base de datos pero no participa en este evento.",
+  A: "No coinciden con nadie en esta sesión. Se crean como participantes nuevos. Si el DNI ya está usado en otra sesión del evento, se importan como persona VIS independiente.",
+  B: "La persona ya participa en la sesión destino (por DNI o nombre+apellidos). Se actualizan datos/asiento sin degradar el estado ni tocar la entrada emitida.",
+  C: "Bloque obsoleto tras el aislamiento por sesión.",
+  D: "Bloque obsoleto tras el aislamiento por sesión.",
 };
 
 export const ACTION_LABEL: Record<RowAction, string> = {
