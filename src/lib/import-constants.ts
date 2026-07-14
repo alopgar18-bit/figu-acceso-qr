@@ -20,7 +20,9 @@ export type TargetField =
   | "companions_count"
   | "seat_zone"
   | "seat_row"
-  | "seat_number";
+  | "seat_number"
+  | "role"
+  | "titular_full_name";
 
 export interface TargetFieldDef {
   value: TargetField;
@@ -51,6 +53,18 @@ export const TARGET_FIELDS: TargetFieldDef[] = [
   { value: "seat_zone", label: "Zona / sector", group: "participacion" },
   { value: "seat_row", label: "Fila", group: "participacion" },
   { value: "seat_number", label: "Asiento / butaca", group: "participacion" },
+  {
+    value: "role",
+    label: "Rol (titular / acompañante)",
+    group: "participacion",
+    hint: "Si no se mapea, todas las filas se tratan como titulares.",
+  },
+  {
+    value: "titular_full_name",
+    label: "Titular del que depende (para acompañantes)",
+    group: "participacion",
+    hint: "Nombre completo del titular al que va vinculado el acompañante.",
+  },
 ];
 
 export const IMPORT_STATUS_OPTIONS: { value: ParticipantStatus; label: string; description: string }[] = [
@@ -202,8 +216,15 @@ export function guessTarget(header: string): TargetField | null {
     notas: "notes",
     observaciones: "notes",
     comentarios: "notes",
-    tipo: "attendee_type",
     "tipo asistente": "attendee_type",
+    "tipo de asistente": "attendee_type",
+    rol: "role",
+    tipo: "role",
+    role: "role",
+    "solicitante": "titular_full_name",
+    "solicitante titular": "titular_full_name",
+    "solicitante (titular)": "titular_full_name",
+    titular: "titular_full_name",
     estado: "initial_status",
     status: "initial_status",
     acompanantes: "companions_count",
