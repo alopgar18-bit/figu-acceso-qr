@@ -1275,29 +1275,8 @@ export const analyzeImport = createServerFn({ method: "POST" })
       push(byName, nameKey(ppl.first_name, ppl.last_name), entry);
     }
 
-    // Personas fuera del evento: sólo por DNI. Email y teléfono se ignoran
-    // deliberadamente porque grupos y acompañantes comparten contacto.
-    const rowDnis = new Set<string>();
-    for (const r of data.rows) {
-      const d = normDni(r.dni);
-      if (d) rowDnis.add(d);
-    }
-    const peopleByDni = new Map<string, string>();
-    const chunkArr = <T,>(arr: T[], n: number) => {
-      const out: T[][] = [];
-      for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
-      return out;
-    };
-    for (const chunk of chunkArr([...rowDnis], 200)) {
-      const { data: ppl } = await supabase
-        .from("people")
-        .select("id, dni")
-        .in("dni", chunk);
-      for (const p of ppl ?? []) {
-        const k = normDni(p.dni);
-        if (k) peopleByDni.set(k, p.id as string);
-      }
-    }
+    // (Bloque D eliminado: el aislamiento por sesión ya no reutiliza
+    // personas fuera del evento — las filas nuevas quedan en el bloque A.)
 
     type Block = "A" | "B" | "C" | "D";
     type MatchReason = "dni" | "name" | null;
