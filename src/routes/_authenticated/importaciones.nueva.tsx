@@ -230,6 +230,8 @@ function ImportWizardPage() {
         seat_zone: get("seat_zone") || null,
         seat_row: get("seat_row") || null,
         seat_number: get("seat_number") || null,
+        role: normalizeRole(get("role")),
+        titular_full_name: get("titular_full_name") || null,
       };
       // Per-event/session required validation
       for (const key of requiredImportTargets) {
@@ -245,6 +247,28 @@ function ImportWizardPage() {
       }
       rows.push(row);
     });
+    // Segundo pase: asigna group_index (titular contiguo hereda a los N
+    // acompañantes siguientes). Sólo se usa como último fallback en el commit
+    // para vincular acompañante ↔ titular cuando no hay titular_full_name ni
+    // contacto común.
+    let currentGroup = 0;
+    let currentHolder: Record<string, unknown> | null = null;
+    let pendingCompanions = 0;
+    for (const r of rows) {
+      const role = (r as { role?: string }).role;
+      if (role === "acompanante") {
+        if (currentHolder && pendingCompanions > 0) {
+          (r as { group_index?: number }).group_index = currentGroup;
+          pendingCompanions -= 1;
+        }
+        continue;
+      }
+      // Fila titular (por defecto): abre nuevo grupo.
+      currentGroup += 1;
+      currentHolder = r;
+      pendingCompanions = Number((r as { companions_count?: number }).companions_count ?? 0);
+      (r as { group_index?: number }).group_index = currentGroup;
+    }
     return { rows, errors };
   }, [parsed, mapping, requiredImportTargets]);
 
@@ -1250,4 +1274,24 @@ function normalizeStatus(v: string): ParticipantStatus | undefined {
   const s = v.toLowerCase().trim().replace(/\s+/g, "_");
   const found = IMPORT_STATUS_OPTIONS.find((o) => o.value === s);
   return found?.value;
+}
+
+function normalizeRole(v: string): "titular" | "acompanante" | undefined {
+  if (!v) return undefined;
+  const s = v
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (s.startsWith("acomp") || s === "companion" || s === "guest") return "acompanante";
+  if (
+    s.startsWith("titu") ||
+    s.startsWith("solic") ||
+    s === "main" ||
+    s === "principal" ||
+    s === "holder"
+  ) {
+    return "titular";
+  }
+  return undefined;
 }

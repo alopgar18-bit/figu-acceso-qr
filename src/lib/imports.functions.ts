@@ -41,6 +41,20 @@ const rowSchema = z.object({
   seat_zone: z.string().trim().max(40).optional().nullable(),
   seat_row: z.string().trim().max(20).optional().nullable(),
   seat_number: z.string().trim().max(20).optional().nullable(),
+  /**
+   * Rol de la fila dentro del Excel. Por defecto `titular`.
+   * Los acompañantes NO crean participación propia: se ligan al
+   * `event_participants` del titular resuelto y viven en `companions`.
+   */
+  role: z.enum(["titular", "acompanante"]).optional(),
+  /** Nombre completo del titular declarado en la columna "Solicitante (Titular)". */
+  titular_full_name: z.string().trim().max(200).optional().nullable(),
+  /**
+   * Índice de grupo asignado por el parser. Todas las filas del mismo
+   * grupo (titular + N acompañantes contiguos) comparten `group_index`.
+   * Se usa como último fallback para vincular acompañante ↔ titular.
+   */
+  group_index: z.number().int().min(0).optional(),
 });
 
 const commitSchema = z.object({
