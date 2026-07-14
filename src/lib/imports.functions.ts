@@ -190,64 +190,75 @@ export const commitImport = createServerFn({ method: "POST" })
       nameToPersonId.set(nameKey(ppl.first_name, ppl.last_name), ep.person_id as string);
     }
 
-    // Índices globales de todo el evento para el modo `perRowActions`.
-    // Sólo se cargan si el cliente envió acciones explícitas (paso "Análisis").
-    type EventEntry = {
-      participantId: string;
-      sessionId: string;
-      personId: string;
-    };
-    const eventByDni = new Map<string, EventEntry>();
-    const eventByName = new Map<string, EventEntry>();
-    if (data.perRowActions && Object.keys(data.perRowActions).length > 0) {
-      const { data: fullRoster } = await supabase
-        .from("event_participants")
-        .select(
-          "id, session_id, person_id, people:person_id(first_name, last_name, dni)",
-        )
-        .eq("event_id", data.eventId);
-      for (const ep of fullRoster ?? []) {
-        const ppl = ep.people as {
-          first_name?: string | null;
-          last_name?: string | null;
-          dni?: string | null;
-        } | null;
-        if (!ppl) continue;
-        const entry: EventEntry = {
-          participantId: ep.id as string,
-          sessionId: (ep.session_id as string | null) ?? "",
-          personId: ep.person_id as string,
-        };
-        const dK = normDniLocal(ppl.dni);
-        const nK = nameKey(ppl.first_name, ppl.last_name);
-        // Preferimos la participación de la sesión destino cuando hay varias.
-        const pref = (prev: EventEntry | undefined, cur: EventEntry) =>
-          prev && prev.sessionId === data.sessionId ? prev : cur;
-        if (dK) eventByDni.set(dK, pref(eventByDni.get(dK), entry));
-        eventByName.set(nK, pref(eventByName.get(nK), entry));
+    // ------------------------------------------------------------------
+    // AISLAMIENTO POR SESIÓN
+    // Sólo se mantienen índices scoped a la sesión destino (nombre y DNI).
+    // Nunca se reutiliza una persona por DNI si está en OTRA sesión del
+    // mismo evento — en ese caso se fuerza VIS N para tratarla como
+    // participante nuevo de esta sesión.
+    // ------------------------------------------------------------------
+    type SessionEntry = { participantId: string; personId: string };
+    const sessionByDni = new Map<string, SessionEntry>();
+    for (const ep of sessionRoster ?? []) {
+      const ppl = ep.people as { first_name?: string | null; last_name?: string | null; dni?: string | null } | null;
+      if (!ppl) continue;
+      const dK = normDniLocal(ppl.dni);
+      if (dK) sessionByDni.set(dK, { participantId: ep.id as string, personId: ep.person_id as string });
+    }
+
+    // DNIs ya vinculados a participaciones en OTRAS sesiones del evento.
+    // Sólo se consulta si hay al menos un DNI en el Excel.
+    const rowDnis = new Set<string>();
+    for (const r of data.rows) {
+      const d = normDniLocal(r.dni);
+      if (d) rowDnis.add(d);
+    }
+    const dniInOtherSession = new Set<string>();
+    if (rowDnis.size > 0) {
+      const arr = [...rowDnis];
+      const CH = 200;
+      for (let i = 0; i < arr.length; i += CH) {
+        const slice = arr.slice(i, i + CH);
+        const { data: ppl } = await supabase
+          .from("people")
+          .select("id, dni")
+          .in("dni", slice as string[]);
+        const idByDni = new Map<string, string>();
+        for (const p of ppl ?? []) {
+          const k = normDniLocal(p.dni as string | null);
+          if (k) idByDni.set(k, p.id as string);
+        }
+        const ids = [...idByDni.values()];
+        if (ids.length === 0) continue;
+        for (let j = 0; j < ids.length; j += CH) {
+          const idsChunk = ids.slice(j, j + CH);
+          const { data: parts } = await supabase
+            .from("event_participants")
+            .select("person_id, session_id")
+            .eq("event_id", data.eventId)
+            .in("person_id", idsChunk as string[]);
+          for (const pp of parts ?? []) {
+            if ((pp.session_id as string) === data.sessionId) continue;
+            for (const [dni, pid] of idByDni.entries()) {
+              if (pid === (pp.person_id as string)) dniInOtherSession.add(dni);
+            }
+          }
+        }
       }
     }
 
-    const resolveEventMatch = (row: typeof data.rows[number]): EventEntry | undefined => {
+    // Match ONLY dentro de la sesión destino (por nombre o DNI).
+    const resolveSessionMatch = (row: typeof data.rows[number]): SessionEntry | undefined => {
       const d = normDniLocal(row.dni);
-      if (d && eventByDni.has(d)) return eventByDni.get(d);
-      return eventByName.get(nameKey(row.first_name, row.last_name));
-    };
-
-    // Persona existente sin participación en este evento (para acción "create_new"
-    // en el bloque D: reutilizamos la persona).
-    const resolvePersonOutsideEvent = async (
-      row: typeof data.rows[number],
-    ): Promise<string | null> => {
-      // DNI is unique en `people`: si existe hay que reutilizar SIEMPRE la
-      // persona (aunque ya esté en esta sesión). `insertParticipationFor` se
-      // encarga de fusionar sin degradar estado ni ticket.
-      const d = normDniLocal(row.dni);
-      if (d) {
-        const found = await findPersonIdByDni(row.dni);
-        if (found) return found;
+      if (d && sessionByDni.has(d)) return sessionByDni.get(d);
+      const pid = nameToPersonId.get(nameKey(row.first_name, row.last_name));
+      if (pid) {
+        // buscar el participantId asociado (puede ser la primera coincidencia)
+        for (const ep of sessionRoster ?? []) {
+          if ((ep.person_id as string) === pid) return { participantId: ep.id as string, personId: pid };
+        }
       }
-      return null;
+      return undefined;
     };
 
     // Load physical plan seats (only if the session has one assigned). The
@@ -539,7 +550,7 @@ export const commitImport = createServerFn({ method: "POST" })
         // ---- Rama nueva: acción explícita por fila (paso "Análisis") ----
         const explicitAction = data.perRowActions?.[String(row.rowIndex)];
         if (explicitAction) {
-          const match = resolveEventMatch(row);
+          const match = resolveSessionMatch(row);
 
           if (explicitAction === "skip") {
             skipped++;
@@ -547,7 +558,7 @@ export const commitImport = createServerFn({ method: "POST" })
             continue;
           }
 
-          if (explicitAction === "update" && match && match.sessionId === data.sessionId) {
+          if (explicitAction === "update" && match) {
             await supabase
               .from("people")
               .update({
@@ -628,11 +639,10 @@ export const commitImport = createServerFn({ method: "POST" })
           }
 
           if (explicitAction === "create_bis") {
-            // Sufijo VIS N para tratar como persona distinta.
+            // Sufijo VIS N para tratar como persona distinta dentro de la sesión.
             const baseLast = (row.last_name ?? "").trim();
             let n = 2;
             const collides = (last: string) =>
-              eventByName.has(nameKey(row.first_name, last)) ||
               nameToPersonId.has(nameKey(row.first_name, last));
             while (collides(`${baseLast} VIS ${n}`.trim())) n++;
             row.last_name = `${baseLast} VIS ${n}`.trim();
@@ -640,39 +650,36 @@ export const commitImport = createServerFn({ method: "POST" })
             const part = await insertParticipationFor(personId, row);
             await maybeGenerateTicketFor(part.id, part.status, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
-            eventByName.set(nameKey(row.first_name, row.last_name), {
-              participantId: part.id,
-              sessionId: data.sessionId,
-              personId,
-            });
             imported++;
             logRow(row, "inserted", part.id, "acción manual: crear bis (sufijo VIS)");
             continue;
           }
 
           if (explicitAction === "create_new") {
-            // Bloque A: crea persona nueva. Bloque D: reutiliza la persona conocida.
-            let personId: string;
-            const known = await resolvePersonOutsideEvent(row);
-            if (known) {
-              personId = known;
-            } else {
-              personId = await insertNewPerson(row);
+            // Aislamiento por sesión: si el DNI ya existe en OTRA sesión
+            // del evento, se fuerza VIS para no compartir persona.
+            const d = normDniLocal(row.dni);
+            const forceVis = d ? dniInOtherSession.has(d) : false;
+            if (forceVis) {
+              const baseLast = (row.last_name ?? "").trim();
+              let n = 2;
+              while (nameToPersonId.has(nameKey(row.first_name, `${baseLast} VIS ${n}`.trim()))) n++;
+              row.last_name = `${baseLast} VIS ${n}`.trim();
             }
+            const personId = await insertNewPerson(row, { omitDni: forceVis });
             const part = await insertParticipationFor(personId, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
+            await maybeGenerateTicketFor(part.id, part.status, row);
             if (part.reused) {
-              await maybeGenerateTicketFor(part.id, part.status, row);
               updated++;
               logRow(row, "updated", part.id, "persona ya participaba en la sesión (asiento/lote actualizado, QR emitido si faltaba)");
             } else {
-              await maybeGenerateTicketFor(part.id, part.status, row);
               imported++;
               logRow(
                 row,
                 "inserted",
                 part.id,
-                known ? "acción manual: crear participación (persona ya existía)" : "acción manual: crear",
+                forceVis ? "aislamiento: DNI ya en otra sesión → VIS" : "acción manual: crear",
               );
             }
             continue;
@@ -764,9 +771,22 @@ export const commitImport = createServerFn({ method: "POST" })
           continue;
         }
 
+        // Aislamiento por sesión: si el DNI ya existe en OTRA sesión del
+        // evento, NO reutilizamos la persona — creamos una nueva con VIS.
+        const dniStr = normDniLocal(row.dni);
+        const forceVisByOtherSession = !suffixApplied && !!dniStr && dniInOtherSession.has(dniStr);
+        if (forceVisByOtherSession) {
+          const baseLast = (row.last_name ?? "").trim();
+          let n = 2;
+          while (nameToPersonId.has(nameKey(row.first_name, `${baseLast} VIS ${n}`.trim()))) n++;
+          row.last_name = `${baseLast} VIS ${n}`.trim();
+          key = nameKey(row.first_name, row.last_name);
+          suffixApplied = true;
+        }
+
         // Not a duplicate → create a brand-new person. Email or phone collisions
         // with other people are allowed on purpose. If VIS was applied, omit DNI
-        // so a deliberate separate person cannot collide with the original DNI.
+        // so la persona nueva no colisione con la original.
         const personId = await insertNewPerson(row, { omitDni: suffixApplied });
         const part = await insertParticipationFor(personId, row);
         nameToPersonId.set(key, personId);
@@ -776,7 +796,16 @@ export const commitImport = createServerFn({ method: "POST" })
           logRow(row, "updated", part.id, "persona ya participaba en la sesión (QR emitido si faltaba)");
         } else {
           imported++;
-          logRow(row, "inserted", part.id, suffixApplied ? "sufijo VIS aplicado por duplicado nombre+apellido" : null);
+          logRow(
+            row,
+            "inserted",
+            part.id,
+            forceVisByOtherSession
+              ? "aislamiento: DNI ya en otra sesión → VIS"
+              : suffixApplied
+                ? "sufijo VIS aplicado por duplicado nombre+apellido"
+                : null,
+          );
         }
       } catch (err) {
         errored++;
@@ -1155,13 +1184,57 @@ export const analyzeImport = createServerFn({ method: "POST" })
     const nameKey = (f: string | null | undefined, l: string | null | undefined) =>
       `${normStr(f)}|${normStr(l)}`;
 
-    // Roster completo del evento con tickets asociados.
+    // AISLAMIENTO POR SESIÓN: sólo miramos el roster de la sesión destino.
+    // Las coincidencias en otras sesiones del evento se ignoran a efectos de
+    // duplicado (se tratan como participantes nuevos con VIS si el DNI ya
+    // existe en otra sesión).
     const { data: roster } = await supabase
       .from("event_participants")
       .select(
         "id, session_id, status, person_id, people:person_id(first_name, last_name, dni, email, phone), event_sessions:session_id(name), tickets(id)",
       )
-      .eq("event_id", data.eventId);
+      .eq("session_id", data.sessionId);
+
+    // DNIs del Excel que ya están asociados a participantes en OTRA sesión
+    // del mismo evento — se etiquetan como aviso en el bloque A.
+    const rowDnisAn = new Set<string>();
+    for (const r of data.rows) {
+      const d = normDni(r.dni);
+      if (d) rowDnisAn.add(d);
+    }
+    const dniInOtherSess = new Set<string>();
+    if (rowDnisAn.size > 0) {
+      const arrDn = [...rowDnisAn];
+      const CH = 200;
+      for (let i = 0; i < arrDn.length; i += CH) {
+        const slice = arrDn.slice(i, i + CH);
+        const { data: ppl } = await supabase
+          .from("people")
+          .select("id, dni")
+          .in("dni", slice as string[]);
+        const idByDni = new Map<string, string>();
+        for (const p of ppl ?? []) {
+          const k = normDni(p.dni as string | null);
+          if (k) idByDni.set(k, p.id as string);
+        }
+        const ids = [...idByDni.values()];
+        if (ids.length === 0) continue;
+        for (let j = 0; j < ids.length; j += CH) {
+          const idsChunk = ids.slice(j, j + CH);
+          const { data: parts } = await supabase
+            .from("event_participants")
+            .select("person_id, session_id")
+            .eq("event_id", data.eventId)
+            .in("person_id", idsChunk as string[]);
+          for (const pp of parts ?? []) {
+            if ((pp.session_id as string) === data.sessionId) continue;
+            for (const [dni, pid] of idByDni.entries()) {
+              if (pid === (pp.person_id as string)) dniInOtherSess.add(dni);
+            }
+          }
+        }
+      }
+    }
 
     type RosterEntry = {
       participantId: string;
@@ -1202,29 +1275,8 @@ export const analyzeImport = createServerFn({ method: "POST" })
       push(byName, nameKey(ppl.first_name, ppl.last_name), entry);
     }
 
-    // Personas fuera del evento: sólo por DNI. Email y teléfono se ignoran
-    // deliberadamente porque grupos y acompañantes comparten contacto.
-    const rowDnis = new Set<string>();
-    for (const r of data.rows) {
-      const d = normDni(r.dni);
-      if (d) rowDnis.add(d);
-    }
-    const peopleByDni = new Map<string, string>();
-    const chunkArr = <T,>(arr: T[], n: number) => {
-      const out: T[][] = [];
-      for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
-      return out;
-    };
-    for (const chunk of chunkArr([...rowDnis], 200)) {
-      const { data: ppl } = await supabase
-        .from("people")
-        .select("id, dni")
-        .in("dni", chunk);
-      for (const p of ppl ?? []) {
-        const k = normDni(p.dni);
-        if (k) peopleByDni.set(k, p.id as string);
-      }
-    }
+    // (Bloque D eliminado: el aislamiento por sesión ya no reutiliza
+    // personas fuera del evento — las filas nuevas quedan en el bloque A.)
 
     type Block = "A" | "B" | "C" | "D";
     type MatchReason = "dni" | "name" | null;
@@ -1240,6 +1292,7 @@ export const analyzeImport = createServerFn({ method: "POST" })
         status?: string | null;
         hasTicket?: boolean;
       } | null;
+      dni_in_other_session?: boolean;
     };
 
     const analyses: RowAnalysis[] = [];
@@ -1255,82 +1308,39 @@ export const analyzeImport = createServerFn({ method: "POST" })
     for (const r of data.rows) {
       const dni = normDni(r.dni);
       const nk = nameKey(r.first_name, r.last_name);
-      const candidates: Array<{ reason: MatchReason; hits: RosterEntry[] }> = [];
-      if (dni && byDni.has(dni)) candidates.push({ reason: "dni", hits: byDni.get(dni)! });
-      if (byName.has(nk)) candidates.push({ reason: "name", hits: byName.get(nk)! });
+      const dniHit = dni ? byDni.get(dni) : undefined;
+      const nameHit = byName.get(nk);
+      const hit = dniHit?.[0] ?? nameHit?.[0];
+      const reason: MatchReason = dniHit ? "dni" : nameHit ? "name" : null;
 
-      if (candidates.length > 0) {
-        // Preferimos coincidencia en la sesión destino.
-        let inSession: RosterEntry | undefined;
-        let inSessionReason: MatchReason = null;
-        for (const c of candidates) {
-          const s = c.hits.find((h) => h.sessionId === data.sessionId);
-          if (s) {
-            inSession = s;
-            inSessionReason = c.reason;
-            break;
-          }
-        }
-        if (inSession) {
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "B",
-            match_reason: inSessionReason,
-            existing: {
-              participantId: inSession.participantId,
-              personId: inSession.personId,
-              sessionId: inSession.sessionId,
-              sessionName: inSession.sessionName,
-              status: inSession.status,
-              hasTicket: inSession.hasTicket,
-            },
-          });
-          counts.B++;
-          if (inSession.hasTicket) counts.B_with_ticket++;
-        } else {
-          const first = candidates[0];
-          const hit = first.hits[0];
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "C",
-            match_reason: first.reason,
-            existing: {
-              participantId: hit.participantId,
-              personId: hit.personId,
-              sessionId: hit.sessionId,
-              sessionName: hit.sessionName,
-              status: hit.status,
-              hasTicket: hit.hasTicket,
-            },
-          });
-          counts.C++;
-          if (hit.hasTicket) counts.C_with_ticket++;
-        }
+      if (hit) {
+        // Coincidencia dentro de la sesión destino → Bloque B.
+        analyses.push({
+          rowIndex: r.rowIndex,
+          block: "B",
+          match_reason: reason,
+          existing: {
+            participantId: hit.participantId,
+            personId: hit.personId,
+            sessionId: hit.sessionId,
+            sessionName: hit.sessionName,
+            status: hit.status,
+            hasTicket: hit.hasTicket,
+          },
+        });
+        counts.B++;
+        if (hit.hasTicket) counts.B_with_ticket++;
       } else {
-        // Bloque D: existe en `people` pero sin participación en el evento.
-        let pid: string | undefined;
-        let reason: MatchReason = null;
-        if (dni && peopleByDni.has(dni)) {
-          pid = peopleByDni.get(dni)!;
-          reason = "dni";
-        }
-        if (pid) {
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "D",
-            match_reason: reason,
-            existing: { personId: pid },
-          });
-          counts.D++;
-        } else {
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "A",
-            match_reason: null,
-            existing: null,
-          });
-          counts.A++;
-        }
+        // Bloque A: fila nueva para esta sesión. Marcamos si el DNI ya está
+        // usado en otra sesión del evento (se importará como VIS).
+        analyses.push({
+          rowIndex: r.rowIndex,
+          block: "A",
+          match_reason: null,
+          existing: null,
+          dni_in_other_session: dni ? dniInOtherSess.has(dni) : false,
+        });
+        counts.A++;
       }
     }
 

@@ -945,10 +945,26 @@ function AnalysisStep({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-4">
-        <StatCard label="Nuevos (A)" value={analysis.counts.A} tone="success" />
+      <div className="grid gap-3 md:grid-cols-2">
         <StatCard
-          label="En esta sesión (B)"
+          label="Nuevos en esta sesión (A)"
+          value={analysis.counts.A}
+          tone="success"
+          action={
+            (() => {
+              const visCount = analysis.rows.filter(
+                (r) => r.block === "A" && (r as AnalysisRow & { dni_in_other_session?: boolean }).dni_in_other_session,
+              ).length;
+              return visCount > 0 ? (
+                <span className="text-xs text-muted-foreground">
+                  {visCount} con DNI en otra sesión → VIS
+                </span>
+              ) : null;
+            })()
+          }
+        />
+        <StatCard
+          label="Ya en esta sesión (B)"
           value={analysis.counts.B}
           tone={analysis.counts.B_with_ticket > 0 ? "danger" : "warning"}
           action={
@@ -959,20 +975,10 @@ function AnalysisStep({
             ) : null
           }
         />
-        <StatCard
-          label="En otra sesión (C)"
-          value={analysis.counts.C}
-          tone={analysis.counts.C > 0 ? "info" : "neutral"}
-          action={
-            analysis.counts.C_with_ticket > 0 ? (
-              <span className="text-xs text-muted-foreground">
-                {analysis.counts.C_with_ticket} con entrada
-              </span>
-            ) : null
-          }
-        />
-        <StatCard label="Persona conocida (D)" value={analysis.counts.D} tone="info" />
       </div>
+      <p className="text-xs text-muted-foreground">
+        Aislamiento por sesión activo: los solicitantes son exclusivos de la sesión destino. Si un DNI ya está en otra sesión del mismo evento, se importa como persona VIS (nuevo participante independiente).
+      </p>
 
       <Alert>
         <AlertTitle>Se importarán {willImport} de {analysis.rows.length} filas</AlertTitle>
