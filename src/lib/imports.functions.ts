@@ -550,7 +550,7 @@ export const commitImport = createServerFn({ method: "POST" })
         // ---- Rama nueva: acción explícita por fila (paso "Análisis") ----
         const explicitAction = data.perRowActions?.[String(row.rowIndex)];
         if (explicitAction) {
-          const match = resolveEventMatch(row);
+          const match = resolveSessionMatch(row);
 
           if (explicitAction === "skip") {
             skipped++;
@@ -558,7 +558,7 @@ export const commitImport = createServerFn({ method: "POST" })
             continue;
           }
 
-          if (explicitAction === "update" && match && match.sessionId === data.sessionId) {
+          if (explicitAction === "update" && match) {
             await supabase
               .from("people")
               .update({
@@ -639,11 +639,10 @@ export const commitImport = createServerFn({ method: "POST" })
           }
 
           if (explicitAction === "create_bis") {
-            // Sufijo VIS N para tratar como persona distinta.
+            // Sufijo VIS N para tratar como persona distinta dentro de la sesión.
             const baseLast = (row.last_name ?? "").trim();
             let n = 2;
             const collides = (last: string) =>
-              eventByName.has(nameKey(row.first_name, last)) ||
               nameToPersonId.has(nameKey(row.first_name, last));
             while (collides(`${baseLast} VIS ${n}`.trim())) n++;
             row.last_name = `${baseLast} VIS ${n}`.trim();
@@ -651,39 +650,36 @@ export const commitImport = createServerFn({ method: "POST" })
             const part = await insertParticipationFor(personId, row);
             await maybeGenerateTicketFor(part.id, part.status, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
-            eventByName.set(nameKey(row.first_name, row.last_name), {
-              participantId: part.id,
-              sessionId: data.sessionId,
-              personId,
-            });
             imported++;
             logRow(row, "inserted", part.id, "acción manual: crear bis (sufijo VIS)");
             continue;
           }
 
           if (explicitAction === "create_new") {
-            // Bloque A: crea persona nueva. Bloque D: reutiliza la persona conocida.
-            let personId: string;
-            const known = await resolvePersonOutsideEvent(row);
-            if (known) {
-              personId = known;
-            } else {
-              personId = await insertNewPerson(row);
+            // Aislamiento por sesión: si el DNI ya existe en OTRA sesión
+            // del evento, se fuerza VIS para no compartir persona.
+            const d = normDniLocal(row.dni);
+            const forceVis = d ? dniInOtherSession.has(d) : false;
+            if (forceVis) {
+              const baseLast = (row.last_name ?? "").trim();
+              let n = 2;
+              while (nameToPersonId.has(nameKey(row.first_name, `${baseLast} VIS ${n}`.trim()))) n++;
+              row.last_name = `${baseLast} VIS ${n}`.trim();
             }
+            const personId = await insertNewPerson(row, { omitDni: forceVis });
             const part = await insertParticipationFor(personId, row);
             nameToPersonId.set(nameKey(row.first_name, row.last_name), personId);
+            await maybeGenerateTicketFor(part.id, part.status, row);
             if (part.reused) {
-              await maybeGenerateTicketFor(part.id, part.status, row);
               updated++;
               logRow(row, "updated", part.id, "persona ya participaba en la sesión (asiento/lote actualizado, QR emitido si faltaba)");
             } else {
-              await maybeGenerateTicketFor(part.id, part.status, row);
               imported++;
               logRow(
                 row,
                 "inserted",
                 part.id,
-                known ? "acción manual: crear participación (persona ya existía)" : "acción manual: crear",
+                forceVis ? "aislamiento: DNI ya en otra sesión → VIS" : "acción manual: crear",
               );
             }
             continue;
