@@ -771,9 +771,22 @@ export const commitImport = createServerFn({ method: "POST" })
           continue;
         }
 
+        // Aislamiento por sesión: si el DNI ya existe en OTRA sesión del
+        // evento, NO reutilizamos la persona — creamos una nueva con VIS.
+        const dniStr = normDniLocal(row.dni);
+        const forceVisByOtherSession = !suffixApplied && !!dniStr && dniInOtherSession.has(dniStr);
+        if (forceVisByOtherSession) {
+          const baseLast = (row.last_name ?? "").trim();
+          let n = 2;
+          while (nameToPersonId.has(nameKey(row.first_name, `${baseLast} VIS ${n}`.trim()))) n++;
+          row.last_name = `${baseLast} VIS ${n}`.trim();
+          key = nameKey(row.first_name, row.last_name);
+          suffixApplied = true;
+        }
+
         // Not a duplicate → create a brand-new person. Email or phone collisions
         // with other people are allowed on purpose. If VIS was applied, omit DNI
-        // so a deliberate separate person cannot collide with the original DNI.
+        // so la persona nueva no colisione con la original.
         const personId = await insertNewPerson(row, { omitDni: suffixApplied });
         const part = await insertParticipationFor(personId, row);
         nameToPersonId.set(key, personId);
@@ -783,7 +796,16 @@ export const commitImport = createServerFn({ method: "POST" })
           logRow(row, "updated", part.id, "persona ya participaba en la sesión (QR emitido si faltaba)");
         } else {
           imported++;
-          logRow(row, "inserted", part.id, suffixApplied ? "sufijo VIS aplicado por duplicado nombre+apellido" : null);
+          logRow(
+            row,
+            "inserted",
+            part.id,
+            forceVisByOtherSession
+              ? "aislamiento: DNI ya en otra sesión → VIS"
+              : suffixApplied
+                ? "sufijo VIS aplicado por duplicado nombre+apellido"
+                : null,
+          );
         }
       } catch (err) {
         errored++;
