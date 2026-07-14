@@ -1275,3 +1275,23 @@ function normalizeStatus(v: string): ParticipantStatus | undefined {
   const found = IMPORT_STATUS_OPTIONS.find((o) => o.value === s);
   return found?.value;
 }
+
+function normalizeRole(v: string): "titular" | "acompanante" | undefined {
+  if (!v) return undefined;
+  const s = v
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (s.startsWith("acomp") || s === "companion" || s === "guest") return "acompanante";
+  if (
+    s.startsWith("titu") ||
+    s.startsWith("solic") ||
+    s === "main" ||
+    s === "principal" ||
+    s === "holder"
+  ) {
+    return "titular";
+  }
+  return undefined;
+}
