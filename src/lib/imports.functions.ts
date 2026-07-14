@@ -1184,13 +1184,57 @@ export const analyzeImport = createServerFn({ method: "POST" })
     const nameKey = (f: string | null | undefined, l: string | null | undefined) =>
       `${normStr(f)}|${normStr(l)}`;
 
-    // Roster completo del evento con tickets asociados.
+    // AISLAMIENTO POR SESIÓN: sólo miramos el roster de la sesión destino.
+    // Las coincidencias en otras sesiones del evento se ignoran a efectos de
+    // duplicado (se tratan como participantes nuevos con VIS si el DNI ya
+    // existe en otra sesión).
     const { data: roster } = await supabase
       .from("event_participants")
       .select(
         "id, session_id, status, person_id, people:person_id(first_name, last_name, dni, email, phone), event_sessions:session_id(name), tickets(id)",
       )
-      .eq("event_id", data.eventId);
+      .eq("session_id", data.sessionId);
+
+    // DNIs del Excel que ya están asociados a participantes en OTRA sesión
+    // del mismo evento — se etiquetan como aviso en el bloque A.
+    const rowDnisAn = new Set<string>();
+    for (const r of data.rows) {
+      const d = normDni(r.dni);
+      if (d) rowDnisAn.add(d);
+    }
+    const dniInOtherSess = new Set<string>();
+    if (rowDnisAn.size > 0) {
+      const arrDn = [...rowDnisAn];
+      const CH = 200;
+      for (let i = 0; i < arrDn.length; i += CH) {
+        const slice = arrDn.slice(i, i + CH);
+        const { data: ppl } = await supabase
+          .from("people")
+          .select("id, dni")
+          .in("dni", slice as string[]);
+        const idByDni = new Map<string, string>();
+        for (const p of ppl ?? []) {
+          const k = normDni(p.dni as string | null);
+          if (k) idByDni.set(k, p.id as string);
+        }
+        const ids = [...idByDni.values()];
+        if (ids.length === 0) continue;
+        for (let j = 0; j < ids.length; j += CH) {
+          const idsChunk = ids.slice(j, j + CH);
+          const { data: parts } = await supabase
+            .from("event_participants")
+            .select("person_id, session_id")
+            .eq("event_id", data.eventId)
+            .in("person_id", idsChunk as string[]);
+          for (const pp of parts ?? []) {
+            if ((pp.session_id as string) === data.sessionId) continue;
+            for (const [dni, pid] of idByDni.entries()) {
+              if (pid === (pp.person_id as string)) dniInOtherSess.add(dni);
+            }
+          }
+        }
+      }
+    }
 
     type RosterEntry = {
       participantId: string;
@@ -1269,6 +1313,7 @@ export const analyzeImport = createServerFn({ method: "POST" })
         status?: string | null;
         hasTicket?: boolean;
       } | null;
+      dni_in_other_session?: boolean;
     };
 
     const analyses: RowAnalysis[] = [];
@@ -1284,82 +1329,39 @@ export const analyzeImport = createServerFn({ method: "POST" })
     for (const r of data.rows) {
       const dni = normDni(r.dni);
       const nk = nameKey(r.first_name, r.last_name);
-      const candidates: Array<{ reason: MatchReason; hits: RosterEntry[] }> = [];
-      if (dni && byDni.has(dni)) candidates.push({ reason: "dni", hits: byDni.get(dni)! });
-      if (byName.has(nk)) candidates.push({ reason: "name", hits: byName.get(nk)! });
+      const dniHit = dni ? byDni.get(dni) : undefined;
+      const nameHit = byName.get(nk);
+      const hit = dniHit?.[0] ?? nameHit?.[0];
+      const reason: MatchReason = dniHit ? "dni" : nameHit ? "name" : null;
 
-      if (candidates.length > 0) {
-        // Preferimos coincidencia en la sesión destino.
-        let inSession: RosterEntry | undefined;
-        let inSessionReason: MatchReason = null;
-        for (const c of candidates) {
-          const s = c.hits.find((h) => h.sessionId === data.sessionId);
-          if (s) {
-            inSession = s;
-            inSessionReason = c.reason;
-            break;
-          }
-        }
-        if (inSession) {
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "B",
-            match_reason: inSessionReason,
-            existing: {
-              participantId: inSession.participantId,
-              personId: inSession.personId,
-              sessionId: inSession.sessionId,
-              sessionName: inSession.sessionName,
-              status: inSession.status,
-              hasTicket: inSession.hasTicket,
-            },
-          });
-          counts.B++;
-          if (inSession.hasTicket) counts.B_with_ticket++;
-        } else {
-          const first = candidates[0];
-          const hit = first.hits[0];
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "C",
-            match_reason: first.reason,
-            existing: {
-              participantId: hit.participantId,
-              personId: hit.personId,
-              sessionId: hit.sessionId,
-              sessionName: hit.sessionName,
-              status: hit.status,
-              hasTicket: hit.hasTicket,
-            },
-          });
-          counts.C++;
-          if (hit.hasTicket) counts.C_with_ticket++;
-        }
+      if (hit) {
+        // Coincidencia dentro de la sesión destino → Bloque B.
+        analyses.push({
+          rowIndex: r.rowIndex,
+          block: "B",
+          match_reason: reason,
+          existing: {
+            participantId: hit.participantId,
+            personId: hit.personId,
+            sessionId: hit.sessionId,
+            sessionName: hit.sessionName,
+            status: hit.status,
+            hasTicket: hit.hasTicket,
+          },
+        });
+        counts.B++;
+        if (hit.hasTicket) counts.B_with_ticket++;
       } else {
-        // Bloque D: existe en `people` pero sin participación en el evento.
-        let pid: string | undefined;
-        let reason: MatchReason = null;
-        if (dni && peopleByDni.has(dni)) {
-          pid = peopleByDni.get(dni)!;
-          reason = "dni";
-        }
-        if (pid) {
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "D",
-            match_reason: reason,
-            existing: { personId: pid },
-          });
-          counts.D++;
-        } else {
-          analyses.push({
-            rowIndex: r.rowIndex,
-            block: "A",
-            match_reason: null,
-            existing: null,
-          });
-          counts.A++;
-        }
+        // Bloque A: fila nueva para esta sesión. Marcamos si el DNI ya está
+        // usado en otra sesión del evento (se importará como VIS).
+        analyses.push({
+          rowIndex: r.rowIndex,
+          block: "A",
+          match_reason: null,
+          existing: null,
+          dni_in_other_session: dni ? dniInOtherSess.has(dni) : false,
+        });
+        counts.A++;
       }
     }
 
