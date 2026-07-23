@@ -446,13 +446,20 @@ type IncidentFull = {
 };
 
 async function fetchPaged<T>(q: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
-  const out: T[] = []; const size = 1000;
+  const out: T[] = []; const size = 500;
   for (let from = 0; ; from += size) {
-    const { data, error } = await q(from, from + size - 1);
-    if (error) throw error;
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < size) break;
+    let lastErr: { message: string } | null = null;
+    let rows: T[] | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await q(from, from + size - 1);
+      if (!error) { rows = data ?? []; lastErr = null; break; }
+      lastErr = error;
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+    }
+    if (lastErr) throw lastErr;
+    const chunk = rows ?? [];
+    out.push(...chunk);
+    if (chunk.length < size) break;
   }
   return out;
 }
