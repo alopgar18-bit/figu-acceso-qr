@@ -47,7 +47,14 @@ export const listEventForms = createServerFn({ method: "GET" })
 
 export const duplicatePublicForm = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        session_id: z.string().uuid().nullable().optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     await requireRole(context.supabase, context.userId, [
       "superadmin",
@@ -84,7 +91,7 @@ export const duplicatePublicForm = createServerFn({ method: "POST" })
       .from("public_forms")
       .insert({
         event_id: original.event_id,
-        session_id: original.session_id,
+        session_id: data.session_id !== undefined ? data.session_id : original.session_id,
         attendee_type: original.attendee_type,
         title: `${original.title} (copia)`,
         slug,
