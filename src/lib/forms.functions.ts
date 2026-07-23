@@ -235,11 +235,11 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     // Reintento en el servidor ante fallos transitorios (timeouts, 5xx del Worker/PostgREST).
     // Reduce muchísimo la aparición de la pantalla "Error temporal" en picos de tráfico.
-    async function withRetry<T>(phase: string, fn: () => Promise<T>): Promise<T> {
+    async function withRetry<T>(phase: string, fn: () => PromiseLike<T>): Promise<T> {
       let lastErr: unknown;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          return await fn();
+          return await Promise.resolve(fn());
         } catch (err) {
           lastErr = err;
           console.warn(`[getPublicFormBySlug] retry ${attempt + 1} phase=${phase} slug=${data.slug}`, err);
