@@ -293,6 +293,48 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
           </Table>
         )}
       </CardContent>
+
+      <Dialog open={dupOpen} onOpenChange={setDupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicar formulario</DialogTitle>
+            <DialogDescription>
+              Elige la sesión a la que apuntará la copia. Por defecto se mantiene la del formulario original.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {dupSource && (
+              <p className="text-sm text-muted-foreground">
+                Origen: <span className="font-medium text-foreground">{dupSource.title}</span>
+              </p>
+            )}
+            <div>
+              <Label>Sesión de la copia</Label>
+              <Select value={dupSessionId} onValueChange={setDupSessionId}>
+                <SelectTrigger><SelectValue placeholder="Todas las sesiones" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las sesiones del evento</SelectItem>
+                  {sessions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Revisa esto cuando dupliques un formulario de otra sesión — las solicitudes se guardan en la sesión que elijas aquí.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDupOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => dupSource && duplicate.mutate({ id: dupSource.id, session_id: dupSessionId === "all" ? null : dupSessionId })}
+              disabled={duplicate.isPending || !dupSource}
+            >
+              {duplicate.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Duplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
