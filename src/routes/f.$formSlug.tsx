@@ -104,7 +104,8 @@ function Page() {
     queryFn: () => getForm({ data: { slug: formSlug } }),
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
-    staleTime: 30_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const [state, setState] = useState<State>(INITIAL);

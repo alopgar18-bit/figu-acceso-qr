@@ -233,15 +233,32 @@ export const deletePublicForm = createServerFn({ method: "POST" })
 export const getPublicFormBySlug = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ slug: z.string().min(1).max(120) }).parse(d))
   .handler(async ({ data }) => {
+    // Reintento en el servidor ante fallos transitorios (timeouts, 5xx del Worker/PostgREST).
+    // Reduce muchísimo la aparición de la pantalla "Error temporal" en picos de tráfico.
+    async function withRetry<T>(phase: string, fn: () => PromiseLike<T>): Promise<T> {
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          return await Promise.resolve(fn());
+        } catch (err) {
+          lastErr = err;
+          console.warn(`[getPublicFormBySlug] retry ${attempt + 1} phase=${phase} slug=${data.slug}`, err);
+          await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+        }
+      }
+      throw lastErr;
+    }
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: form, error: formErr } = await supabaseAdmin
-      .from("public_forms")
-      .select("id, slug, title, description, intro_text, header_image_url, field_config, attendee_type, status, closed_for_capacity, event_id, session_id, opens_at, closes_at, requires_image_consent, offers_future_processes_consent")
-      .eq("slug", data.slug)
-      .maybeSingle();
+      const { data: form, error: formErr } = await withRetry("form", () =>
+        supabaseAdmin
+          .from("public_forms")
+          .select("id, slug, title, description, intro_text, header_image_url, field_config, attendee_type, status, closed_for_capacity, event_id, session_id, opens_at, closes_at, requires_image_consent, offers_future_processes_consent")
+          .eq("slug", data.slug)
+          .maybeSingle(),
+      );
       if (formErr) {
-        console.error("[getPublicFormBySlug] form lookup error", formErr);
+        console.error("[getPublicFormBySlug] form lookup error", { slug: data.slug, formErr });
         return { ok: false as const, code: "error_temporal" as const };
       }
       if (!form) return { ok: false as const, code: "no_existe" as const };
@@ -253,50 +270,58 @@ export const getPublicFormBySlug = createServerFn({ method: "GET" })
     if (form.opens_at && new Date(form.opens_at) > now) return { ok: false as const, code: "no_abierto" as const };
     if (form.closes_at && new Date(form.closes_at) < now) return { ok: false as const, code: "cerrado" as const };
 
-      const { data: event, error: evErr } = await supabaseAdmin
-      .from("events")
-      .select("id, slug, name, brand_color, status, requires_image_consent, requires_recording, public_registration_enabled, user_can_choose_session, default_min_age, default_allow_companions, default_max_companions, default_waitlist_enabled")
-      .eq("id", form.event_id)
-      .maybeSingle();
-      if (evErr) {
-        console.error("[getPublicFormBySlug] event lookup error", evErr);
-        return { ok: false as const, code: "error_temporal" as const };
-      }
-      if (!event) return { ok: false as const, code: "no_existe" as const };
-
     const sessSelect = "id, name, starts_at, ends_at, capacity, status, location_name, user_selectable, min_age, allow_companions, max_companions_per_participant, waitlist_enabled";
-    let sessions: Array<{
+    type SessionRow = {
       id: string; name: string; starts_at: string; ends_at: string | null;
       capacity: number; status: string; location_name: string | null;
       user_selectable: boolean; min_age: number | null; allow_companions: boolean | null;
       max_companions_per_participant: number | null; waitlist_enabled: boolean | null;
-    }> = [];
-    if (form.session_id) {
-      const { data: s } = await supabaseAdmin
-        .from("event_sessions")
-        .select(sessSelect)
-        .eq("id", form.session_id);
-      sessions = (s ?? []) as typeof sessions;
-    } else {
-      const { data: s } = await supabaseAdmin
-        .from("event_sessions")
-        .select(sessSelect)
-        .eq("event_id", form.event_id)
-        .order("starts_at", { ascending: true });
-      sessions = (s ?? []) as typeof sessions;
+    };
+
+    // Las tres lecturas restantes son independientes: en paralelo reducimos la
+    // latencia total y con ello la probabilidad de caer en "Error temporal".
+    const [eventRes, sessionsRes, privacyRes] = await Promise.all([
+      withRetry("event", () =>
+        supabaseAdmin
+          .from("events")
+          .select("id, slug, name, brand_color, status, requires_image_consent, requires_recording, public_registration_enabled, user_can_choose_session, default_min_age, default_allow_companions, default_max_companions, default_waitlist_enabled")
+          .eq("id", form.event_id)
+          .maybeSingle(),
+      ),
+      withRetry("sessions", () => {
+        if (form.session_id) {
+          return supabaseAdmin.from("event_sessions").select(sessSelect).eq("id", form.session_id);
+        }
+        return supabaseAdmin
+          .from("event_sessions")
+          .select(sessSelect)
+          .eq("event_id", form.event_id)
+          .order("starts_at", { ascending: true });
+      }),
+      withRetry("legal", () =>
+        supabaseAdmin
+          .from("legal_texts")
+          .select("id, title, version, body, effective_from")
+          .eq("kind", "privacidad")
+          .eq("is_active", true)
+          .order("effective_from", { ascending: true }),
+      ),
+    ]);
+
+    if (eventRes.error) {
+      console.error("[getPublicFormBySlug] event lookup error", { slug: data.slug, err: eventRes.error });
+      return { ok: false as const, code: "error_temporal" as const };
     }
-    const { data: privacyRows } = await supabaseAdmin
-      .from("legal_texts")
-      .select("id, title, version, body, effective_from")
-      .eq("kind", "privacidad")
-      .eq("is_active", true)
-      .order("effective_from", { ascending: true });
+    if (!eventRes.data) return { ok: false as const, code: "no_existe" as const };
+    const event = eventRes.data;
+    const sessions = (sessionsRes.data ?? []) as SessionRow[];
+    const privacyRows = privacyRes.data;
     const privacyTexts = (privacyRows ?? []) as Array<{
       id: string; title: string; version: string; body: string; effective_from: string;
     }>;
       return { ok: true as const, form, event, sessions, privacyTexts };
     } catch (err) {
-      console.error("[getPublicFormBySlug] unexpected error", err);
+      console.error("[getPublicFormBySlug] unexpected error", { slug: data.slug, err });
       return { ok: false as const, code: "error_temporal" as const };
     }
   });

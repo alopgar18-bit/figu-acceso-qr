@@ -446,13 +446,20 @@ type IncidentFull = {
 };
 
 async function fetchPaged<T>(q: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
-  const out: T[] = []; const size = 1000;
+  const out: T[] = []; const size = 500;
   for (let from = 0; ; from += size) {
-    const { data, error } = await q(from, from + size - 1);
-    if (error) throw error;
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < size) break;
+    let lastErr: { message: string } | null = null;
+    let rows: T[] | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await q(from, from + size - 1);
+      if (!error) { rows = data ?? []; lastErr = null; break; }
+      lastErr = error;
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+    }
+    if (lastErr) throw lastErr;
+    const chunk = rows ?? [];
+    out.push(...chunk);
+    if (chunk.length < size) break;
   }
   return out;
 }
@@ -484,12 +491,15 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
 
   // 1. Participantes con todo el detalle
   const participants = await fetchPaged<PartFull>((from, to) =>
-    supabase.from("event_participants")
-      .select("id, status, attendee_type, session_id, companions_count, submission_id, public_form_id, import_batch_id, seat_zone, seat_row, seat_number, created_at, approved_at, confirmed_at, internal_notes, people(first_name,last_name,dni,email,phone,birth_date,gender,city,province,country,source), event_sessions(id,name)")
-      .eq("event_id", eventId)
-      .range(from, to) as unknown as PromiseLike<{ data: PartFull[] | null; error: { message: string } | null }>,
+    {
+      let q = supabase.from("event_participants")
+        .select("id, status, attendee_type, session_id, companions_count, submission_id, public_form_id, import_batch_id, seat_zone, seat_row, seat_number, created_at, approved_at, confirmed_at, internal_notes, people(first_name,last_name,dni,email,phone,birth_date,gender,city,province,country,source), event_sessions(id,name)")
+        .eq("event_id", eventId);
+      if (opts.sessionId) q = q.eq("session_id", opts.sessionId);
+      return q.range(from, to) as unknown as PromiseLike<{ data: PartFull[] | null; error: { message: string } | null }>;
+    },
   );
-  const filteredParts = opts.sessionId ? participants.filter((p) => p.session_id === opts.sessionId) : participants;
+  const filteredParts = participants;
   const partIds = filteredParts.map((p) => p.id);
 
   // 2. Acompañantes
@@ -512,12 +522,15 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
 
   // 3. Check-ins
   const checkins = await fetchPaged<CheckinFull>((from, to) =>
-    supabase.from("checkins")
-      .select("participant_id, session_id, checked_in_at, device_info, result, validator_id")
-      .eq("event_id", eventId)
-      .range(from, to) as unknown as PromiseLike<{ data: CheckinFull[] | null; error: { message: string } | null }>,
+    {
+      let q = supabase.from("checkins")
+        .select("participant_id, session_id, checked_in_at, device_info, result, validator_id")
+        .eq("event_id", eventId);
+      if (opts.sessionId) q = q.eq("session_id", opts.sessionId);
+      return q.range(from, to) as unknown as PromiseLike<{ data: CheckinFull[] | null; error: { message: string } | null }>;
+    },
   );
-  const okCheckins = checkins.filter((c) => (c.result ?? "ok") === "ok" && (!opts.sessionId || c.session_id === opts.sessionId));
+  const okCheckins = checkins.filter((c) => (c.result ?? "ok") === "ok");
   const checkinByPart = new Map<string, CheckinFull>();
   for (const c of okCheckins) {
     if (c.participant_id && !checkinByPart.has(c.participant_id)) checkinByPart.set(c.participant_id, c);
@@ -525,12 +538,15 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
 
   // 4. Incidencias
   const incidents = await fetchPaged<IncidentFull>((from, to) =>
-    supabase.from("incidents")
-      .select("id, participant_id, session_id, category, incident_type, title, description, created_at, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions")
-      .eq("event_id", eventId)
-      .range(from, to) as unknown as PromiseLike<{ data: IncidentFull[] | null; error: { message: string } | null }>,
+    {
+      let q = supabase.from("incidents")
+        .select("id, participant_id, session_id, category, incident_type, title, description, created_at, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions")
+        .eq("event_id", eventId);
+      if (opts.sessionId) q = q.eq("session_id", opts.sessionId);
+      return q.range(from, to) as unknown as PromiseLike<{ data: IncidentFull[] | null; error: { message: string } | null }>;
+    },
   );
-  const filteredIncidents = opts.sessionId ? incidents.filter((i) => i.session_id === opts.sessionId) : incidents;
+  const filteredIncidents = incidents;
 
   // 5. Maps auxiliares (forms / batches / sessions / validators)
   const formIds = Array.from(new Set(filteredParts.map((p) => p.public_form_id).filter((x): x is string => !!x)));

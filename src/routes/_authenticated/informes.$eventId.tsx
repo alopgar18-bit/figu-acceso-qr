@@ -40,7 +40,11 @@ function EventReportPage() {
   const handleDetail = async () => {
     if (!data) return;
     try { await exportReportDetailExcel(data, { sessionId: currentSessionId }); toast.success("Detalle generado"); }
-    catch (e) { toast.error("Error generando detalle"); console.error(e); }
+    catch (e) {
+      console.error(e);
+      const msg = e instanceof Error && e.message ? e.message : "Error generando detalle";
+      toast.error(msg.length > 180 ? msg.slice(0, 180) + "…" : msg);
+    }
   };
   const handlePDF = async () => {
     if (!data) return;
