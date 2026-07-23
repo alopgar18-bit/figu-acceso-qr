@@ -1,64 +1,30 @@
-# Fase 2 — Acompañantes como filas propias
+Aplicar las dos correcciones acordadas.
 
-Aplica las decisiones que acabas de dar:
+## 1. Arreglar los datos ya afectados (SQL en una transacción)
 
-- Vinculación titular = **columna Titular explícita → fallback por contacto → agrupación por fila (companions_count contiguo)**.
-- Cada acompañante genera **una fila en `people` y otra en `companions`**, con la misma regla VIS N si el DNI ya está en otra sesión del evento.
-- Si el Excel trae asiento distinto al ya asignado → **sobrescribimos con el del Excel** y lo dejamos anotado en `import_row_results`.
+Sin choques detectados (0 personas de las 20 solicitudes existen ya en la sesión del 29-jul), así que se puede mover todo limpio:
 
-## Bloques de análisis (nuevos)
+- `UPDATE public_forms SET session_id = 'bceffbaf-…' WHERE id IN (…4 formularios del 29-jul…)` — reapunta los 4 formularios de Arahal / General compromisos / Villarrasa / Córdoba a la sesión del 29 de julio.
+- `UPDATE event_participants SET session_id = 'bceffbaf-…' WHERE public_form_id IN (…4 ids…) AND session_id = '59440d2f-…'` — traslada las 20 solicitudes recibidas hoy desde la sesión 22-jul a la 29-jul (mismo `event_id`, no toco estado, asiento ni ticket).
+- Registro en `audit_logs` con acción `reassign_session` y contexto "Reasignación formularios 29-jul".
 
-```text
-A  Titular nuevo en esta sesión
-B  Titular ya en esta sesión (update sin degradar)
-D  Acompañante vinculado a un titular presente (Excel o sesión)
-E  Acompañante huérfano (sin titular localizable) → skip con motivo
-```
+## 2. Prevención en la app (dos cambios pequeños)
 
-El bloque C queda vacío por el aislamiento por sesión (ya cerrado en la fase 1) y se retira del wizard.
+**A. Selector de sesión al duplicar formulario**
+- `src/lib/forms.functions.ts`: `duplicatePublicForm` acepta opcional `session_id`; si se pasa, se usa; si no, mantiene el original (retrocompatible).
+- `src/routes/_authenticated/eventos.$eventId.tsx` (o donde esté el botón "Duplicar"): al pulsar duplicar, abrir un pequeño diálogo con selector de sesiones del mismo evento (por defecto la del formulario original) y llamar a `duplicatePublicForm` con la elegida.
 
-## Cambios de código
+**B. Sesión editable en el editor de formularios**
+- `src/components/form-editor-dialog.tsx`: añadir un `Select` de sesión (cargado con `useEventSessions(event_id)`), enlazado al campo `session_id`.
+- `src/lib/forms.functions.ts`: `updatePublicForm` ya acepta el resto de campos; añadir `session_id` al esquema/validador y al `UPDATE`.
+- Solo visible para roles con permiso de edición (los mismos que hoy pueden editar el formulario).
 
-**1. Parser del Excel — `src/routes/_authenticated/importaciones.nueva.tsx`**
-- Reconocer la columna Rol/Tipo (`titular` / `acompañante`) y la columna `Solicitante (Titular)`.
-- Añadir al payload de cada fila: `role`, `titular_full_name`, `group_index` (posición secuencial que hereda al último titular con `companions_count > 0`).
-- El buscador y contadores del panel de análisis pasan a A/B/D/E.
+No toco lógica de submit ni validaciones de aforo — la función RPC `submit_public_form` ya deriva la sesión del formulario, así que en cuanto el `session_id` esté bien apuntado, las nuevas solicitudes caerán solas donde toca.
 
-**2. Schema y análisis — `src/lib/imports.functions.ts`**
-- Ampliar `rowSchema` con `role: "titular" | "acompanante"` (default `titular`) y `titular_full_name`, `group_index`.
-- `analyzeImport`:
-  - Separa titulares y acompañantes antes de clasificar.
-  - Resuelve titular de cada acompañante en este orden: (1) match por `titular_full_name` normalizado en el Excel/roster, (2) mismo email o teléfono normalizado que un titular presente, (3) último titular con `group_index` compatible y `companions_count > 0` pendiente de rellenar.
-  - Bloque D si encuentra titular, E si no.
+## Verificación final
 
-**3. Commit — `src/lib/imports.functions.ts`**
-- Primero se procesan titulares (A/B) para tener sus `participant_id`.
-- Para cada acompañante D:
-  - Crea/actualiza `people` con la misma regla VIS N que titulares (respeta `dniInOtherSession`).
-  - Inserta/actualiza fila en `companions` con `event_participant_id` del titular resuelto, copiando nombre, DNI, contacto, `attendee_type = "acompanante"` y asiento del Excel.
-  - Sobrescribe `seat_zone/row/number` en `companions` cuando el Excel trae datos, aunque ya hubiera asiento; registra `seat_override_previous` en `import_row_results`.
-- Al terminar, `UPDATE event_participants SET companions_count = (SELECT count(*) FROM companions WHERE event_participant_id = ep.id)` para los titulares tocados.
-- Bloque E → `import_row_results` con `status="skipped"`, `reason="titular_no_localizado"`.
-
-**4. Constantes y UI**
-- `src/lib/import-constants.ts`: nuevos labels/descriptions para A, B, D, E; retirar C.
-- `src/routes/_authenticated/importaciones.$batchId.tsx`: mostrar contador de acompañantes creados por titular.
-
-**5. Auditoría**
-- `audit_logs` con `action = imports.commit.v2`, incluyendo desglose `{ titulares_nuevos, titulares_actualizados, acompanantes_creados, acompanantes_actualizados, huerfanos, seat_overrides }`.
-
-## Fuera de alcance
-
-- Sin migración de datos históricos; los lotes antiguos siguen visibles y reparables por `repairImportBatch`.
-- Sin cambios en QR, tickets, envío masivo, formularios públicos ni cola de comunicaciones.
-- Sin trocear todavía `imports.functions.ts` en `src/lib/imports/*.ts` (queda para una fase 3 de refactor puro, sin cambios funcionales).
-
-## Validación
-
-Antes de dar por cerrada la fase:
-
-1. Importar el Excel del 15/07 dos veces sobre la misma sesión — la segunda pasada no crea nada.
-2. Importar el mismo Excel sobre otra sesión — se crean personas VIS N sin tocar la del 15/07.
-3. Fila de acompañante con `Solicitante (Titular) = "Juan Pérez"` presente → aparece en `companions` con el asiento indicado y `companions_count` sube.
-4. Fila de acompañante sin titular localizable → queda en E y no se crea nada.
-5. Titular reimportado con asiento distinto en su acompañante → el asiento del acompañante pasa a ser el del Excel y el override queda registrado.
+Tras aplicar 1 y 2:
+- `SELECT count(*) FROM event_participants WHERE session_id='bceffbaf-…'` → debe subir en 20.
+- `SELECT count(*) FROM event_participants WHERE session_id='59440d2f-…' AND public_form_id IN (…)` → debe ser 0.
+- Comprobar en el panel de Solicitudes de la sesión del 29-jul que aparecen las 20.
+- Probar en editor: cambiar `session_id` de un formulario de prueba y ver que la lista de formularios refleja la sesión nueva.

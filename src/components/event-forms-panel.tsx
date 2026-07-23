@@ -57,6 +57,11 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
   const [sessionId, setSessionId] = useState<string>("all");
   const [busy, setBusy] = useState(false);
 
+  // Diálogo de duplicación con selector de sesión destino.
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupSource, setDupSource] = useState<{ id: string; title: string; session_id: string | null } | null>(null);
+  const [dupSessionId, setDupSessionId] = useState<string>("all");
+
   const baseUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     return `${window.location.origin}/f/`;
@@ -113,13 +118,22 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
   });
 
   const duplicate = useMutation({
-    mutationFn: (id: string) => dup({ data: { id } }),
+    mutationFn: ({ id, session_id }: { id: string; session_id: string | null }) =>
+      dup({ data: { id, session_id } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["public-forms", eventId] });
       toast.success("Formulario duplicado");
+      setDupOpen(false);
+      setDupSource(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo duplicar"),
   });
+
+  function openDuplicate(f: { id: string; title: string; session_id: string | null }) {
+    setDupSource(f);
+    setDupSessionId(f.session_id ?? "all");
+    setDupOpen(true);
+  }
 
   function copyUrl(slug: string) {
     const url = `${baseUrl}${slug}`;
@@ -222,7 +236,7 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
                         <Button variant="ghost" size="sm" onClick={() => copyUrl(f.slug)} title="Copiar URL">
                           <Copy className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => duplicate.mutate(f.id)} title="Duplicar formulario" disabled={duplicate.isPending}>
+                        <Button variant="ghost" size="sm" onClick={() => openDuplicate({ id: f.id, title: f.title, session_id: f.session_id ?? null })} title="Duplicar formulario" disabled={duplicate.isPending}>
                           {duplicate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Files className="h-3.5 w-3.5" />}
                         </Button>
                         <FormQrDialog url={`${baseUrl}${f.slug}`} title={f.title} />
@@ -279,6 +293,48 @@ export function EventFormsPanel({ eventId }: { eventId: string }) {
           </Table>
         )}
       </CardContent>
+
+      <Dialog open={dupOpen} onOpenChange={setDupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicar formulario</DialogTitle>
+            <DialogDescription>
+              Elige la sesión a la que apuntará la copia. Por defecto se mantiene la del formulario original.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {dupSource && (
+              <p className="text-sm text-muted-foreground">
+                Origen: <span className="font-medium text-foreground">{dupSource.title}</span>
+              </p>
+            )}
+            <div>
+              <Label>Sesión de la copia</Label>
+              <Select value={dupSessionId} onValueChange={setDupSessionId}>
+                <SelectTrigger><SelectValue placeholder="Todas las sesiones" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las sesiones del evento</SelectItem>
+                  {sessions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Revisa esto cuando dupliques un formulario de otra sesión — las solicitudes se guardan en la sesión que elijas aquí.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDupOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => dupSource && duplicate.mutate({ id: dupSource.id, session_id: dupSessionId === "all" ? null : dupSessionId })}
+              disabled={duplicate.isPending || !dupSource}
+            >
+              {duplicate.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Duplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
