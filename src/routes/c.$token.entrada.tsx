@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
 import DOMPurify from "isomorphic-dompurify";
-import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users, Armchair } from "lucide-react";
+import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Armchair } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
