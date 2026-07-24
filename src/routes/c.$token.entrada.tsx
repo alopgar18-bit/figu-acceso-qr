@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import QRCode from "qrcode";
 import DOMPurify from "isomorphic-dompurify";
-import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Users, Armchair } from "lucide-react";
+import { CalendarDays, MapPin, Clock, AlertCircle, Download, Loader2, IdCard, Armchair } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -159,11 +159,6 @@ function Page() {
               {person?.dni && (
                 <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                   <IdCard className="h-3 w-3" /> DNI: {person.dni}
-                </div>
-              )}
-              {participant.companions_count > 0 && (
-                <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <Users className="h-3 w-3" /> {participant.companions_count} acompañante(s)
                 </div>
               )}
             </div>
