@@ -161,11 +161,6 @@ function Page() {
                   <IdCard className="h-3 w-3" /> DNI: {person.dni}
                 </div>
               )}
-              {participant.companions_count > 0 && (
-                <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <Users className="h-3 w-3" /> {participant.companions_count} acompañante(s)
-                </div>
-              )}
             </div>
 
             <SeatBlock zone={participant.seat_zone} row={participant.seat_row} number={participant.seat_number} />
