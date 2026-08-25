@@ -1,42 +1,39 @@
-Dos temas distintos que hay que atacar por separado.
+# Estabilizar sesión e informe del 2 de septiembre
 
-## 1. "Solo 37 con 3 formularios abiertos"
+## Situación confirmada
 
-Lo que veo en base de datos para la sesión del 29 de julio (`bceffbaf-…`):
-- 4 formularios publicados: Villarrasa, Arahal, General compromisos, Córdoba.
-- Solicitudes recibidas: 20 titulares + 17 acompañantes = **37 personas** → el "37" cuadra.
-- Reparto real por formulario: Arahal 19, Villarrasa 1, General 0, Córdoba 0.
-- Última solicitud: hoy 18:44. No hay más entrando después.
+- La sesión **“Grabación 2 de septiembre”** existe, está programada, tiene aforo 700 y 47 solicitudes; no falta ni está dañada.
+- El evento acumula 25.767 participantes, 24.562 comunicaciones y 2.845 consentimientos históricos, por lo que cualquier consulta accidental del evento completo es costosa.
+- Las rutas privadas se están renderizando también en servidor y las capturas corresponden a los dos manejadores genéricos de error global, no a un mensaje funcional de la sesión.
+- La edición de sesiones se hace directamente desde el navegador. Los administradores pueden modificar; el rol coordinador solo tiene permiso de lectura en `event_sessions`, aunque la interfaz le permite entrar en edición.
+- El informe lanza varias consultas paginadas en paralelo; el filtro de sesión existe, pero la consulta de consentimientos vuelve a obtener todos los identificadores y la opción de todo el evento puede generar una carga excesiva.
 
-O sea el número está bien contado; el problema real es que muchísima gente está viendo la pantalla **"NO SE PUDO CARGAR EL FORMULARIO / Error temporal"** (la captura que reenviaste) y abandona sin inscribirse. Ese mensaje sale de `getPublicFormBySlug` cuando cualquiera de las lecturas al backend falla o supera el timeout del Worker.
+## Cambios
 
-Plan de estabilización del formulario público (`src/lib/forms.functions.ts` → `getPublicFormBySlug`):
-- **Consulta única de arranque en paralelo**: hoy hace 4 queries secuenciales (form → event → sessions → legal_texts). Lanzarlas con `Promise.all` una vez conocido `event_id`/`session_id` para reducir latencia y ventana de fallo.
-- **Reintento en el servidor** ante errores transitorios (`fetch failed`, `TimeoutError`, `502/503/504`) con 2 reintentos y backoff corto (~150ms/400ms) antes de devolver `error_temporal`.
-- **Cache corto en el cliente**: subir `staleTime` a `60_000` en `useQuery` de `f.$formSlug.tsx` y añadir `refetchOnWindowFocus:false` para no recargar si el usuario cambia de pestaña.
-- **Log estructurado**: en cada rama de error del servidor imprimir `slug`, `phase` (`form|event|sessions|legal`) y `code`, para poder ver en logs si el pico es en una tabla concreta.
-- **Aviso al equipo en la UI admin**: en el panel de formularios de la sesión, mostrar bajo cada formulario el contador de solicitudes de las últimas 24h (ya lo tenemos calculado en `listEventForms` — basta con exponerlo) para que Javier vea de un vistazo cuáles reciben tráfico y cuáles no.
+1. **Evitar los fallos al abrir rutas privadas**
+   - Desactivar el renderizado servidor del área autenticada para que sesión e informes se carguen únicamente después de restaurar la sesión del usuario en el navegador.
+   - Mantener la pantalla dentro del panel durante reintentos, con mensajes en español y sin sustituir toda la aplicación por el error genérico.
 
-Con esto se reduce muchísimo la superficie de "error temporal" y, si vuelve a pasar, quedará claro en logs qué consulta se cae para poder atacarla en un segundo pase.
+2. **Estabilizar carga y guardado de sesión**
+   - Mantener una consulta ligera y reintentable para cargar evento y sesión.
+   - Pasar el guardado a una función de servidor autenticada que valide el rol y los campos permitidos.
+   - Autorizar de forma explícita a administradores y coordinadores asignados al evento, sin ampliar acceso a otros eventos ni aceptar cambios de identidad/evento enviados por el cliente.
+   - Deshabilitar el botón mientras guarda, conservar el formulario si falla y mostrar el error concreto con acción de reintento.
 
-## 2. "No me crea el informe" (detalle Excel)
+3. **Hacer el informe seguro para eventos grandes**
+   - Seleccionar automáticamente la sesión cuando se llega desde su contexto, evitando cargar accidentalmente las 25.767 personas del evento.
+   - Separar el resumen del detalle: cargar primero KPI mediante consultas agregadas y dejar los datos nominales para la exportación.
+   - Consultar participantes, consentimientos, comunicaciones, check-ins e incidencias siempre filtrados por sesión y en lotes acotados; eliminar la lectura previa no paginada de todos los identificadores.
+   - Mantener “Todas las sesiones” como acción explícita, con carga por lotes y sin bloquear la página.
 
-`exportReportDetailExcel` en `src/lib/report-export.ts` descarga TODOS los participantes / acompañantes / checkins / incidencias del **evento entero** con `.eq("event_id", eventId)` y luego filtra por sesión en memoria. Para El Perro Andaluz eso son miles de filas por 4 tablas → tiempo excedido / PostgREST cae → toast "Error generando detalle".
+4. **Verificación en producción**
+   - Probar con sesión autenticada: abrir la sesión del 2 de septiembre, modificar un campo reversible, guardar, recargar y confirmar persistencia.
+   - Probar por separado con administrador y coordinador asignado.
+   - Abrir el informe filtrado por la sesión, validar los 47 titulares actuales y generar el Excel detallado.
+   - Confirmar que no aparecen errores 500, que un usuario no asignado no puede editar y que el build queda correcto.
 
-Plan:
-- **Filtrar por sesión en la propia query** cuando `opts.sessionId` está definido:
-  - `event_participants`: añadir `.eq("session_id", opts.sessionId)`.
-  - `companions`: ya se hace por chunks de `participant_id`, queda igual (se beneficia automáticamente).
-  - `checkins`: añadir `.eq("session_id", opts.sessionId)`.
-  - `incidents`: añadir `.eq("session_id", opts.sessionId)`.
-- **Bajar tamaño de página** de `fetchPaged` de 1000 a 500 (más resiliente a timeouts intermedios), manteniendo la paginación.
-- **Reintento por página** ante error de red/timeout dentro de `fetchPaged` (2 intentos con espera corta), para que un blip no aborte todo el export.
-- **Mensaje de error útil**: en el `catch` de `handleDetail` (`src/routes/_authenticated/informes.$eventId.tsx`) mostrar el mensaje real del error (`toast.error(e.message ?? "Error generando detalle")`) para que en el móvil se vea qué falló si vuelve a ocurrir.
+## Detalles técnicos
 
-No toco la lógica de negocio ni las hojas del Excel — solo cómo se traen los datos.
-
-## Verificación
-
-- Volver a abrir un formulario del 29-jul en incógnito varias veces seguidas: no debe caer al "error temporal".
-- En Informes → sesión del 29-jul → botón "Excel detallado (titulares + acompañantes)": debe generar el `.xlsx` en pocos segundos.
-- Repetir el detalle también con la sesión del 22-jul (la que ayer tuve que sacarte a mano) para confirmar que ya funciona desde la app.
+- Archivos principales: layout autenticado, ruta de edición de sesión, `session-form`, hooks/funciones de sesiones, ruta y lógica de informes.
+- Se añadirá una migración mínima solo si hace falta ajustar la política de actualización; conservará RLS y limitará el acceso a asignaciones válidas.
+- No se cambiarán estados, aforo, participantes ni datos reales de la sesión durante la corrección; la prueba de guardado será reversible.
