@@ -2,29 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
-
-const ATTENDEE = z.enum([
-  "publico",
-  "figurante",
-  "casting",
-  "vip",
-  "prensa",
-  "equipo",
-  "acompanante",
-  "otro",
-]);
-
-const FORM_STATUS = z.enum(["borrador", "publicado", "cerrado", "archivado"]);
-
-function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 80);
-}
+import { attendeeSchema, formStatusSchema } from "./forms-schemas";
+import { slugifyForm } from "./forms.server";
 
 export const listEventForms = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -75,7 +54,7 @@ export const duplicatePublicForm = createServerFn({ method: "POST" })
       .select("slug")
       .eq("id", original.event_id)
       .maybeSingle();
-    const base = slugify(`${ev?.slug ?? "evento"}-${original.attendee_type}-copia`);
+    const base = slugifyForm(`${ev?.slug ?? "evento"}-${original.attendee_type}-copia`);
     let slug = base;
     for (let i = 2; i < 100; i++) {
       const { data: exists } = await supabaseAdmin
@@ -118,10 +97,10 @@ export const createPublicForm = createServerFn({ method: "POST" })
       .object({
         event_id: z.string().uuid(),
         session_id: z.string().uuid().nullable().optional(),
-        attendee_type: ATTENDEE,
+        attendee_type: attendeeSchema,
         title: z.string().trim().min(1).max(150),
         slug: z.string().trim().max(120).optional(),
-        status: FORM_STATUS.default("publicado"),
+        status: formStatusSchema.default("publicado"),
       })
       .parse(d),
   )
@@ -140,8 +119,8 @@ export const createPublicForm = createServerFn({ method: "POST" })
       .maybeSingle();
     const base =
       data.slug && data.slug.length > 0
-        ? slugify(data.slug)
-        : slugify(`${ev?.slug ?? "evento"}-${data.attendee_type}`);
+        ? slugifyForm(data.slug)
+        : slugifyForm(`${ev?.slug ?? "evento"}-${data.attendee_type}`);
     let slug = base;
     for (let i = 2; i < 100; i++) {
       const { data: exists } = await supabaseAdmin
@@ -177,8 +156,8 @@ export const updatePublicForm = createServerFn({ method: "POST" })
       .object({
         id: z.string().uuid(),
         title: z.string().trim().min(1).max(150).optional(),
-        status: FORM_STATUS.optional(),
-        attendee_type: ATTENDEE.optional(),
+        status: formStatusSchema.optional(),
+        attendee_type: attendeeSchema.optional(),
         session_id: z.string().uuid().nullable().optional(),
         intro_text: z.string().trim().max(2000).nullable().optional(),
         header_image_url: z.string().trim().max(500).nullable().optional(),
