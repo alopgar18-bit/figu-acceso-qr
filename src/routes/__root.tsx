@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import {
   Outlet,
   Link,
@@ -13,6 +13,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { forceFreshReload, installClientRecovery } from "@/lib/client-recovery";
+import { classifyAppError } from "@/lib/app-error";
 
 function NotFoundComponent() {
   return (
@@ -36,22 +37,54 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
+  const info = useMemo(() => classifyAppError(error), [error]);
+  const content = {
+    "stale-build": {
+      title: "Hay una versión nueva",
+      text: "La aplicación se ha actualizado mientras tenías esta pestaña abierta.",
+      action: "Cargar versión actual",
+    },
+    auth: {
+      title: "Tu sesión necesita renovarse",
+      text: "Vuelve a iniciar sesión para continuar de forma segura.",
+      action: "Ir al acceso",
+    },
+    network: {
+      title: "No se pudo conectar",
+      text: "Comprueba la conexión y vuelve a intentar esta operación.",
+      action: "Reintentar",
+    },
+    data: {
+      title: "No se pudo completar la operación",
+      text: "El servidor no ha podido responder correctamente. Puedes volver a intentarlo sin recargar toda la aplicación.",
+      action: "Reintentar",
+    },
+    unexpected: {
+      title: "Esta página no se cargó",
+      text: "Se ha producido un error inesperado. Vuelve a intentarlo; si se repite, indícanos la referencia.",
+      action: "Reintentar",
+    },
+  }[info.kind];
+
+  const recover = () => {
+    if (info.kind === "stale-build") void forceFreshReload({ manual: true });
+    else if (info.kind === "auth") window.location.assign(`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    else reset();
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Esta página no se cargó
+          {content.title}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Puede haber una versión nueva disponible. Vuelve a cargarla para continuar.
+          {content.text}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Button onClick={() => void forceFreshReload()}>
-            Cargar versión actual
-          </Button>
+          <Button onClick={recover}>{content.action}</Button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
@@ -59,6 +92,7 @@ function ErrorComponent({ error }: { error: Error; reset: () => void }) {
             Ir al inicio
           </a>
         </div>
+        <p className="mt-4 text-xs text-muted-foreground">Referencia: {info.reference}</p>
       </div>
     </div>
   );
@@ -97,7 +131,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="es">
       <head>
         <HeadContent />
       </head>

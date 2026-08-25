@@ -21,9 +21,9 @@ export function renderErrorPage(requestUrl?: string): string {
   <body>
     <div class="card">
       <h1>Esta página no se cargó</h1>
-      <p>Se produjo un error temporal o hay una versión nueva disponible. Carga la versión actual para continuar.</p>
+      <p>Se produjo un error temporal del servidor. Reintenta la petición; si continúa, vuelve al inicio.</p>
       <div class="actions">
-        <button class="primary" onclick="try{sessionStorage.setItem('figurarte:fresh-reload',String(Date.now()))}catch(e){}location.reload()">Cargar versión actual</button>
+        <button class="primary" onclick="location.reload()">Reintentar</button>
         <a class="secondary" href="/">Ir al inicio</a>
       </div>
       <div class="ref">Ref: ${ref}</div>

@@ -25,24 +25,24 @@ function recentlyReloaded(): boolean {
   return Number.isFinite(previous) && Date.now() - previous < RELOAD_WINDOW_MS;
 }
 
-export async function forceFreshReload(): Promise<void> {
-  if (recentlyReloaded()) return;
+export async function forceFreshReload(options: { manual?: boolean } = {}): Promise<boolean> {
+  if (!options.manual && recentlyReloaded()) return false;
   sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
 
-  if ("caches" in window) {
-    const names = await caches.keys();
-    await Promise.allSettled(names.map((name) => caches.delete(name)));
-  }
-
   try {
-    await fetch(window.location.href, {
-      cache: "reload",
+    const url = new URL(window.location.href);
+    url.searchParams.set("__figurarte_reload", Date.now().toString(36));
+    await fetch(url.toString(), {
+      cache: "no-store",
       credentials: "same-origin",
       headers: { "x-figurarte-version-check": "reload" },
     });
   } finally {
-    window.location.reload();
+    const destination = new URL(window.location.href);
+    destination.searchParams.set("__figurarte_reload", Date.now().toString(36));
+    window.location.replace(destination.toString());
   }
+  return true;
 }
 
 async function removeLegacyBrowserCaches(): Promise<void> {
@@ -69,11 +69,11 @@ async function removeLegacyBrowserCaches(): Promise<void> {
   await Promise.allSettled(work);
 }
 
-async function checkForNewVersion(): Promise<void> {
+export async function hasNewPublishedVersion(): Promise<boolean> {
   if (document.visibilityState !== "visible" || recentlyReloaded()) return;
 
   const currentFingerprint = assetFingerprint(document);
-  if (!currentFingerprint) return;
+  if (!currentFingerprint) return false;
 
   try {
     const response = await fetch(window.location.href, {
@@ -81,16 +81,21 @@ async function checkForNewVersion(): Promise<void> {
       credentials: "same-origin",
       headers: { "x-figurarte-version-check": "check" },
     });
-    if (!response.ok) return;
+    if (!response.ok) return false;
 
     const nextDocument = new DOMParser().parseFromString(await response.text(), "text/html");
     const nextFingerprint = assetFingerprint(nextDocument);
     if (nextFingerprint && nextFingerprint !== currentFingerprint) {
-      await forceFreshReload();
+      return true;
     }
   } catch (error) {
     console.warn("[version] No se pudo comprobar la publicación actual", error);
   }
+  return false;
+}
+
+async function checkForNewVersion(): Promise<void> {
+  if (await hasNewPublishedVersion()) await forceFreshReload();
 }
 
 export function installClientRecovery(): () => void {

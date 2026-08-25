@@ -20,21 +20,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { getPublicFormBySlug } from "@/lib/forms.functions";
 import { submitPublicFormBySlug } from "@/lib/public-forms.functions";
 import { attendeeLabel } from "@/lib/participant-constants";
-import { forceFreshReload } from "@/lib/client-recovery";
+import { classifyAppError } from "@/lib/app-error";
 
-function FormErrorComponent({ error }: { error: Error; reset: () => void }) {
+function FormErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error("[/f/$formSlug] errorComponent", error);
+  const info = classifyAppError(error);
   return (
     <PublicShell>
       <div className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-semibold mb-3">Error temporal</div>
       <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">No se pudo cargar el formulario</h1>
       <p className="mt-4 text-muted-foreground">
-        Ha habido un problema temporal al preparar la página o hay una versión nueva disponible.
+        No hemos podido preparar el formulario. Tus datos no se han enviado ni se han perdido.
       </p>
       <div className="mt-8 flex flex-wrap gap-2">
-        <Button onClick={() => void forceFreshReload()}>Cargar versión actual</Button>
+        <Button onClick={reset}>Intentar otra vez</Button>
         <Button asChild variant="outline"><Link to="/">Ir al inicio</Link></Button>
       </div>
+      <p className="mt-4 text-xs text-muted-foreground">Referencia: {info.reference}</p>
     </PublicShell>
   );
 }
