@@ -22,7 +22,7 @@ import { submitPublicFormBySlug } from "@/lib/public-forms.functions";
 import { attendeeLabel } from "@/lib/participant-constants";
 import { forceFreshReload } from "@/lib/client-recovery";
 
-function FormErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function FormErrorComponent({ error }: { error: Error; reset: () => void }) {
   console.error("[/f/$formSlug] errorComponent", error);
   return (
     <PublicShell>
