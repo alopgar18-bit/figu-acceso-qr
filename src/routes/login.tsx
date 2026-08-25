@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import wordmark from "@/assets/figurarte-logo-dark.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
+import { consumeSessionNotice } from "@/lib/client-recovery";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -18,6 +19,11 @@ function LoginPage() {
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+
+  useEffect(() => {
+    const message = consumeSessionNotice();
+    if (message) toast.info(message);
+  }, []);
 
   if (!loading && session) return <Navigate to="/dashboard" />;
 
