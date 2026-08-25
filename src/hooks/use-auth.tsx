@@ -9,6 +9,7 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { resetSessionExpiredToast, tryRefreshSession } from "@/lib/session-refresh";
+import { storeSessionNotice } from "@/lib/client-recovery";
 
 type Profile = {
   id: string;
@@ -170,11 +171,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, 0);
     });
 
-    supabase.auth.getSession().then(({ data: { session: existing } }) => {
-      setSession(existing);
-      currentUserIdRef.current = existing?.user?.id ?? null;
-      void Promise.all([loadRoles(existing?.user?.id), loadProfile(existing?.user?.id)]).finally(() => setLoading(false));
-    });
+    const initialiseSession = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        let existing = sessionData.session;
+
+        if (existing) {
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          if (userError || !userData.user) {
+            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+            existing = refreshError ? null : refreshed.session;
+            if (existing) {
+              const { data: verified, error: verifyError } = await supabase.auth.getUser();
+              if (verifyError || !verified.user) existing = null;
+            }
+          }
+        }
+
+        if (!existing && sessionData.session) {
+          await supabase.auth.signOut({ scope: "local" });
+          storeSessionNotice(
+            "Tu sesión anterior había caducado. Inicia sesión de nuevo para continuar.",
+          );
+        }
+
+        setSession(existing);
+        currentUserIdRef.current = existing?.user?.id ?? null;
+        await Promise.all([loadRoles(existing?.user?.id), loadProfile(existing?.user?.id)]);
+      } catch (error) {
+        console.error("[auth] session initialisation failed", error);
+        setSession(null);
+        currentUserIdRef.current = null;
+        await Promise.all([loadRoles(undefined), loadProfile(undefined)]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    void initialiseSession();
 
     return () => subscription.unsubscribe();
   }, []);
