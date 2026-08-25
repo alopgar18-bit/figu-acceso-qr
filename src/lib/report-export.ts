@@ -149,12 +149,13 @@ export async function exportReportExcel(data: ReportData, opts: { sessionId?: st
     const participants: PartRow[] = [];
     const pageSize = 1000;
     for (let from = 0; ; from += pageSize) {
-      const { data: page, error } = await supabase
+      let query = supabase
         .from("event_participants")
         .select("id, status, session_id, submission_id, seat_zone, seat_row, seat_number, people(first_name, last_name, dni, email, phone), event_sessions(name)")
         .eq("event_id", eventId)
-        .order("id", { ascending: true })
-        .range(from, from + pageSize - 1);
+        .order("id", { ascending: true });
+      if (opts.sessionId) query = query.eq("session_id", opts.sessionId);
+      const { data: page, error } = await query.range(from, from + pageSize - 1);
       if (error) throw error;
       const rows = (page ?? []) as PartRow[];
       participants.push(...rows);

@@ -1,6 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Download, FileSpreadsheet, AlertTriangle, Activity, Users, CheckCircle2, Clock, Loader2, RefreshCw, MousePointerClick } from "lucide-react";
-import { useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -14,17 +13,30 @@ import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/us
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
 
 export const Route = createFileRoute("/_authenticated/informes/$eventId")({
-  validateSearch: z.object({ session_id: z.string().uuid().optional() }),
+  validateSearch: z.object({
+    session_id: z.union([z.string().uuid(), z.literal("all")]).optional(),
+  }),
+  head: () => ({
+    meta: [
+      { title: "Informe de evento · FIGURARTE Access" },
+      { name: "description", content: "Informe operativo de asistentes, accesos e incidencias por sesión." },
+      { property: "og:title", content: "Informe de evento · FIGURARTE Access" },
+      { property: "og:description", content: "Informe operativo de asistentes, accesos e incidencias por sesión." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: EventReportPage,
 });
 
 function EventReportPage() {
   const { eventId } = Route.useParams();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const { data: sessionsLite, isLoading: sessionsLoading } = useEventSessionsLite(eventId);
   // El usuario elige explícitamente la sesión (o "todas") — así evitamos
   // lanzar la consulta pesada del evento completo por accidente.
-  const [sessionFilter, setSessionFilter] = useState<string>(search.session_id ?? "");
+  const sessionFilter = search.session_id ?? "";
   const list = sessionsLite ?? [];
   const scope = sessionFilter
     ? { eventId, sessionId: sessionFilter === "all" ? undefined : sessionFilter }
@@ -71,7 +83,18 @@ function EventReportPage() {
         }
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={sessionFilter} onValueChange={setSessionFilter} disabled={sessionsLoading}>
+            <Select
+              value={sessionFilter}
+              onValueChange={(value) => {
+                void navigate({
+                  to: "/informes/$eventId",
+                  params: { eventId },
+                  search: { session_id: value as string },
+                  replace: true,
+                });
+              }}
+              disabled={sessionsLoading}
+            >
               <SelectTrigger className="w-[240px]">
                 <SelectValue placeholder={sessionsLoading ? "Cargando sesiones…" : "Selecciona sesión"} />
               </SelectTrigger>
