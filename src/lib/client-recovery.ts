@@ -3,6 +3,8 @@ const CLEANUP_KEY = "figurarte:legacy-cache-cleaned";
 const SESSION_NOTICE_KEY = "figurarte:session-notice";
 const RELOAD_WINDOW_MS = 15_000;
 const VERSION_CHECK_INTERVAL_MS = 60_000;
+const STALE_MODULE_PATTERN =
+  /failed to fetch dynamically imported module|importing a module script failed|loading chunk \d+ failed|error loading dynamically imported module/i;
 
 function assetFingerprint(root: ParentNode): string {
   return Array.from(
@@ -104,14 +106,27 @@ export function installClientRecovery(): () => void {
     event.preventDefault();
     void forceFreshReload();
   };
+  const onWindowError = (event: ErrorEvent) => {
+    const detail = `${event.message} ${event.error instanceof Error ? event.error.message : ""}`;
+    if (STALE_MODULE_PATTERN.test(detail)) void forceFreshReload();
+  };
+  const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+    const reason = event.reason;
+    const detail = reason instanceof Error ? `${reason.name} ${reason.message}` : String(reason);
+    if (STALE_MODULE_PATTERN.test(detail)) void forceFreshReload();
+  };
 
   window.addEventListener("vite:preloadError", onPreloadError);
+  window.addEventListener("error", onWindowError);
+  window.addEventListener("unhandledrejection", onUnhandledRejection);
   window.addEventListener("focus", checkWhenNeeded);
   window.addEventListener("pageshow", checkWhenNeeded);
   document.addEventListener("visibilitychange", checkWhenNeeded);
 
   return () => {
     window.removeEventListener("vite:preloadError", onPreloadError);
+    window.removeEventListener("error", onWindowError);
+    window.removeEventListener("unhandledrejection", onUnhandledRejection);
     window.removeEventListener("focus", checkWhenNeeded);
     window.removeEventListener("pageshow", checkWhenNeeded);
     document.removeEventListener("visibilitychange", checkWhenNeeded);
