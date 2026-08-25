@@ -70,7 +70,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
   const recover = () => {
     if (info.kind === "stale-build") void forceFreshReload({ manual: true });
-    else if (info.kind === "auth") window.location.assign(`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    else if (info.kind === "auth") {
+      sessionStorage.setItem("figurarte:return-to", window.location.pathname + window.location.search);
+      window.location.assign("/login");
+    }
     else reset();
   };
 

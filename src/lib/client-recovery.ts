@@ -70,7 +70,7 @@ async function removeLegacyBrowserCaches(): Promise<void> {
 }
 
 export async function hasNewPublishedVersion(): Promise<boolean> {
-  if (document.visibilityState !== "visible" || recentlyReloaded()) return;
+  if (document.visibilityState !== "visible" || recentlyReloaded()) return false;
 
   const currentFingerprint = assetFingerprint(document);
   if (!currentFingerprint) return false;

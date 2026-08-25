@@ -20,6 +20,12 @@ function LoginPage() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
+  const destination = () => {
+    const stored = sessionStorage.getItem("figurarte:return-to");
+    sessionStorage.removeItem("figurarte:return-to");
+    return stored?.startsWith("/") && !stored.startsWith("//") ? stored : "/dashboard";
+  };
+
   useEffect(() => {
     const message = consumeSessionNotice();
     if (message) toast.info(message);
@@ -37,7 +43,7 @@ function LoginPage() {
       return;
     }
     toast.success("Bienvenido a FIGURARTE Access");
-    navigate({ to: "/dashboard" });
+    window.location.assign(destination());
   };
 
   return (

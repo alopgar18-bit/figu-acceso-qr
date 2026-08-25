@@ -48,7 +48,3 @@ export function classifyAppError(error: unknown): AppErrorInfo {
 
   return { kind, reference: makeReference(), message };
 }
-
-export function isStaleBuildError(error: unknown): boolean {
-  return classifyAppError(error).kind === "stale-build";
-}
