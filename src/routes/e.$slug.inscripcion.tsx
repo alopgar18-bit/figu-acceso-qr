@@ -78,7 +78,7 @@ function Page() {
   const [state, setState] = useState<State>(INITIAL);
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<null | "recibida" | "lista_espera">(null);
+  const [success, setSuccess] = useState<null | "recibida" | "lista_espera" | "duplicado">(null);
 
   const selectableSessions = useMemo(
     () => (data?.sessions ?? []).filter(
@@ -132,12 +132,18 @@ function Page() {
             <CheckCircle2 className="h-14 w-14 mx-auto text-primary" />
           )}
           <h1 className="mt-6 text-3xl md:text-4xl font-black uppercase tracking-tight">
-            {success === "lista_espera" ? "Estás en lista de espera" : "¡Gracias!"}
+            {success === "lista_espera"
+              ? "Estás en lista de espera"
+              : success === "duplicado"
+                ? "Ya estás registrado/a"
+                : "¡Gracias!"}
           </h1>
           <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
             {success === "lista_espera"
               ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza, el equipo de FIGURARTE se pondrá en contacto contigo."
-              : "El equipo de FIGURARTE revisará tu solicitud y te confirmará por email si puedes asistir."}
+              : success === "duplicado"
+                ? "Tu solicitud ya está registrada para esta sesión. No necesitas volver a enviarla. Muchas gracias."
+                : "El equipo de FIGURARTE revisará tu solicitud y te confirmará por email si puedes asistir."}
           </p>
         </div>
       </PublicShell>
@@ -199,8 +205,7 @@ function Page() {
         } else if (result.code === "inscripciones_cerradas" || result.code === "evento_no_disponible") {
           navigate({ to: "/e/$slug/cerrado", params: { slug } });
         } else if (result.code === "duplicado") {
-          toast.success("Tu solicitud ya estaba registrada. ¡Gracias!");
-          setSuccess("recibida");
+          setSuccess("duplicado");
           if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         } else if (result.code === "edad_minima_no_cumplida") {

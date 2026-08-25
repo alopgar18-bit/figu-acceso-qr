@@ -113,7 +113,7 @@ function Page() {
   const [submitting, setSubmitting] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState<Record<string, boolean>>({});
   const [openPrivacy, setOpenPrivacy] = useState<string | null>(null);
-  const [success, setSuccess] = useState<null | "recibida" | "lista_espera">(null);
+  const [success, setSuccess] = useState<null | "recibida" | "lista_espera" | "duplicado">(null);
 
   const selectableSessions = useMemo(() => {
     if (!result?.ok) return [];
@@ -253,8 +253,7 @@ function Page() {
         } else if (res.code === "duplicado") {
           // Tratamos el duplicado como éxito: significa que la inscripción
           // anterior sí se registró aunque el usuario viera un error temporal.
-          toast.success("Tu solicitud ya estaba registrada. ¡Gracias!");
-          setSuccess("recibida");
+          setSuccess("duplicado");
           if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         } else if (res.code === "edad_minima_no_cumplida") {
@@ -282,15 +281,25 @@ function Page() {
         <div className="flex flex-col items-center text-center py-12">
           <CheckCircle2 className="h-16 w-16 text-primary mb-4" />
           <div className="text-xs uppercase tracking-[0.25em] text-primary font-semibold mb-2">
-            {success === "lista_espera" ? "En lista de espera" : "Solicitud recibida"}
+            {success === "lista_espera"
+              ? "En lista de espera"
+              : success === "duplicado"
+                ? "Inscripción confirmada"
+                : "Solicitud recibida"}
           </div>
           <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">
-            {success === "lista_espera" ? "Estás en lista de espera" : "¡Gracias!"}
+            {success === "lista_espera"
+              ? "Estás en lista de espera"
+              : success === "duplicado"
+                ? "Ya estás registrado/a"
+                : "¡Gracias!"}
           </h1>
           <p className="mt-4 max-w-lg text-muted-foreground">
             {success === "lista_espera"
               ? "La sesión está completa, te hemos añadido a la lista de espera. Si se libera una plaza, el equipo de FIGURARTE se pondrá en contacto contigo."
-              : "El equipo de FIGURARTE revisará tu solicitud y te confirmará por email si puedes asistir."}
+              : success === "duplicado"
+                ? "Tu solicitud ya está registrada para esta sesión. No necesitas volver a enviarla. Muchas gracias."
+                : "El equipo de FIGURARTE revisará tu solicitud y te confirmará por email si puedes asistir."}
           </p>
         </div>
       </PublicShell>
