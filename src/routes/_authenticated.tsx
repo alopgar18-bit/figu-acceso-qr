@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated")({
+  ssr: false,
   component: AuthenticatedLayout,
 });
 

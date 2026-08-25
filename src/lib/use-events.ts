@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useServerFn } from "@tanstack/react-start";
+import { saveSession } from "./sessions.functions";
 
 export type EventRow = Database["public"]["Tables"]["events"]["Row"];
 export type EventInsert = Database["public"]["Tables"]["events"]["Insert"];
@@ -75,6 +77,8 @@ export function useSession(sessionId: string | undefined) {
   return useQuery({
     queryKey: ["session", sessionId],
     enabled: !!sessionId,
+    retry: 2,
+    staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("event_sessions")
@@ -134,16 +138,10 @@ export function useUpsertEvent() {
 
 export function useUpsertSession() {
   const qc = useQueryClient();
+  const save = useServerFn(saveSession);
   return useMutation({
     mutationFn: async ({ id, values }: { id?: string; values: SessionInsert | SessionUpdate }) => {
-      if (id) {
-        const { data, error } = await supabase.from("event_sessions").update(values).eq("id", id).select().single();
-        if (error) throw error;
-        return data;
-      }
-      const { data, error } = await supabase.from("event_sessions").insert(values as SessionInsert).select().single();
-      if (error) throw error;
-      return data;
+      return save({ data: { id, values: values as SessionInsert } });
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["sessions", data.event_id] });

@@ -23,7 +23,7 @@ function Page() {
   const { eventId, sessionId } = Route.useParams();
   const navigate = useNavigate();
   const { data: event } = useEvent(eventId);
-  const { data: session, isLoading } = useSession(sessionId);
+  const { data: session, isLoading, error, refetch } = useSession(sessionId);
   const del = useDeleteSession();
 
   const onDelete = async () => {
@@ -52,6 +52,15 @@ function Page() {
             <Button asChild variant="outline">
               <Link to="/sesiones/$sessionId/plano" params={{ sessionId }}>
                 Ver plano
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link
+                to="/informes/$eventId"
+                params={{ eventId }}
+                search={{ session_id: sessionId }}
+              >
+                Ver informe
               </Link>
             </Button>
             <PromoteSeatsButton sessionId={sessionId} />
@@ -85,7 +94,17 @@ function Page() {
           </div>
         }
       />
-      {isLoading || !event || !session ? <Skeleton className="h-96" /> : <SessionForm event={event} session={session} />}
+      {error ? (
+        <div className="border border-destructive/50 bg-background p-6 space-y-3">
+          <p className="font-medium">No se pudo cargar la sesión</p>
+          <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Error de carga"}</p>
+          <Button variant="outline" onClick={() => void refetch()}>Reintentar</Button>
+        </div>
+      ) : isLoading || !event || !session ? (
+        <Skeleton className="h-96" />
+      ) : (
+        <SessionForm event={event} session={session} />
+      )}
     </div>
   );
 }
