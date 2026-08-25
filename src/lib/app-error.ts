@@ -27,10 +27,13 @@ function errorText(error: unknown): string {
   return "Error desconocido";
 }
 
-function makeReference(): string {
-  const stamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).slice(2, 7).toUpperCase();
-  return `FIG-${stamp}-${random}`;
+function makeReference(message: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < message.length; index += 1) {
+    hash ^= message.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `FIG-${(hash >>> 0).toString(36).toUpperCase()}`;
 }
 
 export function classifyAppError(error: unknown): AppErrorInfo {
@@ -46,5 +49,5 @@ export function classifyAppError(error: unknown): AppErrorInfo {
   else if (NETWORK_PATTERN.test(message)) kind = "network";
   else if (status === 403 || status === 429 || status >= 500 || DATA_PATTERN.test(message)) kind = "data";
 
-  return { kind, reference: makeReference(), message };
+  return { kind, reference: makeReference(message), message };
 }
