@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Download, FileSpreadsheet, AlertTriangle, Activity, Users, CheckCircle2, Clock, Loader2, RefreshCw, MousePointerClick } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -13,15 +14,17 @@ import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/us
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
 
 export const Route = createFileRoute("/_authenticated/informes/$eventId")({
+  validateSearch: z.object({ session_id: z.string().uuid().optional() }),
   component: EventReportPage,
 });
 
 function EventReportPage() {
   const { eventId } = Route.useParams();
+  const search = Route.useSearch();
   const { data: sessionsLite, isLoading: sessionsLoading } = useEventSessionsLite(eventId);
   // El usuario elige explícitamente la sesión (o "todas") — así evitamos
   // lanzar la consulta pesada del evento completo por accidente.
-  const [sessionFilter, setSessionFilter] = useState<string>("");
+  const [sessionFilter, setSessionFilter] = useState<string>(search.session_id ?? "");
   const list = sessionsLite ?? [];
   const scope = sessionFilter
     ? { eventId, sessionId: sessionFilter === "all" ? undefined : sessionFilter }

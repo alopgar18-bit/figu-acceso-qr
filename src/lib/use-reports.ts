@@ -215,7 +215,7 @@ export function useEventReport(scope: ReportScope | null) {
 
       // Empujamos el filtro de sesión al SQL para no traer todo el evento cuando
       // el usuario está mirando una sola sesión (el caso más común).
-      const [evt, sessions, participants, checkins, comms, incidents, consents] = await Promise.all([
+      const [evt, sessions, participants, checkins, comms, incidents] = await Promise.all([
         supabase.from("events").select("id, name, status, starts_at, ends_at, location_name, city").eq("id", eventId).single(),
         supabase.from("event_sessions").select("id, name, starts_at, capacity").eq("event_id", eventId).order("starts_at"),
         fetchAllPaged<PartRow>((from, to) =>
@@ -263,35 +263,6 @@ export function useEventReport(scope: ReportScope | null) {
             ? supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions, walk_in_first_name, walk_in_last_name, walk_in_dni, title, description, created_at").eq("event_id", eventId).eq("session_id", sessionId).order("created_at", { ascending: false }).range(from, to)
             : supabase.from("incidents").select("id, participant_id, session_id, incident_type, category, walk_in_companions, walk_in_first_name, walk_in_last_name, walk_in_dni, title, description, created_at").eq("event_id", eventId).order("created_at", { ascending: false }).range(from, to)) as unknown as PromiseLike<{ data: IncidentRow[] | null; error: { message: string } | null }>,
         ),
-        fetchAllPaged<ConsentRow>((from, to) =>
-          // Filtramos por participantes del evento/sesión para no traer TODOS los
-          // consentimientos del sistema (era el mayor cuello de botella).
-          (async () => {
-            const partQ = sessionId
-              ? supabase.from("event_participants").select("id").eq("event_id", eventId).eq("session_id", sessionId)
-              : supabase.from("event_participants").select("id").eq("event_id", eventId);
-            const { data: partIds, error: pErr } = await partQ;
-            if (pErr) return { data: [] as ConsentRow[], error: null };
-            const ids = (partIds ?? []).map((p) => p.id);
-            if (ids.length === 0) return { data: [] as ConsentRow[], error: null };
-            // Solo cargamos consentimientos en la primera "página" del bucle externo
-            // (from=0). Trocear .in() en lotes pequeños evita el 400 "Bad Request"
-            // que PostgREST devuelve cuando la URL supera ~8KB (eventos grandes
-            // con miles de participantes).
-            if (from > 0) return { data: [] as ConsentRow[], error: null };
-            const CHUNK = 200;
-            const rows: ConsentRow[] = [];
-            for (let i = 0; i < ids.length; i += CHUNK) {
-              const slice = ids.slice(i, i + CHUNK);
-              const { data, error } = await supabase.from("consent_records")
-                .select("participant_id, consent_kind, accepted")
-                .in("participant_id", slice);
-              if (error) return { data: [] as ConsentRow[], error: null };
-              rows.push(...((data ?? []) as ConsentRow[]));
-            }
-            return { data: rows, error: null };
-          })() as unknown as PromiseLike<{ data: ConsentRow[] | null; error: { message: string } | null }>,
-        ),
       ]);
 
       if (evt.error) throw evt.error;
@@ -299,6 +270,16 @@ export function useEventReport(scope: ReportScope | null) {
       const allSessions = (sessions.data ?? []).filter((s) => !sessionId || s.id === sessionId);
       const sessionIds = new Set(allSessions.map((s) => s.id));
       const parts = participants.filter((p) => !sessionId || sessionIds.has(p.session_id));
+      const consents: ConsentRow[] = [];
+      const participantIds = parts.map((p) => p.id);
+      for (let i = 0; i < participantIds.length; i += 200) {
+        const { data: consentChunk, error: consentError } = await supabase
+          .from("consent_records")
+          .select("participant_id, consent_kind, accepted")
+          .in("participant_id", participantIds.slice(i, i + 200));
+        if (consentError) throw consentError;
+        consents.push(...((consentChunk ?? []) as ConsentRow[]));
+      }
       const allCheckins = checkins
         .filter((c) => (c.result ?? "ok") === "ok")
         .filter((c) => !sessionId || sessionIds.has(c.session_id));
