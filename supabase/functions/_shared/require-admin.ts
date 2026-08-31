@@ -10,6 +10,14 @@ export async function requireAdmin(
   const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+  // Llamadas internas de la plataforma (tick de jobs, continuaciones):
+  // cabecera con el secreto compartido, nunca por query ni body.
+  const INTERNAL_SECRET = Deno.env.get("INTERNAL_JOBS_SECRET") ?? "";
+  const internalHeader = req.headers.get("x-internal-secret")?.trim() ?? "";
+  if (INTERNAL_SECRET && internalHeader && internalHeader === INTERNAL_SECRET) {
+    return { ok: true, userId: "internal_job" };
+  }
+
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
@@ -21,6 +29,7 @@ export async function requireAdmin(
       ),
     };
   }
+
 
   // Las continuaciones internas de procesos en segundo plano se autentican
   // con la clave de servicio. Nunca se acepta por query/body y se compara
