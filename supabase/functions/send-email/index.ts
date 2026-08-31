@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; from?: string; background?: boolean } = {};
+    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; from?: string; background?: boolean; drain_owner?: string } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
     const limit = Math.min(Math.max(body.limit ?? 100, 1), 1000);
     const batchSize = Math.min(Math.max(body.batch_size ?? 100, 1), 200);
