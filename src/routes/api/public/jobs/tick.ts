@@ -204,6 +204,8 @@ async function dispatchSendEmail(job: { id: string; payload: Record<string, unkn
   const text = await res.text();
   let parsed: Record<string, unknown> = {};
   try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text }; }
-  await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
-  if (!res.ok) throw new Error(`send-email ${res.status}: ${text.slice(0, 200)}`);
+  if (job.id !== "watchdog") {
+    await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  }
+  if (!res.ok && res.status !== 409) throw new Error(`send-email ${res.status}: ${text.slice(0, 200)}`);
 }
