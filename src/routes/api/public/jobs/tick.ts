@@ -148,7 +148,10 @@ async function dispatchSendWhatsapp(job: { id: string; payload: Record<string, u
   const text = await res.text();
   let parsed: Record<string, unknown> = {};
   try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text }; }
-  await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  if (job.id !== "watchdog") {
+    await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  }
+
   if (!res.ok && res.status !== 409) throw new Error(`send-whatsapp ${res.status}: ${text.slice(0, 200)}`);
 }
 
