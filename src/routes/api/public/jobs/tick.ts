@@ -108,10 +108,41 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
           console.error("[jobs.tick] watchdog whatsapp", err);
         }
 
-        return new Response(JSON.stringify({ processed: results.length, results, watchdog }), {
+        // Vigilante de email: mismo mecanismo que WhatsApp, con el lock
+        // "email_drain" que usa la función de envío por tramos.
+        let watchdogEmail: string = "no_aplica";
+        try {
+          const { count: pendientesEmail } = await supabaseAdmin
+            .from("communication_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("channel", "email")
+            .eq("status", "pendiente");
+          if ((pendientesEmail ?? 0) > 0) {
+            const { data: lockEmail } = await supabaseAdmin
+              .from("whatsapp_drain_locks")
+              .select("expires_at")
+              .eq("lock_key", "email_drain")
+              .maybeSingle();
+            const vigente = lockEmail?.expires_at && new Date(lockEmail.expires_at).getTime() > Date.now();
+            if (!vigente) {
+              await dispatchSendEmail({ id: "watchdog", payload: {} }, supabaseAdmin);
+              watchdogEmail = "relanzada";
+            } else {
+              watchdogEmail = "en_curso";
+            }
+          } else {
+            watchdogEmail = "sin_pendientes";
+          }
+        } catch (err) {
+          watchdogEmail = `error: ${err instanceof Error ? err.message : String(err)}`;
+          console.error("[jobs.tick] watchdog email", err);
+        }
+
+        return new Response(JSON.stringify({ processed: results.length, results, watchdog, watchdogEmail }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
+
 
       },
     },
