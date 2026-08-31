@@ -442,6 +442,13 @@ async function runWati(
   }
 
   const result = await processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl, cfg);
+  if (body.drain_owner) {
+    await supabase
+      .from("whatsapp_drain_locks")
+      .delete()
+      .eq("lock_key", "wati_drain")
+      .eq("acquired_by", body.drain_owner);
+  }
   return new Response(
     JSON.stringify({ configured: true, provider: "wati", ...result }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
