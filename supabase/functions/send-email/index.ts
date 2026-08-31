@@ -283,6 +283,7 @@ Deno.serve(async (req) => {
               "Content-Type": "application/json",
               Authorization: `Bearer ${SERVICE_ROLE}`,
               apikey: SERVICE_ROLE,
+              ...(Deno.env.get("INTERNAL_JOBS_SECRET") ? { "x-internal-secret": Deno.env.get("INTERNAL_JOBS_SECRET")! } : {}),
             },
             body: JSON.stringify({
               ...(remainingIds ? { ids: remainingIds } : {}),
