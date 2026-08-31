@@ -48,7 +48,14 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; action?: string } = {};
+    let body: {
+      limit?: number;
+      ids?: string[];
+      batch_size?: number;
+      delay_ms?: number;
+      action?: string;
+      drain_owner?: string;
+    } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -253,6 +260,7 @@ async function runWati(
     jitter_ms?: number;
     batch_size?: number;
     batch_pause_ms?: number;
+    drain_owner?: string;
   },
 ) {
   const endpoint = Deno.env.get("WATI_API_ENDPOINT");
@@ -325,14 +333,17 @@ async function runWati(
   if (fetchErr) throw fetchErr;
   const logs = (rawLogs ?? []) as unknown as CommLogRow[];
 
-  // Si hay más de 20 logs → background con lock global (un solo drenaje a la vez).
+  // Las funciones tienen un tiempo máximo de ejecución. Procesar cientos de
+  // mensajes con pausas en una sola ejecución hacía que el runtime la cortase
+  // y dejase un lock fantasma. Drenamos en tramos de 15 y encadenamos el
+  // siguiente tramo con autenticación interna.
   const BACKGROUND_THRESHOLD = 20;
   if (logs.length > BACKGROUND_THRESHOLD) {
-    // Intentar adquirir lock global de drenaje
     const lockKey = "wati_drain";
-    const lockTtlMs = 30 * 60 * 1000; // 30 min
+    const lockTtlMs = 3 * 60 * 1000;
     const expiresAt = new Date(Date.now() + lockTtlMs).toISOString();
-    const acquiredBy = `edge_${crypto.randomUUID()}`;
+    const requestedOwner = body.drain_owner?.trim() || null;
+    const acquiredBy = requestedOwner ?? `edge_${crypto.randomUUID()}`;
 
     const { data: existing } = await supabase
       .from("whatsapp_drain_locks")
@@ -343,7 +354,10 @@ async function runWati(
     const stillLocked =
       existing && new Date((existing as { expires_at: string }).expires_at).getTime() > Date.now();
 
-    if (stillLocked) {
+    const isOwnContinuation = stillLocked && requestedOwner != null &&
+      (existing as { acquired_by?: string }).acquired_by === requestedOwner;
+
+    if (stillLocked && !isOwnContinuation) {
       return new Response(
         JSON.stringify({
           configured: true,
@@ -356,26 +370,53 @@ async function runWati(
       );
     }
 
-    // Upsert lock (cogemos si no existe o está expirado)
+    // Adquirir o renovar el lock del mismo drenaje.
     await supabase
       .from("whatsapp_drain_locks")
       .upsert({ lock_key: lockKey, acquired_at: new Date().toISOString(), acquired_by: acquiredBy, expires_at: expiresAt });
 
+    const CHUNK_SIZE = 15;
+    const chunk = logs.slice(0, CHUNK_SIZE);
     const ids = logs.map((l) => l.id);
+    const result = await processWatiBatch(supabase, chunk, endpoint, token, publicSiteUrl, cfg);
+    const mustStop = result.error_code === "WATI_UNAUTHORIZED" || result.error_code === "WATI_NO_CREDITS";
+    const hasMore = !mustStop && logs.length > CHUNK_SIZE;
 
-    // deno-lint-ignore no-explicit-any
-    const ctx = globalThis as any;
-    const bgPromise = (async () => {
-      try {
-        await processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl, cfg);
-      } catch (e) {
-        console.error("[send-whatsapp][bg] error", e);
-      } finally {
+    if (hasMore) {
+      const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      const functionUrl = `${Deno.env.get("SUPABASE_URL")?.replace(/\/+$/, "")}/functions/v1/send-whatsapp`;
+      const remainingIds = body.ids?.length ? logs.slice(CHUNK_SIZE).map((log) => log.id) : undefined;
+      // Esperamos solo a que la siguiente ejecución acepte la petición; cada
+      // tramo queda por debajo del límite y renueva el mismo lock.
+      const continuation = fetch(functionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceRole}`,
+          apikey: serviceRole,
+        },
+        body: JSON.stringify({
+          ...(remainingIds ? { ids: remainingIds } : {}),
+          drain_owner: acquiredBy,
+          delay_ms: cfg.delayMs,
+          jitter_ms: cfg.jitterMs,
+          batch_size: cfg.batchSize,
+          batch_pause_ms: cfg.batchPauseMs,
+        }),
+      }).then(async (response) => {
+        if (!response.ok) {
+          console.error(`[send-whatsapp][continuation] HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+          await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", lockKey).eq("acquired_by", acquiredBy);
+        }
+      }).catch(async (error) => {
+        console.error("[send-whatsapp][continuation] error", error);
         await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", lockKey).eq("acquired_by", acquiredBy);
-      }
-    })();
-    if (ctx.EdgeRuntime?.waitUntil) {
-      ctx.EdgeRuntime.waitUntil(bgPromise);
+      });
+      // deno-lint-ignore no-explicit-any
+      const edgeRuntime = (globalThis as any).EdgeRuntime;
+      edgeRuntime?.waitUntil?.(continuation);
+    } else {
+      await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", lockKey).eq("acquired_by", acquiredBy);
     }
 
     const estMin = Math.ceil((logs.length * (cfg.delayMs + cfg.jitterMs / 2)) / 60000);
@@ -384,18 +425,30 @@ async function runWati(
       JSON.stringify({
         configured: true,
         provider: "wati",
-        background: true,
-        queued: logs.length,
+        background: hasMore,
+        queued: Math.max(0, logs.length - chunk.length),
         queued_ids: ids,
+        ...result,
         rate: { delay_ms: cfg.delayMs, jitter_ms: cfg.jitterMs, batch_size: cfg.batchSize, batch_pause_ms: cfg.batchPauseMs },
         estimated_minutes: estMin,
-        message: `Procesando ${logs.length} WhatsApps en segundo plano (~${Math.round(60000 / cfg.delayMs)} msg/min, ≈${estMin} min). Puedes cerrar la pestaña.`,
+        message: mustStop
+          ? result.message
+          : hasMore
+            ? `Cola en marcha por tramos seguros: quedan ${logs.length - chunk.length} WhatsApps (≈${estMin} min). Puedes cerrar la pestaña.`
+            : `Cola terminada. Enviados: ${result.sent}; fallidos: ${result.failed}.`,
       }),
-      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: hasMore ? 202 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 
   const result = await processWatiBatch(supabase, logs, endpoint, token, publicSiteUrl, cfg);
+  if (body.drain_owner) {
+    await supabase
+      .from("whatsapp_drain_locks")
+      .delete()
+      .eq("lock_key", "wati_drain")
+      .eq("acquired_by", body.drain_owner);
+  }
   return new Response(
     JSON.stringify({ configured: true, provider: "wati", ...result }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
