@@ -173,6 +173,7 @@ async function dispatchSendWhatsapp(job: { id: string; payload: Record<string, u
       "Content-Type": "application/json",
       Authorization: `Bearer ${serviceKey}`,
       apikey: serviceKey,
+      ...(process.env.INTERNAL_JOBS_SECRET ? { "x-internal-secret": process.env.INTERNAL_JOBS_SECRET } : {}),
     },
     body: JSON.stringify(ids ? { ids } : {}),
   });
