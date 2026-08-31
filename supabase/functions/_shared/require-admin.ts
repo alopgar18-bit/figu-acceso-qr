@@ -22,6 +22,13 @@ export async function requireAdmin(
     };
   }
 
+  // Las continuaciones internas de procesos en segundo plano se autentican
+  // con la clave de servicio. Nunca se acepta por query/body y se compara
+  // únicamente con el secreto disponible dentro de la función.
+  if (token === SERVICE_ROLE) {
+    return { ok: true, userId: "service_role" };
+  }
+
   const authClient = createClient(SUPABASE_URL, ANON_KEY || SERVICE_ROLE, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
