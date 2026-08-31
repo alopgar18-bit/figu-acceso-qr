@@ -108,10 +108,41 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
           console.error("[jobs.tick] watchdog whatsapp", err);
         }
 
-        return new Response(JSON.stringify({ processed: results.length, results, watchdog }), {
+        // Vigilante de email: mismo mecanismo que WhatsApp, con el lock
+        // "email_drain" que usa la función de envío por tramos.
+        let watchdogEmail: string = "no_aplica";
+        try {
+          const { count: pendientesEmail } = await supabaseAdmin
+            .from("communication_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("channel", "email")
+            .eq("status", "pendiente");
+          if ((pendientesEmail ?? 0) > 0) {
+            const { data: lockEmail } = await supabaseAdmin
+              .from("whatsapp_drain_locks")
+              .select("expires_at")
+              .eq("lock_key", "email_drain")
+              .maybeSingle();
+            const vigente = lockEmail?.expires_at && new Date(lockEmail.expires_at).getTime() > Date.now();
+            if (!vigente) {
+              await dispatchSendEmail({ id: "watchdog", payload: {} }, supabaseAdmin);
+              watchdogEmail = "relanzada";
+            } else {
+              watchdogEmail = "en_curso";
+            }
+          } else {
+            watchdogEmail = "sin_pendientes";
+          }
+        } catch (err) {
+          watchdogEmail = `error: ${err instanceof Error ? err.message : String(err)}`;
+          console.error("[jobs.tick] watchdog email", err);
+        }
+
+        return new Response(JSON.stringify({ processed: results.length, results, watchdog, watchdogEmail }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
+
 
       },
     },
@@ -142,6 +173,7 @@ async function dispatchSendWhatsapp(job: { id: string; payload: Record<string, u
       "Content-Type": "application/json",
       Authorization: `Bearer ${serviceKey}`,
       apikey: serviceKey,
+      ...(process.env.INTERNAL_JOBS_SECRET ? { "x-internal-secret": process.env.INTERNAL_JOBS_SECRET } : {}),
     },
     body: JSON.stringify(ids ? { ids } : {}),
   });
@@ -167,12 +199,15 @@ async function dispatchSendEmail(job: { id: string; payload: Record<string, unkn
       "Content-Type": "application/json",
       Authorization: `Bearer ${serviceKey}`,
       apikey: serviceKey,
+      ...(process.env.INTERNAL_JOBS_SECRET ? { "x-internal-secret": process.env.INTERNAL_JOBS_SECRET } : {}),
     },
     body: JSON.stringify(body),
   });
   const text = await res.text();
   let parsed: Record<string, unknown> = {};
   try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text }; }
-  await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
-  if (!res.ok) throw new Error(`send-email ${res.status}: ${text.slice(0, 200)}`);
+  if (job.id !== "watchdog") {
+    await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  }
+  if (!res.ok && res.status !== 409) throw new Error(`send-email ${res.status}: ${text.slice(0, 200)}`);
 }

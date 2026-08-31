@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; from?: string; background?: boolean } = {};
+    let body: { limit?: number; ids?: string[]; batch_size?: number; delay_ms?: number; from?: string; background?: boolean; drain_owner?: string } = {};
     try { body = await req.json(); } catch (_) { /* empty body */ }
     const limit = Math.min(Math.max(body.limit ?? 100, 1), 1000);
     const batchSize = Math.min(Math.max(body.batch_size ?? 100, 1), 200);
@@ -225,28 +225,102 @@ Deno.serve(async (req) => {
 
     const opts: ProcessOptions = { fromAddress, batchSize, delayMs, resendKey: RESEND_API_KEY };
 
+    // Drenaje por tramos autoencadenados: evita que el runtime corte la
+    // ejecución a mitad de una tanda grande y deje correos "pendientes".
     const shouldBackground = body.background === true || allLogs.length > BACKGROUND_THRESHOLD;
     if (shouldBackground && allLogs.length > 0) {
-      const ids = allLogs.map((l) => l.id);
+      const lockKey = "email_drain";
+      const lockTtlMs = 3 * 60 * 1000;
+      const expiresAt = new Date(Date.now() + lockTtlMs).toISOString();
+      const requestedOwner = body.drain_owner?.trim() || null;
+
+      // Si otro drenaje está vivo y no somos su continuación, no arrancamos otro.
+      const { data: existingLock } = await supabase
+        .from("whatsapp_drain_locks")
+        .select("acquired_by, expires_at")
+        .eq("lock_key", lockKey)
+        .maybeSingle();
+      const lockVigente = existingLock?.expires_at
+        && new Date(existingLock.expires_at).getTime() > Date.now();
+      if (lockVigente && existingLock?.acquired_by !== requestedOwner) {
+        return new Response(
+          JSON.stringify({
+            configured: true,
+            background: true,
+            skipped: true,
+            message: "Ya hay un envío de email en curso; continuará automáticamente.",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const acquiredBy = requestedOwner ?? crypto.randomUUID();
+      await supabase
+        .from("whatsapp_drain_locks")
+        .upsert({ lock_key: lockKey, acquired_at: new Date().toISOString(), acquired_by: acquiredBy, expires_at: expiresAt });
+
+      const CHUNK_SIZE = 25;
+      const chunk = allLogs.slice(0, CHUNK_SIZE);
+      const hasMore = allLogs.length > CHUNK_SIZE;
+      const remainingIds = body.ids?.length ? allLogs.slice(CHUNK_SIZE).map((l) => l.id) : undefined;
+
       // deno-lint-ignore no-explicit-any
       const ctx = globalThis as any;
-      const bgPromise = processEmailBatch(supabase, allLogs, opts)
-        .catch((e) => console.error("[send-email][bg] error", e));
-      if (ctx.EdgeRuntime?.waitUntil) ctx.EdgeRuntime.waitUntil(bgPromise);
+      const drain = (async () => {
+        try {
+          await processEmailBatch(supabase, chunk, opts);
+        } catch (e) {
+          console.error("[send-email][bg] error", e);
+        }
+        if (!hasMore) {
+          await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", lockKey).eq("acquired_by", acquiredBy);
+          return;
+        }
+        try {
+          const res = await fetch(`${SUPABASE_URL.replace(/\/+$/, "")}/functions/v1/send-email`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SERVICE_ROLE}`,
+              apikey: SERVICE_ROLE,
+              ...(Deno.env.get("INTERNAL_JOBS_SECRET") ? { "x-internal-secret": Deno.env.get("INTERNAL_JOBS_SECRET")! } : {}),
+            },
+            body: JSON.stringify({
+              ...(remainingIds ? { ids: remainingIds } : {}),
+              background: true,
+              batch_size: batchSize,
+              delay_ms: delayMs,
+              from: fromAddress,
+              drain_owner: acquiredBy,
+            }),
+          });
+          if (!res.ok && res.status !== 409) {
+            console.error(`[send-email][continuation] HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+            await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", lockKey).eq("acquired_by", acquiredBy);
+          }
+        } catch (error) {
+          console.error("[send-email][continuation] error", error);
+          await supabase.from("whatsapp_drain_locks").delete().eq("lock_key", lockKey).eq("acquired_by", acquiredBy);
+        }
+      })();
+      ctx.EdgeRuntime?.waitUntil?.(drain);
+
       return new Response(
         JSON.stringify({
           configured: true,
           background: true,
-          queued: ids.length,
-          queued_ids: ids,
+          queued: allLogs.length,
+          processing: chunk.length,
+          has_more: hasMore,
           from: fromAddress,
           batch_size: batchSize,
           delay_ms: delayMs,
-          message: `Procesando ${ids.length} envíos en segundo plano. Puedes cerrar esta ventana; el envío continúa en el servidor.`,
+          message: `Enviando ${allLogs.length} correos por tramos en segundo plano. Puedes cerrar esta ventana.`,
         }),
         { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     const result = await processEmailBatch(supabase, allLogs, opts);
     return new Response(
