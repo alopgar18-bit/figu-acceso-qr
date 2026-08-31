@@ -198,6 +198,7 @@ async function dispatchSendEmail(job: { id: string; payload: Record<string, unkn
       "Content-Type": "application/json",
       Authorization: `Bearer ${serviceKey}`,
       apikey: serviceKey,
+      ...(process.env.INTERNAL_JOBS_SECRET ? { "x-internal-secret": process.env.INTERNAL_JOBS_SECRET } : {}),
     },
     body: JSON.stringify(body),
   });
