@@ -78,10 +78,41 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
           }
         }
 
-        return new Response(JSON.stringify({ processed: results.length, results }), {
+        // Vigilante: si quedan WhatsApp pendientes y no hay bloqueo de cola
+        // vigente, relanza la cola sola (evita que un tramo caído la deje parada).
+        let watchdog: string = "no_aplica";
+        try {
+          const { count: pendientes } = await supabaseAdmin
+            .from("communication_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("channel", "whatsapp_business")
+            .eq("status", "pendiente");
+          if ((pendientes ?? 0) > 0) {
+            const { data: lock } = await supabaseAdmin
+              .from("whatsapp_drain_locks")
+              .select("expires_at")
+              .eq("lock_key", "wati_drain")
+              .maybeSingle();
+            const vigente = lock?.expires_at && new Date(lock.expires_at).getTime() > Date.now();
+            if (!vigente) {
+              await dispatchSendWhatsapp({ id: "watchdog", payload: {} }, supabaseAdmin);
+              watchdog = "relanzada";
+            } else {
+              watchdog = "en_curso";
+            }
+          } else {
+            watchdog = "sin_pendientes";
+          }
+        } catch (err) {
+          watchdog = `error: ${err instanceof Error ? err.message : String(err)}`;
+          console.error("[jobs.tick] watchdog whatsapp", err);
+        }
+
+        return new Response(JSON.stringify({ processed: results.length, results, watchdog }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
+
       },
     },
   },
@@ -117,7 +148,10 @@ async function dispatchSendWhatsapp(job: { id: string; payload: Record<string, u
   const text = await res.text();
   let parsed: Record<string, unknown> = {};
   try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text }; }
-  await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  if (job.id !== "watchdog") {
+    await admin.from("background_jobs").update({ progress: parsed, result: parsed }).eq("id", job.id);
+  }
+
   if (!res.ok && res.status !== 409) throw new Error(`send-whatsapp ${res.status}: ${text.slice(0, 200)}`);
 }
 
