@@ -146,6 +146,16 @@ function EventReportPage() {
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />Excel detallado (titulares + acompañantes)
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReleasedSeats}
+              disabled={!hasReport}
+              title="Butacas liberadas por cancelaciones o rechazos, listas para reasignar"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Butacas liberadas (Excel)
+            </Button>
+
             <Button size="sm" onClick={handlePDF} disabled={!hasReport}>
               <Download className="h-4 w-4 mr-2" />PDF
             </Button>
