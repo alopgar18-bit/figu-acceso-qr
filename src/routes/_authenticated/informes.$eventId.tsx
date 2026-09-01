@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/use-reports";
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
+import { exportReleasedSeatsExcel } from "@/lib/released-seats-export";
+
 
 export const Route = createFileRoute("/_authenticated/informes/$eventId")({
   validateSearch: z.object({
