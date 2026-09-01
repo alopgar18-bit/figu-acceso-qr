@@ -10,20 +10,26 @@ interface PageHeaderProps {
 export function PageHeader({ eyebrow, title, description, actions }: PageHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pb-6 border-b mb-8">
-      <div>
+      <div className="min-w-0">
         {eyebrow && (
           <div className="text-xs uppercase tracking-[0.25em] text-primary font-semibold mb-2">
             {eyebrow}
           </div>
         )}
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight uppercase break-words">
           {title}
         </h1>
         {description && (
           <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{description}</p>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 md:justify-end [&>*]:min-w-0 [&_button]:max-w-full">
+          {actions}
+        </div>
+      )}
+    </div>
+
     </div>
   );
 }
