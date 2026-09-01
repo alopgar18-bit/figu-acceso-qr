@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 import { useCommSummary, type CommSummaryRow } from "@/lib/use-comm-summary";
+import { useInvitationKpis } from "@/lib/use-invitation-kpis";
 import { CommBatchDetailDialog } from "./comm-batch-detail-dialog";
 
 export function CommSummaryPanel() {
