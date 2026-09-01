@@ -562,9 +562,11 @@ function QueuePage() {
               <RotateCw className="h-4 w-4 mr-2" />
               Recuperar fallidos por spam
             </Button>
-            <Button onClick={exportEmlZip}>
-              <Mail className="h-4 w-4 mr-2" />Descargar .eml para Gmail
+            <Button onClick={exportEmlZip} disabled={exportingEml}>
+              <Mail className="h-4 w-4 mr-2" />
+              {exportingEml ? "Preparando .eml…" : "Descargar .eml para Gmail"}
             </Button>
+
             <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-2" />Exportar CSV</Button>
             <Button variant="outline" asChild>
               <Link to="/comunicaciones"><ArrowLeft className="h-4 w-4 mr-2" />Volver</Link>
