@@ -339,7 +339,7 @@ function LogsTable({ defaultStatus }: { defaultStatus?: CommStatus }) {
                         size="sm"
                         onClick={async () => {
                           try {
-                            await updateStatus.mutateAsync({ id: l.id, status: "pendiente", error_message: null });
+                            await updateStatus.mutateAsync({ id: l.id, status: "programado", error_message: null });
                             toast.success("Reintentado");
                           } catch (e) {
                             toast.error((e as Error).message);

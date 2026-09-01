@@ -95,7 +95,8 @@ const inputSchema = z.object({
 /**
  * Builds a queue of pending communication_logs for the chosen participants.
  * Does NOT actually send emails — Gmail integration is a separate step.
- * Each log has status = "pendiente" with subject and body already rendered per recipient.
+ * Cada log queda en estado "programado" (preparado, sin autorizar) con asunto y
+ * cuerpo ya renderizados. Solo "Enviar cola" los pasa a "pendiente" y los envía.
  */
 export const queueBulkInvitations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -346,7 +347,8 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
       }
 
       const recipient = isWhatsapp ? phone : email;
-      const status: "pendiente" | "cancelado" = recipient ? "pendiente" : "cancelado";
+      // "programado" = preparado en cola, aún NO autorizado para enviar.
+      const status: "programado" | "cancelado" = recipient ? "programado" : "cancelado";
       const errorMessage = recipient ? null : isWhatsapp ? "Sin teléfono" : "Sin email";
 
       try {
@@ -420,7 +422,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
           try {
             const { error: cErr } = await supabase.from("communication_logs").insert({
               channel: template.channel,
-              status: "pendiente",
+              status: "programado",
               to_address: compRecipient,
               subject: compSubject,
               body: compBody,
@@ -520,7 +522,7 @@ export const retryCommunication = createServerFn({ method: "POST" })
     ]);
     const { error } = await supabase
       .from("communication_logs")
-      .update({ status: "pendiente", error_message: null, sent_at: null })
+      .update({ status: "programado", error_message: null, sent_at: null })
       .eq("id", data.log_id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -763,7 +765,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
       try {
         const { error: insErr } = await supabase.from("communication_logs").insert({
           channel: "email",
-          status: "pendiente",
+          status: "programado",
           to_address: email,
           subject,
           body,
@@ -815,7 +817,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
           try {
             const { error: cErr } = await supabase.from("communication_logs").insert({
               channel: "email",
-              status: "pendiente",
+              status: "programado",
               to_address: compRecipient,
               subject: compSubject,
               body: compBody,

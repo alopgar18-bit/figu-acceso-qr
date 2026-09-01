@@ -97,7 +97,7 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
       const ctx: RenderContext = { nombre: r.name, ...r.context };
       await create.mutateAsync({
         channel: "email",
-        status: "pendiente",
+        status: "programado",
         to_address: r.email,
         subject: renderTemplate(subject, ctx),
         body: renderTemplate(body, ctx),
