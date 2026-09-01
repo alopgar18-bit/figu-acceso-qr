@@ -72,21 +72,29 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
   return useQuery({
     queryKey: ["comm_summary", filters],
     queryFn: async (): Promise<CommSummaryAggregate> => {
-      let q = supabase
-        .from("communication_logs")
-        .select(
-          "id, batch_id, channel, status, to_address, created_at, metadata, error_message, person_id, people(first_name, last_name, email, phone), events(name), event_sessions(name), import_batches(id, filename, created_at)",
-        )
-        .order("created_at", { ascending: false })
-        .limit(5000);
-      if (filters.eventId) q = q.eq("event_id", filters.eventId);
-      if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
-      if (!filters.includeArchived) q = q.is("archived_at", null);
-      // Excluir envíos de prueba Wati (metadata.wati_test === true)
-      q = q.or("metadata->>wati_test.is.null,metadata->>wati_test.neq.true");
-      const { data, error } = await q;
-      if (error) throw error;
-      const logs = (data ?? []) as unknown as Log[];
+      // PostgREST limita a 1.000 filas por petición: paginamos hasta cubrir toda la sesión.
+      const PAGE = 1000;
+      const MAX_ROWS = 50000;
+      const logs: Log[] = [];
+      for (let from = 0; from < MAX_ROWS; from += PAGE) {
+        let q = supabase
+          .from("communication_logs")
+          .select(
+            "id, batch_id, channel, status, to_address, created_at, metadata, error_message, person_id, people(first_name, last_name, email, phone), events(name), event_sessions(name), import_batches(id, filename, created_at)",
+          )
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (filters.eventId) q = q.eq("event_id", filters.eventId);
+        if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
+        if (!filters.includeArchived) q = q.is("archived_at", null);
+        // Excluir envíos de prueba Wati (metadata.wati_test === true)
+        q = q.or("metadata->>wati_test.is.null,metadata->>wati_test.neq.true");
+        const { data, error } = await q;
+        if (error) throw error;
+        const chunk = (data ?? []) as unknown as Log[];
+        logs.push(...chunk);
+        if (chunk.length < PAGE) break;
+      }
 
       const buckets = new Map<string, Log[]>();
       for (const l of logs) {
