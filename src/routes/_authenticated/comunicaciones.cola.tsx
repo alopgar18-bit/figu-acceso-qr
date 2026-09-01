@@ -463,31 +463,59 @@ function QueuePage() {
     return `${headers}\r\n\r\n${body.replace(/\r?\n/g, "\r\n")}`;
   };
 
+  const [exportingEml, setExportingEml] = useState(false);
+
   const exportEmlZip = async () => {
-    const target = selectedIds.length > 0
-      ? filtered.filter((l) => selected.has(l.id))
-      : filtered;
-    const ready = target.filter((l) => l.to_address && l.body);
-    if (ready.length === 0) {
-      toast.error("No hay comunicaciones con destinatario y cuerpo listas para exportar");
-      return;
+    setExportingEml(true);
+    try {
+      // 1) Selección explícita, 2) lo visible en pantalla, 3) búsqueda directa en
+      // base de datos (cualquier estado) para que la descarga funcione siempre.
+      let ready = (selectedIds.length > 0
+        ? filtered.filter((l) => selected.has(l.id))
+        : filtered
+      ).filter((l) => l.to_address && l.body);
+
+      if (ready.length === 0) {
+        const { data, error } = await supabase
+          .from("communication_logs")
+          .select("id, created_at, to_address, subject, body, people:person_id(first_name, last_name)")
+          .eq("channel", "email")
+          .not("to_address", "is", null)
+          .not("body", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        if (error) {
+          toast.error(`No se pudo preparar la descarga: ${error.message}`);
+          return;
+        }
+        ready = (data ?? []) as unknown as typeof ready;
+      }
+
+      if (ready.length === 0) {
+        toast.error("No hay comunicaciones con destinatario y cuerpo para exportar");
+        return;
+      }
+
+      const zip = new JSZip();
+      ready.forEach((l, i) => {
+        const name = `${String(i + 1).padStart(4, "0")}_${sanitizeFilename(
+          `${l.people?.first_name ?? ""}_${l.people?.last_name ?? ""}_${l.to_address ?? ""}`,
+        )}.eml`;
+        zip.file(name, buildEml(l));
+      });
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `gmail-cola-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${ready.length} mensajes exportados (.eml)`);
+    } finally {
+      setExportingEml(false);
     }
-    const zip = new JSZip();
-    ready.forEach((l, i) => {
-      const name = `${String(i + 1).padStart(4, "0")}_${sanitizeFilename(
-        `${l.people?.first_name ?? ""}_${l.people?.last_name ?? ""}_${l.to_address ?? ""}`,
-      )}.eml`;
-      zip.file(name, buildEml(l));
-    });
-    const blob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `gmail-cola-${new Date().toISOString().slice(0, 10)}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`${ready.length} mensajes exportados (.eml)`);
   };
+
 
   return (
     <div>
