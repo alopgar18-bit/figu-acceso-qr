@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
 });
 
 function QueuePage() {
-  const [status, setStatus] = useState<CommStatus | "all">("pendiente");
+  const [status, setStatus] = useState<CommStatus | "all">("programado");
   const [search, setSearch] = useState("");
   const [includeArchived, setIncludeArchived] = useState(false);
   const { data: logs = [], refetch, isLoading } = useCommunicationLogs({
@@ -65,17 +65,19 @@ function QueuePage() {
   useKeepSessionAlive(hasActiveWork);
 
   const refreshPendingCount = async () => {
+    // Contamos lo "preparado" (programado) + lo ya autorizado (pendiente):
+    // ambos son trabajo que el botón "Enviar cola" debe procesar.
     const { count } = await supabase
       .from("communication_logs")
       .select("id", { count: "exact", head: true })
       .eq("channel", "email")
-      .eq("status", "pendiente");
+      .in("status", ["programado", "pendiente"]);
     setPendingEmailCount(count ?? 0);
     const { count: waCount } = await supabase
       .from("communication_logs")
       .select("id", { count: "exact", head: true })
       .in("channel", ["whatsapp_business", "whatsapp_asistido"])
-      .eq("status", "pendiente");
+      .in("status", ["programado", "pendiente"]);
     setPendingWaCount(waCount ?? 0);
     const { count: unauthCount } = await supabase
       .from("communication_logs")
@@ -134,10 +136,44 @@ function QueuePage() {
     };
   }, []);
 
+  /**
+   * Autoriza el envío: pasa de "programado" (preparado) a "pendiente" (autorizado)
+   * solo los registros elegidos. Nada se envía nunca sin pasar por aquí.
+   */
+  const authorizeForSending = async (channels: CommChannel[], ids?: string[]): Promise<string[]> => {
+    let q = supabase
+      .from("communication_logs")
+      .select("id")
+      .in("channel", channels)
+      .in("status", ["programado", "pendiente"]);
+    if (ids && ids.length > 0) q = q.in("id", ids);
+    const { data, error } = await q;
+    if (error) throw error;
+    const targetIds = (data ?? []).map((r) => r.id as string);
+    if (targetIds.length === 0) return [];
+    const CHUNK = 200;
+    for (let i = 0; i < targetIds.length; i += CHUNK) {
+      const { error: updErr } = await supabase
+        .from("communication_logs")
+        .update({ status: "pendiente" })
+        .in("id", targetIds.slice(i, i + CHUNK));
+      if (updErr) throw updErr;
+    }
+    return targetIds;
+  };
+
   const sendPendingEmails = async () => {
     setSending(true);
     try {
-      const ids = selectedIds.length > 0 ? selectedIds : undefined;
+      const authorized = await authorizeForSending(
+        ["email"],
+        selectedIds.length > 0 ? selectedIds : undefined,
+      );
+      if (authorized.length === 0) {
+        toast.message("No hay emails en cola para enviar.");
+        return;
+      }
+      const ids: string[] | undefined = authorized;
       const data = await authedInvoke<{
         configured?: boolean;
         message?: string;
@@ -178,7 +214,15 @@ function QueuePage() {
   const sendPendingWhatsapps = async () => {
     setSendingWa(true);
     try {
-      const ids = selectedIds.length > 0 ? selectedIds : undefined;
+      const authorized = await authorizeForSending(
+        ["whatsapp_business", "whatsapp_asistido"],
+        selectedIds.length > 0 ? selectedIds : undefined,
+      );
+      if (authorized.length === 0) {
+        toast.message("No hay WhatsApps en cola para enviar.");
+        return;
+      }
+      const ids: string[] | undefined = authorized;
       const data = await invokeSendWhatsapp<{
         configured?: boolean;
         message?: string;
@@ -242,7 +286,7 @@ function QueuePage() {
       const { error: updErr } = await supabase
         .from("communication_logs")
         .update({
-          status: "pendiente",
+          status: "programado",
           whatsapp_estado: null,
           whatsapp_failed_detail: null,
           whatsapp_failed_code: null,
@@ -251,7 +295,7 @@ function QueuePage() {
         })
         .in("id", ids);
       if (updErr) throw updErr;
-      toast.success(`${ids.length} WhatsApps devueltos a pendiente. Pulsa "Enviar TODA la cola WhatsApp" para relanzar.`);
+      toast.success(`${ids.length} WhatsApps devueltos a la cola sin enviar. Pulsa "Enviar TODA la cola WhatsApp" para relanzar.`);
       await refetch();
       await refreshPendingCount();
     } catch (e) {
@@ -308,7 +352,7 @@ function QueuePage() {
       const { error: updErr } = await supabase
         .from("communication_logs")
         .update({
-          status: "pendiente",
+          status: "programado",
           whatsapp_estado: null,
           whatsapp_failed_detail: null,
           whatsapp_failed_code: null,
@@ -317,7 +361,7 @@ function QueuePage() {
         })
         .in("id", ids);
       if (updErr) throw updErr;
-      toast.success(`${ids.length} WhatsApps devueltos a pendiente. Pulsa "Enviar TODA la cola WhatsApp" para relanzar.`);
+      toast.success(`${ids.length} WhatsApps devueltos a la cola sin enviar. Pulsa "Enviar TODA la cola WhatsApp" para relanzar.`);
       await refetch();
       await refreshPendingCount();
     } catch (e) {
