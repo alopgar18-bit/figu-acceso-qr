@@ -1790,6 +1790,59 @@ export type Database = {
           },
         ]
       }
+      released_seats: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          holder_name: string | null
+          id: string
+          is_companion: boolean
+          participant_id: string | null
+          released_at: string
+          released_reason: string | null
+          seat_number: string | null
+          seat_row: string | null
+          seat_zone: string | null
+          session_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          holder_name?: string | null
+          id?: string
+          is_companion?: boolean
+          participant_id?: string | null
+          released_at?: string
+          released_reason?: string | null
+          seat_number?: string | null
+          seat_row?: string | null
+          seat_zone?: string | null
+          session_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          holder_name?: string | null
+          id?: string
+          is_companion?: boolean
+          participant_id?: string | null
+          released_at?: string
+          released_reason?: string | null
+          seat_number?: string | null
+          seat_row?: string | null
+          seat_zone?: string | null
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "released_seats_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "event_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_seat_overrides: {
         Row: {
           category: Database["public"]["Enums"]["seat_override_category"]

@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/use-reports";
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
+import { exportReleasedSeatsExcel } from "@/lib/released-seats-export";
+
 
 export const Route = createFileRoute("/_authenticated/informes/$eventId")({
   validateSearch: z.object({
@@ -61,11 +63,27 @@ function EventReportPage() {
       toast.error(msg.length > 180 ? msg.slice(0, 180) + "…" : msg);
     }
   };
+  const handleReleasedSeats = async () => {
+    if (!data) return;
+    try {
+      const n = await exportReleasedSeatsExcel({
+        eventId,
+        sessionId: currentSessionId,
+        eventName: data.event.name,
+      });
+      if (n === 0) toast.info("No hay butacas liberadas por cancelación en este filtro");
+      else toast.success(`${n} butacas liberadas exportadas`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Error generando el Excel de butacas liberadas");
+    }
+  };
   const handlePDF = async () => {
     if (!data) return;
     try { await exportReportPDF(data, { sessionId: currentSessionId }); toast.success("PDF generado"); }
     catch (e) { toast.error("Error generando PDF"); console.error(e); }
   };
+
 
   return (
     <div>
@@ -128,6 +146,16 @@ function EventReportPage() {
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />Excel detallado (titulares + acompañantes)
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReleasedSeats}
+              disabled={!hasReport}
+              title="Butacas liberadas por cancelaciones o rechazos, listas para reasignar"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Butacas liberadas (Excel)
+            </Button>
+
             <Button size="sm" onClick={handlePDF} disabled={!hasReport}>
               <Download className="h-4 w-4 mr-2" />PDF
             </Button>
