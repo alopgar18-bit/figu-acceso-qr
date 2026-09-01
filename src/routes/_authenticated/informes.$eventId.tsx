@@ -61,11 +61,27 @@ function EventReportPage() {
       toast.error(msg.length > 180 ? msg.slice(0, 180) + "…" : msg);
     }
   };
+  const handleReleasedSeats = async () => {
+    if (!data) return;
+    try {
+      const n = await exportReleasedSeatsExcel({
+        eventId,
+        sessionId: currentSessionId,
+        eventName: data.event.name,
+      });
+      if (n === 0) toast.info("No hay butacas liberadas por cancelación en este filtro");
+      else toast.success(`${n} butacas liberadas exportadas`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Error generando el Excel de butacas liberadas");
+    }
+  };
   const handlePDF = async () => {
     if (!data) return;
     try { await exportReportPDF(data, { sessionId: currentSessionId }); toast.success("PDF generado"); }
     catch (e) { toast.error("Error generando PDF"); console.error(e); }
   };
+
 
   return (
     <div>
