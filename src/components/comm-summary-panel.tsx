@@ -86,12 +86,15 @@ export function CommSummaryPanel() {
       </div>
 
       {(eventId !== "all" || sessionId !== "all") && (
+        <>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card>
             <CardContent className="p-4">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Invitados con entrada</div>
               <div className="mt-1 text-3xl font-semibold">{kpis?.invitados_con_entrada ?? 0}</div>
-              <div className="text-xs text-muted-foreground mt-1">Incluye exportaciones .eml · sin rechazados</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {kpis ? `${kpis.invitados_brutos} invitados − ${kpis.rechazados} bajas` : "Personas únicas con entrada emitida"}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -114,8 +117,51 @@ export function CommSummaryPanel() {
               <div className="text-xs text-muted-foreground mt-1">Asistentes invitados sin confirmación</div>
             </CardContent>
           </Card>
+          <Card className={kpis && kpis.asientos_duplicados > 0 ? "border-destructive" : undefined}>
+            <CardContent className="p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Asientos duplicados</div>
+              <div className="mt-1 text-3xl font-semibold">{kpis?.asientos_duplicados ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {kpis?.duplicados.length ? `${kpis.duplicados.length} butacas con más de un invitado` : "Sin butacas repetidas"}
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {!!kpis?.duplicados.length && (
+          <Card className="border-destructive">
+            <CardContent className="p-4 space-y-3">
+              <div className="text-sm font-medium">Butacas asignadas a más de un invitado</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Butaca</TableHead>
+                    <TableHead>Invitados</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {kpis.duplicados.map((d) => (
+                    <TableRow key={d.seat}>
+                      <TableCell className="font-mono whitespace-nowrap">{d.seat}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {d.participants.map((p) => (
+                            <a key={p.id} href={`/solicitudes/${p.id}`} className="underline underline-offset-2">
+                              {p.nombre} <span className="text-muted-foreground">· {p.status}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+        </>
       )}
+
 
       <Card>
         <CardContent className="p-4 space-y-3">
