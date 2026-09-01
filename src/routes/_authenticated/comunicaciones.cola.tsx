@@ -452,9 +452,10 @@ function QueuePage() {
         title="Cola de envíos"
         description="Comunicaciones renderizadas pendientes de envío. Exporta como .eml para abrir y enviar desde Gmail (casting@figurarte.es)."
         actions={
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 md:justify-end">
             <Select value={senderValue} onValueChange={setSenderValue}>
-              <SelectTrigger className="w-72"><SelectValue placeholder="Remitente" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-72"><SelectValue placeholder="Remitente" /></SelectTrigger>
+
               <SelectContent>
                 {SENDER_OPTIONS.map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
