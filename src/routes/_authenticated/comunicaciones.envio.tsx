@@ -1147,9 +1147,9 @@ FIGURARTE Casting & Producción`,
               <AlertTitle>{isWhatsapp ? "Envío mediante Wassenger" : "Envío mediante Resend"}</AlertTitle>
               <AlertDescription>
                 {isWhatsapp ? (
-                  <>Se creará la cola con cada mensaje renderizado en estado "pendiente". Pulsa "Enviar WhatsApps pendientes" en la cola para procesar el envío.</>
+                  <>Se creará la cola con cada mensaje renderizado en estado "programado" (preparado, sin enviar). No se envía nada hasta que pulses "Enviar cola" en Comunicaciones → Cola.</>
                 ) : (
-                  <>Se creará la cola con cada email renderizado en estado "pendiente". Remitente: <strong>{senderValue}</strong>. Pulsa "Enviar emails pendientes" en la cola para procesar el envío.</>
+                  <>Se creará la cola con cada email renderizado en estado "programado" (preparado, sin enviar); no se envía nada hasta que pulses "Enviar cola". Remitente: <strong>{senderValue}</strong>. Ve a Comunicaciones → Cola para autorizar el envío.</>
                 )}
               </AlertDescription>
             </Alert>
