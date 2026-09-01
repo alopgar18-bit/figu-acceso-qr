@@ -18,6 +18,10 @@ export function CommSummaryPanel() {
     eventId: eventId === "all" ? undefined : eventId,
     sessionId: sessionId === "all" ? undefined : sessionId,
   });
+  const { data: kpis } = useInvitationKpis({
+    eventId: eventId === "all" ? undefined : eventId,
+    sessionId: sessionId === "all" ? undefined : sessionId,
+  });
 
   const stats = useMemo(
     () => [
