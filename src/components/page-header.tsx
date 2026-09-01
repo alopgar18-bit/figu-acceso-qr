@@ -24,7 +24,7 @@ export function PageHeader({ eyebrow, title, description, actions }: PageHeaderP
         )}
       </div>
       {actions && (
-        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 md:justify-end [&>*]:min-w-0 [&_button]:max-w-full">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 md:justify-end [&>*]:min-w-0 [&_button]:h-auto [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:text-left">
           {actions}
         </div>
       )}
