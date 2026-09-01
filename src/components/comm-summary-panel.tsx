@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 import { useCommSummary, type CommSummaryRow } from "@/lib/use-comm-summary";
+import { useInvitationKpis } from "@/lib/use-invitation-kpis";
 import { CommBatchDetailDialog } from "./comm-batch-detail-dialog";
 
 export function CommSummaryPanel() {
@@ -14,6 +15,10 @@ export function CommSummaryPanel() {
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId === "all" ? undefined : eventId);
   const { data, isLoading } = useCommSummary({
+    eventId: eventId === "all" ? undefined : eventId,
+    sessionId: sessionId === "all" ? undefined : sessionId,
+  });
+  const { data: kpis } = useInvitationKpis({
     eventId: eventId === "all" ? undefined : eventId,
     sessionId: sessionId === "all" ? undefined : sessionId,
   });
@@ -79,6 +84,38 @@ export function CommSummaryPanel() {
           </Card>
         ))}
       </div>
+
+      {(eventId !== "all" || sessionId !== "all") && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Invitados con entrada</div>
+              <div className="mt-1 text-3xl font-semibold">{kpis?.invitados_con_entrada ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">Incluye exportaciones .eml · sin rechazados</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">En lista de espera</div>
+              <div className="mt-1 text-3xl font-semibold">{kpis?.en_espera ?? 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Rechazados / cancelados</div>
+              <div className="mt-1 text-3xl font-semibold">−{kpis?.rechazados ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">Ya descontados de los invitados</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Pendientes de confirmar</div>
+              <div className="mt-1 text-3xl font-semibold">{kpis?.pendientes_confirmar ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">Asistentes invitados sin confirmación</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-4 space-y-3">
