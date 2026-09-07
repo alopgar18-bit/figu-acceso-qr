@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Trash2, CheckCircle2, ClipboardCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -14,6 +14,7 @@ import {
 import { SessionForm } from "@/components/session-form";
 import { useEvent, useSession, useDeleteSession } from "@/lib/use-events";
 import { promoteAssignedSeatsToQR } from "@/lib/seats.functions";
+import { auditSessionSeats, exportSeatAuditExcel } from "@/lib/seat-audit-export";
 
 export const Route = createFileRoute("/_authenticated/eventos/$eventId/sesiones/$sessionId")({
   component: Page,
@@ -64,6 +65,7 @@ function Page() {
               </Link>
             </Button>
             <PromoteSeatsButton sessionId={sessionId} />
+            <SeatAuditButton sessionId={sessionId} sessionName={session?.name} />
             <Button asChild>
               <Link
                 to="/comunicaciones/envio"
@@ -131,6 +133,27 @@ function PromoteSeatsButton({ sessionId }: { sessionId: string }) {
         <CheckCircle2 className="h-4 w-4 mr-2" />
       )}
       Pasar a QR los que tengan butaca
+    </Button>
+  );
+}
+function SeatAuditButton({ sessionId, sessionName }: { sessionId: string; sessionName?: string }) {
+  const mut = useMutation({
+    mutationFn: async () => {
+      const rows = await auditSessionSeats(sessionId);
+      const problemas = rows.filter((r) => r.problema).length;
+      exportSeatAuditExcel(rows, sessionName);
+      return { total: rows.length, problemas };
+    },
+    onSuccess: (r) =>
+      r.problemas === 0
+        ? toast.success(`Todo correcto: ${r.total} aceptados con butaca, email y teléfono válidos.`)
+        : toast.warning(`${r.problemas} de ${r.total} necesitan revisión. Excel descargado.`),
+    onError: (e) => toast.error((e as Error).message),
+  });
+  return (
+    <Button variant="outline" onClick={() => mut.mutate()} disabled={mut.isPending}>
+      {mut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
+      Revisar butacas
     </Button>
   );
 }

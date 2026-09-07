@@ -17,6 +17,8 @@ import {
 } from "@/lib/communication-constants";
 import { useTemplates, useCreateLog } from "@/lib/use-communications";
 import { renderInvitacionPreview } from "@/lib/whatsapp-template";
+import { normalizarTelefonoES } from "@/lib/phone";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Recipient {
   personId?: string | null;
@@ -42,12 +44,43 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
   const [templateId, setTemplateId] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [check, setCheck] = useState<{ baja: number; sinButaca: number; telMal: number; sinEmail: number } | null>(null);
   const create = useCreateLog();
 
   const filteredTemplates = useMemo(
     () => templates.filter((t) => t.channel === channel && t.is_active),
     [templates, channel],
   );
+
+  // Comprobación previa: bajas, butacas y teléfonos antes de encolar nada.
+  useEffect(() => {
+    if (!open) {
+      setCheck(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const ids = recipients.map((r) => r.participantId).filter(Boolean) as string[];
+      let baja = 0;
+      let sinButaca = 0;
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("event_participants")
+          .select("id, status, seat_zone, seat_row, seat_number")
+          .in("id", ids.slice(i, i + 200));
+        for (const p of data ?? []) {
+          if (["cancelado_asistente", "cancelado_figurarte", "rechazado"].includes(p.status)) baja++;
+          else if (!p.seat_zone || !p.seat_row || !p.seat_number) sinButaca++;
+        }
+      }
+      const telMal = recipients.filter((r) => r.phone && !normalizarTelefonoES(r.phone)).length;
+      const sinEmail = recipients.filter((r) => !r.email).length;
+      if (!cancelled) setCheck({ baja, sinButaca, telMal, sinEmail });
+    })().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, recipients]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,6 +184,17 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {check && (check.baja > 0 || check.sinButaca > 0 || check.telMal > 0 || (channel === "email" && check.sinEmail > 0)) && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm space-y-1">
+              <div className="font-medium">Antes de enviar, revisa estos casos</div>
+              <ul className="list-disc pl-5 text-muted-foreground">
+                {check.baja > 0 && <li>{check.baja} persona(s) se han dado de baja: no recibirán nada.</li>}
+                {check.sinButaca > 0 && <li>{check.sinButaca} sin butaca asignada: su entrada no se puede generar.</li>}
+                {check.telMal > 0 && <li>{check.telMal} con teléfono no válido.</li>}
+                {channel === "email" && check.sinEmail > 0 && <li>{check.sinEmail} sin email.</li>}
+              </ul>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Canal</Label>

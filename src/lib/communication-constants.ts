@@ -221,3 +221,20 @@ export const DEFAULT_TEMPLATES: { name: string; channel: CommChannel; subject: s
     body: `Hola {{nombre}},\n\nLamentamos comunicarte que tu participación en {{evento}} ha sido cancelada.\nSi tienes dudas, contáctanos respondiendo a este email.\n\nFIGURARTE`,
   },
 ];
+// Etiquetas legibles para los avisos técnicos que guardan los envíos.
+export const COMM_ERROR_LABELS: Record<string, string> = {
+  pendiente_asiento: "Sin butaca asignada",
+  telefono_invalido: "Teléfono no válido",
+  sin_confirmation_token: "Falta enlace de entrada",
+  participante_no_encontrado: "Solicitud no encontrada",
+  log_incompleto: "Datos de envío incompletos",
+  asistente_dado_de_baja: "El asistente se dio de baja",
+  wati_unauthorized: "Conexión de WhatsApp caducada",
+  "Sin destinatario": "Sin destinatario",
+};
+
+export function commErrorLabel(raw: string | null | undefined): string {
+  const key = (raw ?? "").trim();
+  if (!key) return "";
+  return COMM_ERROR_LABELS[key] ?? key;
+}

@@ -521,7 +521,7 @@ async function processWatiBatch(
     // Cargar participante + persona
     const { data: part } = await supabase
       .from("event_participants")
-      .select("id, confirmation_token, seat_zone, seat_row, seat_number, person_id, people(first_name)")
+      .select("id, status, confirmation_token, seat_zone, seat_row, seat_number, person_id, people(first_name)")
       .eq("id", log.participant_id)
       .maybeSingle();
     if (!part) {
@@ -531,6 +531,16 @@ async function processWatiBatch(
       }).eq("id", log.id);
       errors.push({ id: log.id, error: "participante_no_encontrado" });
       failed++;
+      continue;
+    }
+    // Persona dada de baja: no es un error de envío, se marca como cancelado.
+    if (["cancelado_asistente", "cancelado_figurarte", "rechazado"].includes(String(part.status))) {
+      await supabase.from("communication_logs").update({
+        status: "cancelado",
+        error_message: "asistente_dado_de_baja",
+        whatsapp_failed_detail: null,
+      }).eq("id", log.id);
+      skipped++;
       continue;
     }
     const zona = (part.seat_zone ?? "").toString().trim();

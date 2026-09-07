@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { useCommunicationLogs } from "@/lib/use-communications";
-import { COMM_STATUS_OPTIONS, COMM_CHANNEL_OPTIONS, type CommStatus, type CommChannel, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
+import { COMM_STATUS_OPTIONS, COMM_CHANNEL_OPTIONS, commErrorLabel, type CommStatus, type CommChannel, SENDER_OPTIONS, DEFAULT_SENDER } from "@/lib/communication-constants";
 import { retryCommunication } from "@/lib/bulk-send.functions";
 import { useArchiveCommunicationLogs, useDeleteCommunicationLogs } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
@@ -739,7 +739,15 @@ function QueuePage() {
                     </TableCell>
                     <TableCell className="text-sm max-w-md truncate" title={subject}>{subject}</TableCell>
                     <TableCell><Badge variant={tone}>{statusLabel}</Badge></TableCell>
-                    <TableCell className="text-xs text-destructive">{l.error_message ?? ""}</TableCell>
+                    <TableCell
+                      className={
+                        l.error_message === "asistente_dado_de_baja"
+                          ? "text-xs text-muted-foreground"
+                          : "text-xs text-destructive"
+                      }
+                    >
+                      {commErrorLabel(l.error_message)}
+                    </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {(l.status === "fallido" || l.status === "cancelado") && (
                         <Button
