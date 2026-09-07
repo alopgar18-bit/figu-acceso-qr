@@ -351,14 +351,17 @@ export function useEventReport(scope: ReportScope | null) {
         s.solicitudes += 1;
         s.personasSolicitudes += personas;
         if (["solicitud_recibida", "pendiente_revision"].includes(p.status)) s.pendientes += 1;
-        if (APPROVED_LIKE.includes(p.status)) { s.aprobados += 1; s.personasAprobados += personas; }
+        const accepted = wasAccepted(p);
+        const esBaja = BAJA_LIKE.includes(p.status);
+        if (accepted) { s.aprobados += 1; s.personasAprobados += personas; }
         if (p.status === "rechazado") { s.rechazados += 1; s.personasRechazados += personas; }
         if (p.status === "lista_espera") { s.listaEspera += 1; s.personasListaEspera += personas; }
-        if (CONFIRMED_LIKE.includes(p.status)) {
+        if (accepted && !esBaja) {
           s.confirmados += 1;
           s.personasConfirmadas += personas;
         }
-        if (CANCELLED_LIKE.includes(p.status)) { s.cancelados += 1; s.personasCancelados += personas; }
+        if (accepted && esBaja) { s.cancelados += 1; s.personasCancelados += personas; }
+
         if (p.status === "no_presentado") { s.noPresentados += 1; s.personasNoPresentados += personas; }
         s.incidencias += incidentsByParticipant.get(p.id) ?? 0;
       }
