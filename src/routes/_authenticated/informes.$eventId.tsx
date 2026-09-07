@@ -222,8 +222,9 @@ function EventReportPage() {
 
         <TabsContent value="final" className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Total inscritos (personas)" value={data.totals.personasSolicitudes} />
-          <Stat label="Total aprobados (personas)" value={data.totals.personasAprobados} />
-          <Stat label="Total confirmados (personas)" value={data.totals.personasConfirmadas} />
+          <Stat label="Total aprobados (personas)" value={data.totals.personasAprobados} hint="Plazas concedidas, incluidas las que luego se dieron de baja" />
+          <Stat label="Total confirmados (personas)" value={data.totals.personasConfirmadas} hint="Aprobados menos las bajas: personas esperadas en sala" />
+
           <Stat label="Asistentes reales" value={data.totals.checkins} />
           <Stat label="Entradas con QR" value={data.totals.checkinsQr} />
           <Stat label="Entradas manuales" value={data.totals.checkinsManual} />
@@ -295,7 +296,7 @@ function EventReportPage() {
   );
 }
 
-function Stat({ icon, label, value, tone = "neutral" }: { icon?: React.ReactNode; label: string; value: number | string; tone?: "neutral" | "danger" | "warning" }) {
+function Stat({ icon, label, value, hint, tone = "neutral" }: { icon?: React.ReactNode; label: string; value: number | string; hint?: string; tone?: "neutral" | "danger" | "warning" }) {
   const accent = tone === "danger" ? "border-l-destructive" : tone === "warning" ? "border-l-amber-500" : "border-l-primary";
   return (
     <Card className={`rounded-none border-l-4 ${accent}`}>
@@ -305,10 +306,12 @@ function Stat({ icon, label, value, tone = "neutral" }: { icon?: React.ReactNode
           {icon && <span className="text-muted-foreground [&_svg]:h-4 [&_svg]:w-4">{icon}</span>}
         </div>
         <div className="text-2xl font-black mt-1">{value}</div>
+        {hint && <div className="text-[11px] text-muted-foreground mt-1 leading-snug">{hint}</div>}
       </CardContent>
     </Card>
   );
 }
+
 
 function EmptySelectPrompt({ sessionsLoading, hasSessions }: { sessionsLoading: boolean; hasSessions: boolean }) {
   return (

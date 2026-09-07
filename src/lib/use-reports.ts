@@ -34,18 +34,30 @@ export function useEventSessionsLite(eventId: string | undefined) {
   });
 }
 
-// "Confirmado" en el informe = tiene plaza asegurada (aprobado y aceptado).
-// Incluye los estados intermedios del flujo de envío de QR porque en la práctica
-// muchos asistentes nunca cambian de "aceptado_pendiente_envio" antes de la sesión.
-const CONFIRMED_LIKE: ParticipantStatus[] = [
-  "aceptado_pendiente_envio",
-  "invitacion_enviada",
-  "pendiente_confirmacion",
-  "confirmado",
-  "qr_generado",
-  "acceso_validado",
+// Criterio de los KPI del informe:
+// - "Aprobados"  = personas aceptadas para asistir alguna vez (incluidas las que
+//   después se dieron de baja o fueron canceladas).
+// - "Confirmados" = aprobados menos las bajas.
+// Así siempre se cumple: aprobados − cancelaciones = confirmados.
+
+// Estados que suponen plaza concedida y activa.
+const ACTIVE_ACCEPTED: ParticipantStatus[] = [
+  ...APPROVED_LIKE,
+  "no_presentado",
+  "incidencia",
 ];
-const CANCELLED_LIKE: ParticipantStatus[] = ["cancelado_asistente", "cancelado_figurarte"];
+
+// Bajas: quien tuvo plaza y la perdió (o la dejó).
+const BAJA_LIKE: ParticipantStatus[] = [
+  "cancelado_asistente",
+  "cancelado_figurarte",
+  "rechazado",
+  "bloqueado",
+];
+
+const CONFIRMED_LIKE: ParticipantStatus[] = ACTIVE_ACCEPTED;
+
+
 
 // Supabase devuelve como máximo 1000 filas por petición. Paginamos para no
 // truncar eventos grandes (participantes / check-ins / incidencias / comunicaciones).
@@ -286,6 +298,27 @@ export function useEventReport(scope: ReportScope | null) {
       const allComms = comms.filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
       const allIncidents = incidents.filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
 
+      // Una baja cuenta como "aprobado" solo si llegó a tener plaza: dejó butaca
+      // liberada al cancelar o llegó a confirmar en su día.
+      const releasedParticipantIds = new Set<string>();
+      const bajaIds = parts
+        .filter((p) => BAJA_LIKE.includes(p.status))
+        .map((p) => p.id);
+      for (let i = 0; i < bajaIds.length; i += 200) {
+        const { data: rel, error: relError } = await supabase
+          .from("released_seats")
+          .select("participant_id")
+          .in("participant_id", bajaIds.slice(i, i + 200));
+        if (relError) throw relError;
+        for (const r of (rel ?? []) as Array<{ participant_id: string | null }>) {
+          if (r.participant_id) releasedParticipantIds.add(r.participant_id);
+        }
+      }
+      const wasAccepted = (p: { id: string; status: ParticipantStatus; confirmed_at: string | null }) =>
+        ACTIVE_ACCEPTED.includes(p.status) ||
+        (BAJA_LIKE.includes(p.status) && (releasedParticipantIds.has(p.id) || !!p.confirmed_at));
+
+
       const checkinByParticipant = new Map<string, typeof allCheckins[number]>();
       for (const c of allCheckins) {
         if (!checkinByParticipant.has(c.participant_id)) checkinByParticipant.set(c.participant_id, c);
@@ -318,14 +351,17 @@ export function useEventReport(scope: ReportScope | null) {
         s.solicitudes += 1;
         s.personasSolicitudes += personas;
         if (["solicitud_recibida", "pendiente_revision"].includes(p.status)) s.pendientes += 1;
-        if (APPROVED_LIKE.includes(p.status)) { s.aprobados += 1; s.personasAprobados += personas; }
+        const accepted = wasAccepted(p);
+        const esBaja = BAJA_LIKE.includes(p.status);
+        if (accepted) { s.aprobados += 1; s.personasAprobados += personas; }
         if (p.status === "rechazado") { s.rechazados += 1; s.personasRechazados += personas; }
         if (p.status === "lista_espera") { s.listaEspera += 1; s.personasListaEspera += personas; }
-        if (CONFIRMED_LIKE.includes(p.status)) {
+        if (accepted && !esBaja) {
           s.confirmados += 1;
           s.personasConfirmadas += personas;
         }
-        if (CANCELLED_LIKE.includes(p.status)) { s.cancelados += 1; s.personasCancelados += personas; }
+        if (accepted && esBaja) { s.cancelados += 1; s.personasCancelados += personas; }
+
         if (p.status === "no_presentado") { s.noPresentados += 1; s.personasNoPresentados += personas; }
         s.incidencias += incidentsByParticipant.get(p.id) ?? 0;
       }
