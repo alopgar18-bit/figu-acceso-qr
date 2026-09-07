@@ -298,6 +298,27 @@ export function useEventReport(scope: ReportScope | null) {
       const allComms = comms.filter((c) => !sessionId || !c.session_id || sessionIds.has(c.session_id));
       const allIncidents = incidents.filter((i) => !sessionId || !i.session_id || sessionIds.has(i.session_id));
 
+      // Una baja cuenta como "aprobado" solo si llegó a tener plaza: dejó butaca
+      // liberada al cancelar o llegó a confirmar en su día.
+      const releasedParticipantIds = new Set<string>();
+      const bajaIds = parts
+        .filter((p) => BAJA_LIKE.includes(p.status))
+        .map((p) => p.id);
+      for (let i = 0; i < bajaIds.length; i += 200) {
+        const { data: rel, error: relError } = await supabase
+          .from("released_seats")
+          .select("participant_id")
+          .in("participant_id", bajaIds.slice(i, i + 200));
+        if (relError) throw relError;
+        for (const r of (rel ?? []) as Array<{ participant_id: string | null }>) {
+          if (r.participant_id) releasedParticipantIds.add(r.participant_id);
+        }
+      }
+      const wasAccepted = (p: { id: string; status: ParticipantStatus; confirmed_at: string | null }) =>
+        ACTIVE_ACCEPTED.includes(p.status) ||
+        (BAJA_LIKE.includes(p.status) && (releasedParticipantIds.has(p.id) || !!p.confirmed_at));
+
+
       const checkinByParticipant = new Map<string, typeof allCheckins[number]>();
       for (const c of allCheckins) {
         if (!checkinByParticipant.has(c.participant_id)) checkinByParticipant.set(c.participant_id, c);
