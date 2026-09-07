@@ -132,25 +132,16 @@ function QueuePage() {
    * solo los registros elegidos. Nada se envía nunca sin pasar por aquí.
    */
   const authorizeForSending = async (channels: CommChannel[], ids?: string[]): Promise<string[]> => {
-    let q = supabase
-      .from("communication_logs")
-      .select("id")
-      .in("channel", channels)
-      .in("status", ["programado", "pendiente"]);
-    if (ids && ids.length > 0) q = q.in("id", ids);
-    const { data, error } = await q;
+    // La autorización se resuelve en el servidor en una sola operación,
+    // para que no se agote por tiempo con miles de mensajes en cola.
+    const { data, error } = await supabase.rpc("comm_authorize_queue", {
+      _channels: channels as unknown as string[],
+      _ids: ids && ids.length > 0 ? ids : null,
+    });
     if (error) throw error;
-    const targetIds = (data ?? []).map((r) => r.id as string);
-    if (targetIds.length === 0) return [];
-    const CHUNK = 200;
-    for (let i = 0; i < targetIds.length; i += CHUNK) {
-      const { error: updErr } = await supabase
-        .from("communication_logs")
-        .update({ status: "pendiente" })
-        .in("id", targetIds.slice(i, i + CHUNK));
-      if (updErr) throw updErr;
-    }
-    return targetIds;
+    return ((data ?? []) as unknown as string[]).map((v) =>
+      typeof v === "string" ? v : ((v as { id?: string }).id as string),
+    );
   };
 
   const sendPendingEmails = async () => {
