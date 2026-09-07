@@ -184,6 +184,17 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {check && (check.baja > 0 || check.sinButaca > 0 || check.telMal > 0 || (channel === "email" && check.sinEmail > 0)) && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm space-y-1">
+              <div className="font-medium">Antes de enviar, revisa estos casos</div>
+              <ul className="list-disc pl-5 text-muted-foreground">
+                {check.baja > 0 && <li>{check.baja} persona(s) se han dado de baja: no recibirán nada.</li>}
+                {check.sinButaca > 0 && <li>{check.sinButaca} sin butaca asignada: su entrada no se puede generar.</li>}
+                {check.telMal > 0 && <li>{check.telMal} con teléfono no válido.</li>}
+                {channel === "email" && check.sinEmail > 0 && <li>{check.sinEmail} sin email.</li>}
+              </ul>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Canal</Label>

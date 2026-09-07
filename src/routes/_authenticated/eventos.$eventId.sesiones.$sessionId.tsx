@@ -64,6 +64,7 @@ function Page() {
               </Link>
             </Button>
             <PromoteSeatsButton sessionId={sessionId} />
+            <SeatAuditButton sessionId={sessionId} sessionName={session?.name} />
             <Button asChild>
               <Link
                 to="/comunicaciones/envio"
