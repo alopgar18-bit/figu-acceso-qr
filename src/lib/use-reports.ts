@@ -34,18 +34,30 @@ export function useEventSessionsLite(eventId: string | undefined) {
   });
 }
 
-// "Confirmado" en el informe = tiene plaza asegurada (aprobado y aceptado).
-// Incluye los estados intermedios del flujo de envío de QR porque en la práctica
-// muchos asistentes nunca cambian de "aceptado_pendiente_envio" antes de la sesión.
-const CONFIRMED_LIKE: ParticipantStatus[] = [
-  "aceptado_pendiente_envio",
-  "invitacion_enviada",
-  "pendiente_confirmacion",
-  "confirmado",
-  "qr_generado",
-  "acceso_validado",
+// Criterio de los KPI del informe:
+// - "Aprobados"  = personas aceptadas para asistir alguna vez (incluidas las que
+//   después se dieron de baja o fueron canceladas).
+// - "Confirmados" = aprobados menos las bajas.
+// Así siempre se cumple: aprobados − cancelaciones = confirmados.
+
+// Estados que suponen plaza concedida y activa.
+const ACTIVE_ACCEPTED: ParticipantStatus[] = [
+  ...APPROVED_LIKE,
+  "no_presentado",
+  "incidencia",
 ];
+
+// Bajas: quien tuvo plaza y la perdió (o la dejó).
+const BAJA_LIKE: ParticipantStatus[] = [
+  "cancelado_asistente",
+  "cancelado_figurarte",
+  "rechazado",
+  "bloqueado",
+];
+
+const CONFIRMED_LIKE: ParticipantStatus[] = ACTIVE_ACCEPTED;
 const CANCELLED_LIKE: ParticipantStatus[] = ["cancelado_asistente", "cancelado_figurarte"];
+
 
 // Supabase devuelve como máximo 1000 filas por petición. Paginamos para no
 // truncar eventos grandes (participantes / check-ins / incidencias / comunicaciones).
