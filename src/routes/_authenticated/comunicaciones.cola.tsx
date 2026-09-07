@@ -136,7 +136,7 @@ function QueuePage() {
     // para que no se agote por tiempo con miles de mensajes en cola.
     const { data, error } = await supabase.rpc("comm_authorize_queue", {
       _channels: channels as unknown as string[],
-      _ids: ids && ids.length > 0 ? ids : null,
+      _ids: ids && ids.length > 0 ? ids : undefined,
     });
     if (error) throw error;
     return ((data ?? []) as unknown as string[]).map((v) =>
