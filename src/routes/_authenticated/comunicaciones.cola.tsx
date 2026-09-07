@@ -65,27 +65,18 @@ function QueuePage() {
   useKeepSessionAlive(hasActiveWork);
 
   const refreshPendingCount = async () => {
-    // Contamos lo "preparado" (programado) + lo ya autorizado (pendiente):
-    // ambos son trabajo que el botón "Enviar cola" debe procesar.
-    const { count } = await supabase
-      .from("communication_logs")
-      .select("id", { count: "exact", head: true })
-      .eq("channel", "email")
-      .in("status", ["programado", "pendiente"]);
-    setPendingEmailCount(count ?? 0);
-    const { count: waCount } = await supabase
-      .from("communication_logs")
-      .select("id", { count: "exact", head: true })
-      .in("channel", ["whatsapp_business", "whatsapp_asistido"])
-      .in("status", ["programado", "pendiente"]);
-    setPendingWaCount(waCount ?? 0);
-    const { count: unauthCount } = await supabase
-      .from("communication_logs")
-      .select("id", { count: "exact", head: true })
-      .in("channel", ["whatsapp_business", "whatsapp_asistido"])
-      .eq("status", "fallido")
-      .eq("error_message", "wati_unauthorized");
-    setUnauthorizedCount(unauthCount ?? 0);
+    // Los conteos se hacen en el servidor (una sola llamada) para que no se
+    // agoten por tiempo con decenas de miles de registros y el botón
+    // "Enviar cola" no muestre 0 cuando sí hay trabajo pendiente.
+    const { data, error } = await supabase.rpc("comm_queue_counts");
+    if (error) {
+      toast.error("No se ha podido contar la cola. Vuelve a intentarlo.");
+      return;
+    }
+    const counts = (data ?? {}) as { email?: number; whatsapp?: number; wati_unauthorized?: number };
+    setPendingEmailCount(counts.email ?? 0);
+    setPendingWaCount(counts.whatsapp ?? 0);
+    setUnauthorizedCount(counts.wati_unauthorized ?? 0);
   };
 
   useEffect(() => { void refreshPendingCount(); }, [logs]);
