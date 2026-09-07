@@ -222,8 +222,9 @@ function EventReportPage() {
 
         <TabsContent value="final" className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Total inscritos (personas)" value={data.totals.personasSolicitudes} />
-          <Stat label="Total aprobados (personas)" value={data.totals.personasAprobados} />
-          <Stat label="Total confirmados (personas)" value={data.totals.personasConfirmadas} />
+          <Stat label="Total aprobados (personas)" value={data.totals.personasAprobados} hint="Plazas concedidas, incluidas las que luego se dieron de baja" />
+          <Stat label="Total confirmados (personas)" value={data.totals.personasConfirmadas} hint="Aprobados menos las bajas: personas esperadas en sala" />
+
           <Stat label="Asistentes reales" value={data.totals.checkins} />
           <Stat label="Entradas con QR" value={data.totals.checkinsQr} />
           <Stat label="Entradas manuales" value={data.totals.checkinsManual} />
