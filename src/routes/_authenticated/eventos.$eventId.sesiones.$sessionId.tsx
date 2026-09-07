@@ -135,3 +135,24 @@ function PromoteSeatsButton({ sessionId }: { sessionId: string }) {
     </Button>
   );
 }
+function SeatAuditButton({ sessionId, sessionName }: { sessionId: string; sessionName?: string }) {
+  const mut = useMutation({
+    mutationFn: async () => {
+      const rows = await auditSessionSeats(sessionId);
+      const problemas = rows.filter((r) => r.problema).length;
+      exportSeatAuditExcel(rows, sessionName);
+      return { total: rows.length, problemas };
+    },
+    onSuccess: (r) =>
+      r.problemas === 0
+        ? toast.success(`Todo correcto: ${r.total} aceptados con butaca, email y teléfono válidos.`)
+        : toast.warning(`${r.problemas} de ${r.total} necesitan revisión. Excel descargado.`),
+    onError: (e) => toast.error((e as Error).message),
+  });
+  return (
+    <Button variant="outline" onClick={() => mut.mutate()} disabled={mut.isPending}>
+      {mut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
+      Revisar butacas
+    </Button>
+  );
+}
