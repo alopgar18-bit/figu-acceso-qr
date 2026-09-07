@@ -17,6 +17,8 @@ import {
 } from "@/lib/communication-constants";
 import { useTemplates, useCreateLog } from "@/lib/use-communications";
 import { renderInvitacionPreview } from "@/lib/whatsapp-template";
+import { normalizarTelefonoES } from "@/lib/phone";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Recipient {
   personId?: string | null;
@@ -42,12 +44,43 @@ export function SendCommunicationDialog({ open, onOpenChange, recipients, defaul
   const [templateId, setTemplateId] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [check, setCheck] = useState<{ baja: number; sinButaca: number; telMal: number; sinEmail: number } | null>(null);
   const create = useCreateLog();
 
   const filteredTemplates = useMemo(
     () => templates.filter((t) => t.channel === channel && t.is_active),
     [templates, channel],
   );
+
+  // Comprobación previa: bajas, butacas y teléfonos antes de encolar nada.
+  useEffect(() => {
+    if (!open) {
+      setCheck(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const ids = recipients.map((r) => r.participantId).filter(Boolean) as string[];
+      let baja = 0;
+      let sinButaca = 0;
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("event_participants")
+          .select("id, status, seat_zone, seat_row, seat_number")
+          .in("id", ids.slice(i, i + 200));
+        for (const p of data ?? []) {
+          if (["cancelado_asistente", "cancelado_figurarte", "rechazado"].includes(p.status)) baja++;
+          else if (!p.seat_zone || !p.seat_row || !p.seat_number) sinButaca++;
+        }
+      }
+      const telMal = recipients.filter((r) => r.phone && !normalizarTelefonoES(r.phone)).length;
+      const sinEmail = recipients.filter((r) => !r.email).length;
+      if (!cancelled) setCheck({ baja, sinButaca, telMal, sinEmail });
+    })().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, recipients]);
 
   useEffect(() => {
     if (!open) return;
