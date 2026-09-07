@@ -65,27 +65,18 @@ function QueuePage() {
   useKeepSessionAlive(hasActiveWork);
 
   const refreshPendingCount = async () => {
-    // Contamos lo "preparado" (programado) + lo ya autorizado (pendiente):
-    // ambos son trabajo que el botón "Enviar cola" debe procesar.
-    const { count } = await supabase
-      .from("communication_logs")
-      .select("id", { count: "exact", head: true })
-      .eq("channel", "email")
-      .in("status", ["programado", "pendiente"]);
-    setPendingEmailCount(count ?? 0);
-    const { count: waCount } = await supabase
-      .from("communication_logs")
-      .select("id", { count: "exact", head: true })
-      .in("channel", ["whatsapp_business", "whatsapp_asistido"])
-      .in("status", ["programado", "pendiente"]);
-    setPendingWaCount(waCount ?? 0);
-    const { count: unauthCount } = await supabase
-      .from("communication_logs")
-      .select("id", { count: "exact", head: true })
-      .in("channel", ["whatsapp_business", "whatsapp_asistido"])
-      .eq("status", "fallido")
-      .eq("error_message", "wati_unauthorized");
-    setUnauthorizedCount(unauthCount ?? 0);
+    // Los conteos se hacen en el servidor (una sola llamada) para que no se
+    // agoten por tiempo con decenas de miles de registros y el botón
+    // "Enviar cola" no muestre 0 cuando sí hay trabajo pendiente.
+    const { data, error } = await supabase.rpc("comm_queue_counts");
+    if (error) {
+      toast.error("No se ha podido contar la cola. Vuelve a intentarlo.");
+      return;
+    }
+    const counts = (data ?? {}) as { email?: number; whatsapp?: number; wati_unauthorized?: number };
+    setPendingEmailCount(counts.email ?? 0);
+    setPendingWaCount(counts.whatsapp ?? 0);
+    setUnauthorizedCount(counts.wati_unauthorized ?? 0);
   };
 
   useEffect(() => { void refreshPendingCount(); }, [logs]);
@@ -141,25 +132,16 @@ function QueuePage() {
    * solo los registros elegidos. Nada se envía nunca sin pasar por aquí.
    */
   const authorizeForSending = async (channels: CommChannel[], ids?: string[]): Promise<string[]> => {
-    let q = supabase
-      .from("communication_logs")
-      .select("id")
-      .in("channel", channels)
-      .in("status", ["programado", "pendiente"]);
-    if (ids && ids.length > 0) q = q.in("id", ids);
-    const { data, error } = await q;
+    // La autorización se resuelve en el servidor en una sola operación,
+    // para que no se agote por tiempo con miles de mensajes en cola.
+    const { data, error } = await supabase.rpc("comm_authorize_queue", {
+      _channels: channels as unknown as string[],
+      _ids: ids && ids.length > 0 ? ids : undefined,
+    });
     if (error) throw error;
-    const targetIds = (data ?? []).map((r) => r.id as string);
-    if (targetIds.length === 0) return [];
-    const CHUNK = 200;
-    for (let i = 0; i < targetIds.length; i += CHUNK) {
-      const { error: updErr } = await supabase
-        .from("communication_logs")
-        .update({ status: "pendiente" })
-        .in("id", targetIds.slice(i, i + CHUNK));
-      if (updErr) throw updErr;
-    }
-    return targetIds;
+    return ((data ?? []) as unknown as string[]).map((v) =>
+      typeof v === "string" ? v : ((v as { id?: string }).id as string),
+    );
   };
 
   const sendPendingEmails = async () => {

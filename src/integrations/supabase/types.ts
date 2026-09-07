@@ -2373,6 +2373,11 @@ export type Database = {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
       }
+      comm_authorize_queue: {
+        Args: { _channels: string[]; _ids?: string[] }
+        Returns: string[]
+      }
+      comm_queue_counts: { Args: never; Returns: Json }
       get_my_roles: {
         Args: never
         Returns: {
