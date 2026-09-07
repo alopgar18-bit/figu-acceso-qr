@@ -60,12 +60,45 @@ interface ProcessOptions {
   resendKey: string;
 }
 
+// Estados en los que la persona ya no asiste: no se le envía nada y el log
+// se marca como "cancelado" (no como error).
+const BAJA_STATUSES = ["cancelado_asistente", "cancelado_figurarte", "rechazado"];
+
 async function processEmailBatch(
   supabase: ReturnType<typeof createClient>,
-  logs: Array<{ id: string; to_address: string | null; subject: string | null; body: string | null; metadata: Record<string, unknown> | null; session_id: string | null }>,
+  logsInput: Array<{ id: string; to_address: string | null; subject: string | null; body: string | null; metadata: Record<string, unknown> | null; session_id: string | null; participant_id?: string | null }>,
   opts: ProcessOptions,
 ) {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // Descartar destinatarios dados de baja antes de enviar.
+  let cancelled = 0;
+  const participantIds = Array.from(
+    new Set(logsInput.map((l) => l.participant_id).filter(Boolean)),
+  ) as string[];
+  const bajaIds = new Set<string>();
+  for (let i = 0; i < participantIds.length; i += 200) {
+    const slice = participantIds.slice(i, i + 200);
+    const { data } = await supabase
+      .from("event_participants")
+      .select("id, status")
+      .in("id", slice)
+      .in("status", BAJA_STATUSES);
+    for (const p of (data ?? []) as Array<{ id: string }>) bajaIds.add(p.id);
+  }
+  const logs = logsInput.filter((l) => !(l.participant_id && bajaIds.has(l.participant_id)));
+  const bajaLogIds = logsInput
+    .filter((l) => l.participant_id && bajaIds.has(l.participant_id))
+    .map((l) => l.id);
+  for (let i = 0; i < bajaLogIds.length; i += 200) {
+    const slice = bajaLogIds.slice(i, i + 200);
+    await supabase
+      .from("communication_logs")
+      .update({ status: "cancelado", error_message: "asistente_dado_de_baja" })
+      .in("id", slice);
+    cancelled += slice.length;
+  }
+
   const sessionIds = Array.from(new Set(logs.map((l) => l.session_id).filter(Boolean))) as string[];
   const sessionsById = new Map<string, { starts_at?: string | null; ends_at?: string | null; doors_open_at?: string | null }>();
   if (sessionIds.length > 0) {
