@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Trash2, CheckCircle2, ClipboardCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -14,6 +14,7 @@ import {
 import { SessionForm } from "@/components/session-form";
 import { useEvent, useSession, useDeleteSession } from "@/lib/use-events";
 import { promoteAssignedSeatsToQR } from "@/lib/seats.functions";
+import { auditSessionSeats, exportSeatAuditExcel } from "@/lib/seat-audit-export";
 
 export const Route = createFileRoute("/_authenticated/eventos/$eventId/sesiones/$sessionId")({
   component: Page,
