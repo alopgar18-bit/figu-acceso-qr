@@ -295,7 +295,7 @@ function EventReportPage() {
   );
 }
 
-function Stat({ icon, label, value, tone = "neutral" }: { icon?: React.ReactNode; label: string; value: number | string; tone?: "neutral" | "danger" | "warning" }) {
+function Stat({ icon, label, value, hint, tone = "neutral" }: { icon?: React.ReactNode; label: string; value: number | string; hint?: string; tone?: "neutral" | "danger" | "warning" }) {
   const accent = tone === "danger" ? "border-l-destructive" : tone === "warning" ? "border-l-amber-500" : "border-l-primary";
   return (
     <Card className={`rounded-none border-l-4 ${accent}`}>
@@ -305,10 +305,12 @@ function Stat({ icon, label, value, tone = "neutral" }: { icon?: React.ReactNode
           {icon && <span className="text-muted-foreground [&_svg]:h-4 [&_svg]:w-4">{icon}</span>}
         </div>
         <div className="text-2xl font-black mt-1">{value}</div>
+        {hint && <div className="text-[11px] text-muted-foreground mt-1 leading-snug">{hint}</div>}
       </CardContent>
     </Card>
   );
 }
+
 
 function EmptySelectPrompt({ sessionsLoading, hasSessions }: { sessionsLoading: boolean; hasSessions: boolean }) {
   return (
