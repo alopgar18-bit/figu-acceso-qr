@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import DOMPurify from "isomorphic-dompurify";
-import { COMM_CHANNEL_OPTIONS, COMM_STATUS_OPTIONS, type CommChannel, type CommStatus } from "@/lib/communication-constants";
+import { COMM_CHANNEL_OPTIONS, COMM_STATUS_OPTIONS, commErrorLabel, type CommChannel, type CommStatus } from "@/lib/communication-constants";
 
 export interface CommLogDetail {
   id: string;
@@ -68,8 +68,18 @@ export function CommLogDetailDialog({
 
           {log.error_message && (
             <div>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Error</div>
-              <div className="text-destructive text-sm whitespace-pre-wrap">{log.error_message}</div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+                {log.error_message === "asistente_dado_de_baja" ? "Motivo" : "Error"}
+              </div>
+              <div
+                className={
+                  log.error_message === "asistente_dado_de_baja"
+                    ? "text-muted-foreground text-sm whitespace-pre-wrap"
+                    : "text-destructive text-sm whitespace-pre-wrap"
+                }
+              >
+                {commErrorLabel(log.error_message)}
+              </div>
             </div>
           )}
 
