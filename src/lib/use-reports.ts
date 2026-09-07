@@ -56,7 +56,7 @@ const BAJA_LIKE: ParticipantStatus[] = [
 ];
 
 const CONFIRMED_LIKE: ParticipantStatus[] = ACTIVE_ACCEPTED;
-const CANCELLED_LIKE: ParticipantStatus[] = ["cancelado_asistente", "cancelado_figurarte"];
+
 
 
 // Supabase devuelve como máximo 1000 filas por petición. Paginamos para no
