@@ -183,7 +183,7 @@ async function processEmailBatch(
     }
   }
 
-  return { sent, failed, processed: logs.length, errors };
+  return { sent, failed, cancelled, processed: logsInput.length, errors };
 }
 
 Deno.serve(async (req) => {
@@ -223,12 +223,12 @@ Deno.serve(async (req) => {
       : DEFAULT_FROM_ADDRESS;
 
     // Resolver logs: si vienen ids explícitos los usamos, si no paginamos TODOS los pendientes.
-    type LogRow = { id: string; to_address: string | null; subject: string | null; body: string | null; metadata: Record<string, unknown> | null; session_id: string | null };
+    type LogRow = { id: string; to_address: string | null; subject: string | null; body: string | null; metadata: Record<string, unknown> | null; session_id: string | null; participant_id: string | null };
     let allLogs: LogRow[] = [];
     if (body.ids && body.ids.length > 0) {
       const { data, error } = await supabase
         .from("communication_logs")
-        .select("id, to_address, subject, body, metadata, session_id")
+        .select("id, to_address, subject, body, metadata, session_id, participant_id")
         .eq("channel", "email")
         .eq("status", "pendiente")
         .in("id", body.ids);
@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
         const pageSize = Math.min(PAGE_SIZE, hardCap - offset);
         const { data, error } = await supabase
           .from("communication_logs")
-          .select("id, to_address, subject, body, metadata, session_id")
+          .select("id, to_address, subject, body, metadata, session_id, participant_id")
           .eq("channel", "email")
           .eq("status", "pendiente")
           .order("created_at", { ascending: true })
