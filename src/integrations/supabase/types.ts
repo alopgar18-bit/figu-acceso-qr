@@ -2428,6 +2428,7 @@ export type Database = {
         Returns: string
       }
       submit_public_form: { Args: { _payload: Json }; Returns: Json }
+      whatsapp_queue_status: { Args: never; Returns: Json }
     }
     Enums: {
       app_role:
