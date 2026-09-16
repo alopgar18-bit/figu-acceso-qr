@@ -39,53 +39,49 @@ export function WhatsappQueueStatusBanner() {
   const active = !!st && (st.lockActive || st.spamPauseActive || st.pending > 0);
   useKeepSessionAlive(active);
 
+  // Una sola llamada al servidor devuelve todas las cifras (antes eran 7 consultas).
   const load = async () => {
-    const sinceIso = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const since24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [lockRes, spamLockRes, pendRes, sentRes, failRes, spamFailRes, lastRes] = await Promise.all([
-      supabase.from("whatsapp_drain_locks").select("acquired_at, expires_at").eq("lock_key", "wati_drain").maybeSingle(),
-      supabase.from("whatsapp_drain_locks").select("acquired_at, expires_at").eq("lock_key", "wati_spam_pause").maybeSingle(),
-      supabase.from("communication_logs").select("id", { count: "exact", head: true })
-        .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "pendiente"),
-      supabase.from("communication_logs").select("id", { count: "exact", head: true })
-        .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "enviado").gte("sent_at", sinceIso),
-      supabase.from("communication_logs").select("id", { count: "exact", head: true })
-        .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "fallido").gte("created_at", sinceIso),
-      supabase.from("communication_logs").select("id", { count: "exact", head: true })
-        .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "fallido")
-        .ilike("whatsapp_failed_detail", "%Spam Rate limit hit%").gte("created_at", since24hIso),
-      supabase.from("communication_logs").select("sent_at")
-        .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "enviado")
-        .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
-    const lock = lockRes.data as { acquired_at: string; expires_at: string } | null;
-    const lockActive = !!lock && new Date(lock.expires_at).getTime() > Date.now();
-    const spamLock = spamLockRes.data as { acquired_at: string; expires_at: string } | null;
-    const spamPauseActive = !!spamLock && new Date(spamLock.expires_at).getTime() > Date.now();
-    // Rate: enviados en los últimos 5 min
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { count: last5 } = await supabase.from("communication_logs").select("id", { count: "exact", head: true })
-      .in("channel", ["whatsapp_business", "whatsapp_asistido"]).eq("status", "enviado").gte("sent_at", fiveMinAgo);
+    const { data, error } = await supabase.rpc("whatsapp_queue_status");
+    if (error || !data) return;
+    const d = data as unknown as {
+      lockActive: boolean; lockAcquiredAt: string | null; lockExpiresAt: string | null;
+      spamPauseActive: boolean; spamPauseUntil: string | null;
+      pending: number; sentRecent: number; failedRecent: number; spamFailedRecent: number;
+      sentLast5: number; lastSentAt: string | null;
+    };
     setSt({
-      lockActive,
-      lockAcquiredAt: lock?.acquired_at ?? null,
-      lockExpiresAt: lock?.expires_at ?? null,
-      spamPauseActive,
-      spamPauseUntil: spamLock?.expires_at ?? null,
-      pending: pendRes.count ?? 0,
-      sentRecent: sentRes.count ?? 0,
-      failedRecent: failRes.count ?? 0,
-      spamFailedRecent: spamFailRes.count ?? 0,
-      lastSentAt: (lastRes.data as { sent_at: string | null } | null)?.sent_at ?? null,
-      ratePerMin: Math.round(((last5 ?? 0) / 5) * 10) / 10,
+      lockActive: !!d.lockActive,
+      lockAcquiredAt: d.lockAcquiredAt ?? null,
+      lockExpiresAt: d.lockExpiresAt ?? null,
+      spamPauseActive: !!d.spamPauseActive,
+      spamPauseUntil: d.spamPauseUntil ?? null,
+      pending: Number(d.pending ?? 0),
+      sentRecent: Number(d.sentRecent ?? 0),
+      failedRecent: Number(d.failedRecent ?? 0),
+      spamFailedRecent: Number(d.spamFailedRecent ?? 0),
+      lastSentAt: d.lastSentAt ?? null,
+      ratePerMin: Math.round((Number(d.sentLast5 ?? 0) / 5) * 10) / 10,
     });
   };
 
+  // Refresco adaptativo: 15 s con envíos en curso, 60 s en reposo y
+  // parada total cuando la pestaña no está visible (evita castigar la BD).
   useEffect(() => {
-    void load();
-    const id = setInterval(() => { void load(); }, 5000);
-    return () => clearInterval(id);
-  }, []);
+    let id: ReturnType<typeof setInterval> | null = null;
+    const stop = () => { if (id) { clearInterval(id); id = null; } };
+    const start = () => {
+      stop();
+      if (document.visibilityState !== "visible") return;
+      void load();
+      id = setInterval(() => { void load(); }, active ? 15_000 : 60_000);
+    };
+    start();
+    document.addEventListener("visibilitychange", start);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", start);
+    };
+  }, [active]);
 
   if (!st) return null;
   // No mostrar el banner si no hay nada en juego.
