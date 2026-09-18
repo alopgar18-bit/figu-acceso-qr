@@ -208,8 +208,8 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      if (e instanceof AuthedInvokeError) toast.error(e.message);
-      else toast.error((e as Error).message);
+      if (e instanceof AuthedInvokeError && e.status === 409) toast.message(e.message);
+      else toast.error(mensajeEnvio(e, "email"), { duration: 12000 });
     } finally {
       setSending(false);
     }
