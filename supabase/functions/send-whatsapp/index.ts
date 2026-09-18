@@ -120,25 +120,35 @@ Deno.serve(async (req) => {
 
     const channels = ["whatsapp_business", "whatsapp_asistido"];
 
-    let query = supabase
-      .from("communication_logs")
-      .select("id, to_address, body, metadata, channel")
-      .in("channel", channels)
-      .eq("status", "pendiente")
-      .order("created_at", { ascending: true })
-      .limit(limit);
+    const SELECT_COLS = "id, to_address, body, metadata, channel";
+    // deno-lint-ignore no-explicit-any
+    let logs: any[] = [];
 
     if (body.ids && body.ids.length > 0) {
-      query = supabase
+      // Troceado: con cientos de ids la URL de la consulta supera el límite.
+      const ID_CHUNK = 100;
+      for (let i = 0; i < body.ids.length; i += ID_CHUNK) {
+        const slice = body.ids.slice(i, i + ID_CHUNK);
+        const { data, error } = await supabase
+          .from("communication_logs")
+          .select(SELECT_COLS)
+          .in("channel", channels)
+          .eq("status", "pendiente")
+          .in("id", slice);
+        if (error) throw error;
+        logs = logs.concat(data ?? []);
+      }
+    } else {
+      const { data, error } = await supabase
         .from("communication_logs")
-        .select("id, to_address, body, metadata, channel")
+        .select(SELECT_COLS)
         .in("channel", channels)
         .eq("status", "pendiente")
-        .in("id", body.ids);
+        .order("created_at", { ascending: true })
+        .limit(limit);
+      if (error) throw error;
+      logs = data ?? [];
     }
-
-    const { data: logs, error: fetchError } = await query;
-    if (fetchError) throw fetchError;
 
     let sent = 0;
     let failed = 0;
@@ -313,25 +323,35 @@ async function runWati(
     );
   }
 
-  let query = supabase
-    .from("communication_logs")
-    .select("id, to_address, participant_id, event_id, session_id, batch_id, metadata, status, whatsapp_estado, wati_local_message_id")
-    .in("channel", channels)
-    .eq("status", "pendiente")
-    .order("created_at", { ascending: true })
-    .limit(limit);
+  const DRAIN_COLS = "id, to_address, participant_id, event_id, session_id, batch_id, metadata, status, whatsapp_estado, wati_local_message_id";
+  let rawLogs: unknown[] = [];
 
   if (body.ids && body.ids.length > 0) {
-    query = supabase
+    // Troceado: con cientos de ids la URL de la consulta supera el límite.
+    const ID_CHUNK = 100;
+    for (let i = 0; i < body.ids.length; i += ID_CHUNK) {
+      const slice = body.ids.slice(i, i + ID_CHUNK);
+      const { data, error } = await supabase
+        .from("communication_logs")
+        .select(DRAIN_COLS)
+        .in("channel", channels)
+        .in("id", slice);
+      if (error) throw error;
+      rawLogs = rawLogs.concat(data ?? []);
+    }
+  } else {
+    const { data, error } = await supabase
       .from("communication_logs")
-      .select("id, to_address, participant_id, event_id, session_id, batch_id, metadata, status, whatsapp_estado, wati_local_message_id")
+      .select(DRAIN_COLS)
       .in("channel", channels)
-      .in("id", body.ids);
+      .eq("status", "pendiente")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+    if (error) throw error;
+    rawLogs = data ?? [];
   }
 
-  const { data: rawLogs, error: fetchErr } = await query;
-  if (fetchErr) throw fetchErr;
-  const logs = (rawLogs ?? []) as unknown as CommLogRow[];
+  const logs = rawLogs as unknown as CommLogRow[];
 
   // Las funciones tienen un tiempo máximo de ejecución. Procesar cientos de
   // mensajes con pausas en una sola ejecución hacía que el runtime la cortase

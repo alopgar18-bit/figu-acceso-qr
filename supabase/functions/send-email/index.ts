@@ -226,14 +226,20 @@ Deno.serve(async (req) => {
     type LogRow = { id: string; to_address: string | null; subject: string | null; body: string | null; metadata: Record<string, unknown> | null; session_id: string | null; participant_id: string | null };
     let allLogs: LogRow[] = [];
     if (body.ids && body.ids.length > 0) {
-      const { data, error } = await supabase
-        .from("communication_logs")
-        .select("id, to_address, subject, body, metadata, session_id, participant_id")
-        .eq("channel", "email")
-        .eq("status", "pendiente")
-        .in("id", body.ids);
-      if (error) throw error;
-      allLogs = (data ?? []) as LogRow[];
+      // Troceado obligatorio: con cientos de ids la URL de la consulta supera el
+      // límite del servidor y la petición se rechaza antes de procesar nada.
+      const ID_CHUNK = 100;
+      for (let i = 0; i < body.ids.length; i += ID_CHUNK) {
+        const slice = body.ids.slice(i, i + ID_CHUNK);
+        const { data, error } = await supabase
+          .from("communication_logs")
+          .select("id, to_address, subject, body, metadata, session_id, participant_id")
+          .eq("channel", "email")
+          .eq("status", "pendiente")
+          .in("id", slice);
+        if (error) throw error;
+        allLogs = allLogs.concat((data ?? []) as LogRow[]);
+      }
     } else {
       const wantsBackground = body.background === true;
       const hardCap = wantsBackground ? MAX_BACKGROUND_LOGS : limit;

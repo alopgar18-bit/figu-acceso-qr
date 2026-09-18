@@ -29,6 +29,28 @@ export const Route = createFileRoute("/_authenticated/comunicaciones/cola")({
   component: QueuePage,
 });
 
+/**
+ * Traduce los fallos técnicos del envío a un aviso entendible.
+ * El detalle completo queda en la consola, no en pantalla.
+ */
+function mensajeEnvio(e: unknown, canal: "email" | "whatsapp"): string {
+  const bruto = e instanceof Error ? e.message : String(e);
+  console.error(`[cola ${canal}]`, e);
+  const txt = bruto.toLowerCase();
+  const cola = canal === "email" ? "Enviar TODA la cola" : "Enviar TODA la cola WhatsApp";
+  if (txt.includes("error sending request") || txt.includes("414") || txt.includes("uri too long")) {
+    return `La tanda era demasiado grande para enviarse de una vez. Vuelve a pulsar "${cola}"; si se repite, selecciona un bloque más pequeño.`;
+  }
+  if (txt.includes("401") || txt.includes("unauthorized") || txt.includes("jwt")) {
+    return "Tu sesión ha caducado. Recarga la página y vuelve a pulsar Enviar cola.";
+  }
+  if (txt.includes("timeout") || txt.includes("failed to fetch") || txt.includes("network")) {
+    return `No se pudo contactar con el servidor de envíos. Espera unos segundos y vuelve a pulsar "${cola}".`;
+  }
+  const detalle = bruto.length > 160 ? `${bruto.slice(0, 160)}…` : bruto;
+  return `No se pudo iniciar la tanda: ${detalle}. Vuelve a pulsar "${cola}".`;
+}
+
 function QueuePage() {
   const [status, setStatus] = useState<CommStatus | "all">("programado");
   const [search, setSearch] = useState("");
@@ -186,8 +208,8 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      if (e instanceof AuthedInvokeError) toast.error(e.message);
-      else toast.error((e as Error).message);
+      if (e instanceof AuthedInvokeError && e.status === 409) toast.message(e.message);
+      else toast.error(mensajeEnvio(e, "email"), { duration: 12000 });
     } finally {
       setSending(false);
     }
@@ -244,7 +266,7 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      toast.error(e instanceof SendWhatsappError ? e.message : (e as Error).message);
+      toast.error(mensajeEnvio(e, "whatsapp"), { duration: 12000 });
     } finally {
       setSendingWa(false);
     }
