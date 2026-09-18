@@ -121,7 +121,8 @@ Deno.serve(async (req) => {
     const channels = ["whatsapp_business", "whatsapp_asistido"];
 
     const SELECT_COLS = "id, to_address, body, metadata, channel";
-    let logs: Array<Record<string, unknown>> = [];
+    // deno-lint-ignore no-explicit-any
+    let logs: any[] = [];
 
     if (body.ids && body.ids.length > 0) {
       // Troceado: con cientos de ids la URL de la consulta supera el límite.
