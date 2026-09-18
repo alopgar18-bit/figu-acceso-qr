@@ -266,7 +266,7 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      toast.error(e instanceof SendWhatsappError ? e.message : (e as Error).message);
+      toast.error(mensajeEnvio(e, "whatsapp"), { duration: 12000 });
     } finally {
       setSendingWa(false);
     }
