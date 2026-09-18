@@ -120,25 +120,34 @@ Deno.serve(async (req) => {
 
     const channels = ["whatsapp_business", "whatsapp_asistido"];
 
-    let query = supabase
-      .from("communication_logs")
-      .select("id, to_address, body, metadata, channel")
-      .in("channel", channels)
-      .eq("status", "pendiente")
-      .order("created_at", { ascending: true })
-      .limit(limit);
+    const SELECT_COLS = "id, to_address, body, metadata, channel";
+    let logs: Array<Record<string, unknown>> = [];
 
     if (body.ids && body.ids.length > 0) {
-      query = supabase
+      // Troceado: con cientos de ids la URL de la consulta supera el límite.
+      const ID_CHUNK = 100;
+      for (let i = 0; i < body.ids.length; i += ID_CHUNK) {
+        const slice = body.ids.slice(i, i + ID_CHUNK);
+        const { data, error } = await supabase
+          .from("communication_logs")
+          .select(SELECT_COLS)
+          .in("channel", channels)
+          .eq("status", "pendiente")
+          .in("id", slice);
+        if (error) throw error;
+        logs = logs.concat(data ?? []);
+      }
+    } else {
+      const { data, error } = await supabase
         .from("communication_logs")
-        .select("id, to_address, body, metadata, channel")
+        .select(SELECT_COLS)
         .in("channel", channels)
         .eq("status", "pendiente")
-        .in("id", body.ids);
+        .order("created_at", { ascending: true })
+        .limit(limit);
+      if (error) throw error;
+      logs = data ?? [];
     }
-
-    const { data: logs, error: fetchError } = await query;
-    if (fetchError) throw fetchError;
 
     let sent = 0;
     let failed = 0;
