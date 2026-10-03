@@ -95,6 +95,11 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ─── Acción: sincronizar plantillas APROBADAS en Meta vía Wati ─────────
+    if (body.action === "sync_templates") {
+      return await syncWatiTemplates(supabase);
+    }
+
     // ─── Branch: WATI ────────────────────────────────────────────────────────
     if (PROVIDER === "wati") {
       return await runWati(supabase, body);
@@ -258,6 +263,7 @@ type CommLogRow = {
   status: string;
   whatsapp_estado: string | null;
   wati_local_message_id: string | null;
+  template_id?: string | null;
 };
 
 async function runWati(
@@ -323,7 +329,7 @@ async function runWati(
     );
   }
 
-  const DRAIN_COLS = "id, to_address, participant_id, event_id, session_id, batch_id, metadata, status, whatsapp_estado, wati_local_message_id";
+  const DRAIN_COLS = "id, to_address, participant_id, event_id, session_id, batch_id, metadata, status, whatsapp_estado, wati_local_message_id, template_id";
   let rawLogs: unknown[] = [];
 
   if (body.ids && body.ids.length > 0) {
@@ -497,8 +503,26 @@ async function processWatiBatch(
     phone: string;
     ctx: InvitacionContext;
     isTest: boolean;
+    templateName: string;
+    templateVars: string[] | null;
   };
   const prepared: Prepared[] = [];
+
+  // Plantilla Wati por log: si apunta a una plantilla de WhatsApp Business
+  // sincronizada (nombre técnico de Meta), se usa esa; si no, la de entrada.
+  const tplInfo = new Map<string, { name: string; vars: string[] }>();
+  const tplIds = [...new Set(logs.map((l) => l.template_id).filter(Boolean) as string[])];
+  if (tplIds.length) {
+    const { data: tpls } = await supabase
+      .from("communication_templates")
+      .select("id, name, channel, variables")
+      .in("id", tplIds);
+    for (const t of (tpls ?? []) as Array<{ id: string; name: string; channel: string; variables: unknown }>) {
+      if (t.channel !== "whatsapp_business" || !/^[a-z0-9_]+$/.test(t.name)) continue;
+      const vars = Array.isArray(t.variables) ? (t.variables as unknown[]).map(String) : [];
+      tplInfo.set(t.id, { name: t.name, vars });
+    }
+  }
 
   for (const log of logs) {
     const meta = (log.metadata ?? {}) as Record<string, unknown>;
@@ -644,7 +668,8 @@ async function processWatiBatch(
       zona, fila, asiento, lugar,
       enlace_entrada,
     };
-    prepared.push({ log, phone, ctx, isTest });
+    const tpl = log.template_id ? tplInfo.get(log.template_id) : undefined;
+    prepared.push({ log, phone, ctx, isTest, templateName: tpl?.name ?? TEMPLATE_NAME, templateVars: tpl?.vars ?? null });
 
     // Si es reenvío forzado, limpiamos campos previos para no liar el seguimiento.
     if (forceResend && (log.wati_local_message_id || log.whatsapp_estado)) {
@@ -691,10 +716,12 @@ async function processWatiBatch(
           : `manual_${new Date().toISOString()}`;
       const res = await watiSendTemplateIndividual({
         endpoint: endpoint!, token: token!,
-        templateName: TEMPLATE_NAME,
+        templateName: p.templateName,
         broadcastName: broadcast,
         whatsappNumber: p.phone,
-        parameters: buildWatiParameters(p.ctx),
+        parameters: p.templateName === TEMPLATE_NAME || !p.templateVars
+          ? buildWatiParameters(p.ctx)
+          : buildWatiParameters(p.ctx).filter((x) => p.templateVars!.includes(x.name)),
         language: TEMPLATE_LANGUAGE,
       });
       if (res.ok) {
@@ -925,4 +952,57 @@ async function processWatiBatch(
         }
       : {}),
   };
+}
+
+// Consulta Wati y registra en communication_templates solo las plantillas
+// APPROVED. Las demás de WhatsApp Business se desactivan (no se borran, para
+// conservar el histórico de envíos).
+async function syncWatiTemplates(supabase: ReturnType<typeof createClient>) {
+  const json = (b: unknown) =>
+    new Response(JSON.stringify(b), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  const endpoint = Deno.env.get("WATI_API_ENDPOINT");
+  const token = Deno.env.get("WATI_ACCESS_TOKEN");
+  if (!endpoint || !token) return json({ ok: false, message: "Faltan las credenciales de Wati." });
+  const base = endpoint.replace(/\/+$/, "");
+  // deno-lint-ignore no-explicit-any
+  const all: any[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const res = await fetch(`${base}/api/v1/getMessageTemplates?pageSize=100&pageNumber=${page}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    if (!res.ok) return json({ ok: false, message: `Wati respondió ${res.status}. Revisa el token de Wati.` });
+    const data = await res.json();
+    const items = data?.messageTemplates ?? [];
+    all.push(...items);
+    if (items.length < 100) break;
+  }
+  const approved = all.filter((t) => String(t.status).toUpperCase() === "APPROVED");
+  const names: string[] = [];
+  for (const t of approved) {
+    const name = String(t.elementName ?? t.name ?? "").trim();
+    if (!name || names.includes(name)) continue;
+    names.push(name);
+    const body = String(t.body ?? t.bodyOriginal ?? "");
+    const vars = [...new Set([...body.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]))];
+    const { data: existing } = await supabase
+      .from("communication_templates").select("id")
+      .eq("channel", "whatsapp_business").eq("name", name).limit(1);
+    const payload = { name, channel: "whatsapp_business", body: body || name, variables: vars, is_active: true };
+    if (existing && existing.length) {
+      await supabase.from("communication_templates").update(payload).eq("id", (existing[0] as { id: string }).id);
+    } else {
+      await supabase.from("communication_templates").insert(payload);
+    }
+  }
+  const { data: wb } = await supabase
+    .from("communication_templates").select("id, name").eq("channel", "whatsapp_business");
+  const toDisable = ((wb ?? []) as Array<{ id: string; name: string }>)
+    .filter((t) => !names.includes(t.name)).map((t) => t.id);
+  if (toDisable.length) {
+    await supabase.from("communication_templates").update({ is_active: false }).in("id", toDisable);
+  }
+  return json({
+    ok: true, approved: names, disabled: toDisable.length,
+    message: `Sincronizadas ${names.length} plantillas aprobadas en Meta; ${toDisable.length} ocultadas del desplegable.`,
+  });
 }
