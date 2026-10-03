@@ -590,7 +590,11 @@ async function processWatiBatch(
     const zona = (part.seat_zone ?? "").toString().trim();
     const fila = (part.seat_row ?? "").toString().trim();
     const asiento = (part.seat_number ?? "").toString().trim();
-    if (!zona || !fila || !asiento) {
+    // Solo se exige butaca si la plantilla usa zona/fila/asiento (p. ej. la de entrada).
+    const tpl = log.template_id ? tplInfo.get(log.template_id) : undefined;
+    const needsSeat = !tpl || tpl.name === TEMPLATE_NAME
+      || tpl.vars.some((v) => v === "zona" || v === "fila" || v === "asiento");
+    if (needsSeat && (!zona || !fila || !asiento)) {
       await supabase.from("communication_logs").update({
         status: "fallido", whatsapp_estado: "failed",
         error_message: "pendiente_asiento",
@@ -656,7 +660,9 @@ async function processWatiBatch(
     }
 
     const nombre = ((part.people as unknown as { first_name?: string })?.first_name) ?? "";
-    const enlace_entrada = `${publicSiteUrl.replace(/\/$/, "")}/og/c/${token}`;
+    const siteBase = publicSiteUrl.replace(/\/$/, "");
+    const enlace_entrada = `${siteBase}/og/c/${token}`;
+    const enlace_cancelacion = `${siteBase}/c/${token}/cancelar`;
 
     const ctx: InvitacionContext = {
       nombre,
@@ -667,8 +673,8 @@ async function processWatiBatch(
       hora_fin: horaFin,
       zona, fila, asiento, lugar,
       enlace_entrada,
+      enlace_cancelacion,
     };
-    const tpl = log.template_id ? tplInfo.get(log.template_id) : undefined;
     prepared.push({ log, phone, ctx, isTest, templateName: tpl?.name ?? TEMPLATE_NAME, templateVars: tpl?.vars ?? null });
 
     // Si es reenvío forzado, limpiamos campos previos para no liar el seguimiento.
@@ -721,7 +727,7 @@ async function processWatiBatch(
         whatsappNumber: p.phone,
         parameters: p.templateName === TEMPLATE_NAME || !p.templateVars
           ? buildWatiParameters(p.ctx)
-          : buildWatiParameters(p.ctx).filter((x) => p.templateVars!.includes(x.name)),
+          : buildWatiParametersFor(p.ctx, p.templateVars),
         language: TEMPLATE_LANGUAGE,
       });
       if (res.ok) {
@@ -982,7 +988,19 @@ async function syncWatiTemplates(supabase: ReturnType<typeof createClient>) {
     const name = String(t.elementName ?? t.name ?? "").trim();
     if (!name || names.includes(name)) continue;
     names.push(name);
-    const body = String(t.body ?? t.bodyOriginal ?? "");
+    // Preferimos bodyOriginal (variables con nombre). Si solo hay versión
+    // numerada {{1}}, la traducimos con customParams (posición → nombre).
+    let body = String(t.bodyOriginal ?? "").trim();
+    if (!body || !/\{\{\s*[a-zA-Z_]\w*\s*\}\}/.test(body)) {
+      const raw = String(t.body ?? t.bodyOriginal ?? "");
+      // deno-lint-ignore no-explicit-any
+      const params: any[] = Array.isArray(t.customParams) ? t.customParams : [];
+      body = raw.replace(/\{\{\s*(\d+)\s*\}\}/g, (m, n) => {
+        const p = params[Number(n) - 1];
+        const nm = p?.paramName ?? p?.name;
+        return nm ? `{{${nm}}}` : m;
+      });
+    }
     const vars = [...new Set([...body.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]))];
     const { data: existing } = await supabase
       .from("communication_templates").select("id")
