@@ -10,7 +10,7 @@ export class SendWhatsappError extends AuthedInvokeError {
 
 type SendWhatsappBody = {
   ids?: string[];
-  action?: "test";
+  action?: "test" | "sync_templates";
 };
 
 /**

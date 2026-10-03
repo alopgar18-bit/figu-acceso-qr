@@ -9,72 +9,71 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as PrivacidadRouteImport } from './routes/privacidad'
-import { Route as PortalRouteImport } from './routes/portal'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PortalIndexRouteImport } from './routes/portal.index'
-import { Route as TQrTokenRouteImport } from './routes/t.$qrToken'
-import { Route as PortalInformesRouteImport } from './routes/portal.informes'
-import { Route as PortalIncidenciasRouteImport } from './routes/portal.incidencias'
-import { Route as PortalEventosRouteImport } from './routes/portal.eventos'
-import { Route as FFormSlugRouteImport } from './routes/f.$formSlug'
-import { Route as ESlugRouteImport } from './routes/e.$slug'
-import { Route as CTokenRouteImport } from './routes/c.$token'
-import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
-import { Route as AuthenticatedSolicitudesRouteImport } from './routes/_authenticated/solicitudes'
-import { Route as AuthenticatedSesionesRouteImport } from './routes/_authenticated/sesiones'
-import { Route as AuthenticatedPlanosRouteImport } from './routes/_authenticated/planos'
-import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticated/personas'
-import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/logs'
-import { Route as AuthenticatedLegalRouteImport } from './routes/_authenticated/legal'
-import { Route as AuthenticatedInformesRouteImport } from './routes/_authenticated/informes'
-import { Route as AuthenticatedIncidenciasRouteImport } from './routes/_authenticated/incidencias'
-import { Route as AuthenticatedImportacionesRouteImport } from './routes/_authenticated/importaciones'
-import { Route as AuthenticatedDisenoEntradasRouteImport } from './routes/_authenticated/diseno-entradas'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authenticated/control-acceso'
-import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
-import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PortalRouteImport } from './routes/portal'
+import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as AuthenticatedBrandingRouteImport } from './routes/_authenticated/branding'
-import { Route as PortalEventosIndexRouteImport } from './routes/portal.eventos.index'
-import { Route as AuthenticatedPlanosIndexRouteImport } from './routes/_authenticated/planos.index'
-import { Route as AuthenticatedEventosIndexRouteImport } from './routes/_authenticated/eventos.index'
-import { Route as PortalEventosEventIdRouteImport } from './routes/portal.eventos.$eventId'
-import { Route as OgCTokenRouteImport } from './routes/og.c.$token'
-import { Route as ESlugInscripcionRouteImport } from './routes/e.$slug.inscripcion'
-import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
-import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
-import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
-import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
-import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
-import { Route as CTokenCanceladaRouteImport } from './routes/c.$token.cancelada'
-import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
-import { Route as AuthenticatedPlanosPlanIdRouteImport } from './routes/_authenticated/planos.$planId'
-import { Route as AuthenticatedInformesEventIdRouteImport } from './routes/_authenticated/informes.$eventId'
-import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
-import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
-import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
-import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
-import { Route as AuthenticatedControlAccesoSessionIdRouteImport } from './routes/_authenticated/control-acceso.$sessionId'
-import { Route as AuthenticatedComunicacionesEnvioRouteImport } from './routes/_authenticated/comunicaciones.envio'
+import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
+import { Route as AuthenticatedComunicacionesRouteImport } from './routes/_authenticated/comunicaciones'
+import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authenticated/control-acceso'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDisenoEntradasRouteImport } from './routes/_authenticated/diseno-entradas'
+import { Route as AuthenticatedImportacionesRouteImport } from './routes/_authenticated/importaciones'
+import { Route as AuthenticatedIncidenciasRouteImport } from './routes/_authenticated/incidencias'
+import { Route as AuthenticatedInformesRouteImport } from './routes/_authenticated/informes'
+import { Route as AuthenticatedLegalRouteImport } from './routes/_authenticated/legal'
+import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/logs'
+import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticated/personas'
+import { Route as AuthenticatedPlanosRouteImport } from './routes/_authenticated/planos'
+import { Route as AuthenticatedSesionesRouteImport } from './routes/_authenticated/sesiones'
+import { Route as AuthenticatedSolicitudesRouteImport } from './routes/_authenticated/solicitudes'
+import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
+import { Route as CTokenRouteImport } from './routes/c.$token'
+import { Route as ESlugRouteImport } from './routes/e.$slug'
+import { Route as FFormSlugRouteImport } from './routes/f.$formSlug'
+import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as PortalEventosRouteImport } from './routes/portal.eventos'
+import { Route as PortalIncidenciasRouteImport } from './routes/portal.incidencias'
+import { Route as PortalInformesRouteImport } from './routes/portal.informes'
+import { Route as TQrTokenRouteImport } from './routes/t.$qrToken'
 import { Route as AuthenticatedComunicacionesColaRouteImport } from './routes/_authenticated/comunicaciones.cola'
-import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs/tick'
-import { Route as AuthenticatedSesionesSessionIdPlanoRouteImport } from './routes/_authenticated/sesiones.$sessionId.plano'
-import { Route as AuthenticatedSesionesSessionIdAsignacionRouteImport } from './routes/_authenticated/sesiones.$sessionId.asignacion'
+import { Route as AuthenticatedComunicacionesEnvioRouteImport } from './routes/_authenticated/comunicaciones.envio'
+import { Route as AuthenticatedControlAccesoSessionIdRouteImport } from './routes/_authenticated/control-acceso.$sessionId'
+import { Route as AuthenticatedEventosIndexRouteImport } from './routes/_authenticated/eventos.index'
+import { Route as AuthenticatedEventosEventIdRouteImport } from './routes/_authenticated/eventos.$eventId'
+import { Route as AuthenticatedEventosNuevoRouteImport } from './routes/_authenticated/eventos.nuevo'
+import { Route as AuthenticatedImportacionesBatchIdRouteImport } from './routes/_authenticated/importaciones.$batchId'
+import { Route as AuthenticatedImportacionesNuevaRouteImport } from './routes/_authenticated/importaciones.nueva'
+import { Route as AuthenticatedInformesEventIdRouteImport } from './routes/_authenticated/informes.$eventId'
+import { Route as AuthenticatedPlanosIndexRouteImport } from './routes/_authenticated/planos.index'
+import { Route as AuthenticatedPlanosPlanIdRouteImport } from './routes/_authenticated/planos.$planId'
+import { Route as AuthenticatedSolicitudesParticipantIdRouteImport } from './routes/_authenticated/solicitudes.$participantId'
+import { Route as CTokenCanceladaRouteImport } from './routes/c.$token.cancelada'
+import { Route as CTokenCancelarRouteImport } from './routes/c.$token.cancelar'
+import { Route as CTokenEntradaRouteImport } from './routes/c.$token.entrada'
+import { Route as ESlugCerradoRouteImport } from './routes/e.$slug.cerrado'
+import { Route as ESlugCompletoRouteImport } from './routes/e.$slug.completo'
+import { Route as ESlugGraciasRouteImport } from './routes/e.$slug.gracias'
+import { Route as ESlugInscripcionRouteImport } from './routes/e.$slug.inscripcion'
+import { Route as OgCTokenRouteImport } from './routes/og.c.$token'
+import { Route as PortalEventosIndexRouteImport } from './routes/portal.eventos.index'
+import { Route as PortalEventosEventIdRouteImport } from './routes/portal.eventos.$eventId'
 import { Route as AuthenticatedEventosEventIdEditarRouteImport } from './routes/_authenticated/eventos.$eventId.editar'
-import { Route as AuthenticatedEventosEventIdSesionesNuevaRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.nueva'
+import { Route as AuthenticatedSesionesSessionIdAsignacionRouteImport } from './routes/_authenticated/sesiones.$sessionId.asignacion'
+import { Route as AuthenticatedSesionesSessionIdPlanoRouteImport } from './routes/_authenticated/sesiones.$sessionId.plano'
+import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs/tick'
 import { Route as AuthenticatedEventosEventIdSesionesSessionIdRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.$sessionId'
+import { Route as AuthenticatedEventosEventIdSesionesNuevaRouteImport } from './routes/_authenticated/eventos.$eventId.sesiones.nueva'
 
-const PrivacidadRoute = PrivacidadRouteImport.update({
-  id: '/privacidad',
-  path: '/privacidad',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PortalRoute = PortalRouteImport.update({
-  id: '/portal',
-  path: '/portal',
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -82,100 +81,47 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const PrivacidadRoute = PrivacidadRouteImport.update({
+  id: '/privacidad',
+  path: '/privacidad',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PortalIndexRoute = PortalIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => PortalRoute,
-} as any)
-const TQrTokenRoute = TQrTokenRouteImport.update({
-  id: '/t/$qrToken',
-  path: '/t/$qrToken',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PortalInformesRoute = PortalInformesRouteImport.update({
-  id: '/informes',
-  path: '/informes',
-  getParentRoute: () => PortalRoute,
-} as any)
-const PortalIncidenciasRoute = PortalIncidenciasRouteImport.update({
-  id: '/incidencias',
-  path: '/incidencias',
-  getParentRoute: () => PortalRoute,
-} as any)
-const PortalEventosRoute = PortalEventosRouteImport.update({
-  id: '/eventos',
-  path: '/eventos',
-  getParentRoute: () => PortalRoute,
-} as any)
-const FFormSlugRoute = FFormSlugRouteImport.update({
-  id: '/f/$formSlug',
-  path: '/f/$formSlug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ESlugRoute = ESlugRouteImport.update({
-  id: '/e/$slug',
-  path: '/e/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CTokenRoute = CTokenRouteImport.update({
-  id: '/c/$token',
-  path: '/c/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
-  id: '/usuarios',
-  path: '/usuarios',
+const AuthenticatedBrandingRoute = AuthenticatedBrandingRouteImport.update({
+  id: '/branding',
+  path: '/branding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedSolicitudesRoute =
-  AuthenticatedSolicitudesRouteImport.update({
-    id: '/solicitudes',
-    path: '/solicitudes',
+const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
+  id: '/clientes',
+  path: '/clientes',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedComunicacionesRoute =
+  AuthenticatedComunicacionesRouteImport.update({
+    id: '/comunicaciones',
+    path: '/comunicaciones',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedSesionesRoute = AuthenticatedSesionesRouteImport.update({
-  id: '/sesiones',
-  path: '/sesiones',
+const AuthenticatedControlAccesoRoute =
+  AuthenticatedControlAccesoRouteImport.update({
+    id: '/control-acceso',
+    path: '/control-acceso',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedPlanosRoute = AuthenticatedPlanosRouteImport.update({
-  id: '/planos',
-  path: '/planos',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPersonasRoute = AuthenticatedPersonasRouteImport.update({
-  id: '/personas',
-  path: '/personas',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedLogsRoute = AuthenticatedLogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedLegalRoute = AuthenticatedLegalRouteImport.update({
-  id: '/legal',
-  path: '/legal',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedInformesRoute = AuthenticatedInformesRouteImport.update({
-  id: '/informes',
-  path: '/informes',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedIncidenciasRoute =
-  AuthenticatedIncidenciasRouteImport.update({
-    id: '/incidencias',
-    path: '/incidencias',
+const AuthenticatedDisenoEntradasRoute =
+  AuthenticatedDisenoEntradasRouteImport.update({
+    id: '/diseno-entradas',
+    path: '/diseno-entradas',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedImportacionesRoute =
@@ -184,135 +130,115 @@ const AuthenticatedImportacionesRoute =
     path: '/importaciones',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedDisenoEntradasRoute =
-  AuthenticatedDisenoEntradasRouteImport.update({
-    id: '/diseno-entradas',
-    path: '/diseno-entradas',
+const AuthenticatedIncidenciasRoute =
+  AuthenticatedIncidenciasRouteImport.update({
+    id: '/incidencias',
+    path: '/incidencias',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const AuthenticatedInformesRoute = AuthenticatedInformesRouteImport.update({
+  id: '/informes',
+  path: '/informes',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedControlAccesoRoute =
-  AuthenticatedControlAccesoRouteImport.update({
-    id: '/control-acceso',
-    path: '/control-acceso',
+const AuthenticatedLegalRoute = AuthenticatedLegalRouteImport.update({
+  id: '/legal',
+  path: '/legal',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedLogsRoute = AuthenticatedLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPersonasRoute = AuthenticatedPersonasRouteImport.update({
+  id: '/personas',
+  path: '/personas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPlanosRoute = AuthenticatedPlanosRouteImport.update({
+  id: '/planos',
+  path: '/planos',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSesionesRoute = AuthenticatedSesionesRouteImport.update({
+  id: '/sesiones',
+  path: '/sesiones',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSolicitudesRoute =
+  AuthenticatedSolicitudesRouteImport.update({
+    id: '/solicitudes',
+    path: '/solicitudes',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedComunicacionesRoute =
-  AuthenticatedComunicacionesRouteImport.update({
-    id: '/comunicaciones',
-    path: '/comunicaciones',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
-  id: '/clientes',
-  path: '/clientes',
+const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
+  id: '/usuarios',
+  path: '/usuarios',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBrandingRoute = AuthenticatedBrandingRouteImport.update({
-  id: '/branding',
-  path: '/branding',
-  getParentRoute: () => AuthenticatedRoute,
+const CTokenRoute = CTokenRouteImport.update({
+  id: '/c/$token',
+  path: '/c/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const PortalEventosIndexRoute = PortalEventosIndexRouteImport.update({
+const ESlugRoute = ESlugRouteImport.update({
+  id: '/e/$slug',
+  path: '/e/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FFormSlugRoute = FFormSlugRouteImport.update({
+  id: '/f/$formSlug',
+  path: '/f/$formSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => PortalEventosRoute,
+  getParentRoute: () => PortalRoute,
 } as any)
-const AuthenticatedPlanosIndexRoute =
-  AuthenticatedPlanosIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedPlanosRoute,
+const PortalEventosRoute = PortalEventosRouteImport.update({
+  id: '/eventos',
+  path: '/eventos',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalIncidenciasRoute = PortalIncidenciasRouteImport.update({
+  id: '/incidencias',
+  path: '/incidencias',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalInformesRoute = PortalInformesRouteImport.update({
+  id: '/informes',
+  path: '/informes',
+  getParentRoute: () => PortalRoute,
+} as any)
+const TQrTokenRoute = TQrTokenRouteImport.update({
+  id: '/t/$qrToken',
+  path: '/t/$qrToken',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedComunicacionesColaRoute =
+  AuthenticatedComunicacionesColaRouteImport.update({
+    id: '/cola',
+    path: '/cola',
+    getParentRoute: () => AuthenticatedComunicacionesRoute,
+  } as any)
+const AuthenticatedComunicacionesEnvioRoute =
+  AuthenticatedComunicacionesEnvioRouteImport.update({
+    id: '/envio',
+    path: '/envio',
+    getParentRoute: () => AuthenticatedComunicacionesRoute,
+  } as any)
+const AuthenticatedControlAccesoSessionIdRoute =
+  AuthenticatedControlAccesoSessionIdRouteImport.update({
+    id: '/$sessionId',
+    path: '/$sessionId',
+    getParentRoute: () => AuthenticatedControlAccesoRoute,
   } as any)
 const AuthenticatedEventosIndexRoute =
   AuthenticatedEventosIndexRouteImport.update({
     id: '/eventos/',
     path: '/eventos/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const PortalEventosEventIdRoute = PortalEventosEventIdRouteImport.update({
-  id: '/$eventId',
-  path: '/$eventId',
-  getParentRoute: () => PortalEventosRoute,
-} as any)
-const OgCTokenRoute = OgCTokenRouteImport.update({
-  id: '/og/c/$token',
-  path: '/og/c/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ESlugInscripcionRoute = ESlugInscripcionRouteImport.update({
-  id: '/inscripcion',
-  path: '/inscripcion',
-  getParentRoute: () => ESlugRoute,
-} as any)
-const ESlugGraciasRoute = ESlugGraciasRouteImport.update({
-  id: '/gracias',
-  path: '/gracias',
-  getParentRoute: () => ESlugRoute,
-} as any)
-const ESlugCompletoRoute = ESlugCompletoRouteImport.update({
-  id: '/completo',
-  path: '/completo',
-  getParentRoute: () => ESlugRoute,
-} as any)
-const ESlugCerradoRoute = ESlugCerradoRouteImport.update({
-  id: '/cerrado',
-  path: '/cerrado',
-  getParentRoute: () => ESlugRoute,
-} as any)
-const CTokenEntradaRoute = CTokenEntradaRouteImport.update({
-  id: '/entrada',
-  path: '/entrada',
-  getParentRoute: () => CTokenRoute,
-} as any)
-const CTokenCancelarRoute = CTokenCancelarRouteImport.update({
-  id: '/cancelar',
-  path: '/cancelar',
-  getParentRoute: () => CTokenRoute,
-} as any)
-const CTokenCanceladaRoute = CTokenCanceladaRouteImport.update({
-  id: '/cancelada',
-  path: '/cancelada',
-  getParentRoute: () => CTokenRoute,
-} as any)
-const AuthenticatedSolicitudesParticipantIdRoute =
-  AuthenticatedSolicitudesParticipantIdRouteImport.update({
-    id: '/$participantId',
-    path: '/$participantId',
-    getParentRoute: () => AuthenticatedSolicitudesRoute,
-  } as any)
-const AuthenticatedPlanosPlanIdRoute =
-  AuthenticatedPlanosPlanIdRouteImport.update({
-    id: '/$planId',
-    path: '/$planId',
-    getParentRoute: () => AuthenticatedPlanosRoute,
-  } as any)
-const AuthenticatedInformesEventIdRoute =
-  AuthenticatedInformesEventIdRouteImport.update({
-    id: '/$eventId',
-    path: '/$eventId',
-    getParentRoute: () => AuthenticatedInformesRoute,
-  } as any)
-const AuthenticatedImportacionesNuevaRoute =
-  AuthenticatedImportacionesNuevaRouteImport.update({
-    id: '/nueva',
-    path: '/nueva',
-    getParentRoute: () => AuthenticatedImportacionesRoute,
-  } as any)
-const AuthenticatedImportacionesBatchIdRoute =
-  AuthenticatedImportacionesBatchIdRouteImport.update({
-    id: '/$batchId',
-    path: '/$batchId',
-    getParentRoute: () => AuthenticatedImportacionesRoute,
-  } as any)
-const AuthenticatedEventosNuevoRoute =
-  AuthenticatedEventosNuevoRouteImport.update({
-    id: '/eventos/nuevo',
-    path: '/eventos/nuevo',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedEventosEventIdRoute =
@@ -321,34 +247,103 @@ const AuthenticatedEventosEventIdRoute =
     path: '/eventos/$eventId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedControlAccesoSessionIdRoute =
-  AuthenticatedControlAccesoSessionIdRouteImport.update({
-    id: '/$sessionId',
-    path: '/$sessionId',
-    getParentRoute: () => AuthenticatedControlAccesoRoute,
+const AuthenticatedEventosNuevoRoute =
+  AuthenticatedEventosNuevoRouteImport.update({
+    id: '/eventos/nuevo',
+    path: '/eventos/nuevo',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedComunicacionesEnvioRoute =
-  AuthenticatedComunicacionesEnvioRouteImport.update({
-    id: '/envio',
-    path: '/envio',
-    getParentRoute: () => AuthenticatedComunicacionesRoute,
+const AuthenticatedImportacionesBatchIdRoute =
+  AuthenticatedImportacionesBatchIdRouteImport.update({
+    id: '/$batchId',
+    path: '/$batchId',
+    getParentRoute: () => AuthenticatedImportacionesRoute,
   } as any)
-const AuthenticatedComunicacionesColaRoute =
-  AuthenticatedComunicacionesColaRouteImport.update({
-    id: '/cola',
-    path: '/cola',
-    getParentRoute: () => AuthenticatedComunicacionesRoute,
+const AuthenticatedImportacionesNuevaRoute =
+  AuthenticatedImportacionesNuevaRouteImport.update({
+    id: '/nueva',
+    path: '/nueva',
+    getParentRoute: () => AuthenticatedImportacionesRoute,
   } as any)
-const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
-  id: '/api/public/jobs/tick',
-  path: '/api/public/jobs/tick',
+const AuthenticatedInformesEventIdRoute =
+  AuthenticatedInformesEventIdRouteImport.update({
+    id: '/$eventId',
+    path: '/$eventId',
+    getParentRoute: () => AuthenticatedInformesRoute,
+  } as any)
+const AuthenticatedPlanosIndexRoute =
+  AuthenticatedPlanosIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedPlanosRoute,
+  } as any)
+const AuthenticatedPlanosPlanIdRoute =
+  AuthenticatedPlanosPlanIdRouteImport.update({
+    id: '/$planId',
+    path: '/$planId',
+    getParentRoute: () => AuthenticatedPlanosRoute,
+  } as any)
+const AuthenticatedSolicitudesParticipantIdRoute =
+  AuthenticatedSolicitudesParticipantIdRouteImport.update({
+    id: '/$participantId',
+    path: '/$participantId',
+    getParentRoute: () => AuthenticatedSolicitudesRoute,
+  } as any)
+const CTokenCanceladaRoute = CTokenCanceladaRouteImport.update({
+  id: '/cancelada',
+  path: '/cancelada',
+  getParentRoute: () => CTokenRoute,
+} as any)
+const CTokenCancelarRoute = CTokenCancelarRouteImport.update({
+  id: '/cancelar',
+  path: '/cancelar',
+  getParentRoute: () => CTokenRoute,
+} as any)
+const CTokenEntradaRoute = CTokenEntradaRouteImport.update({
+  id: '/entrada',
+  path: '/entrada',
+  getParentRoute: () => CTokenRoute,
+} as any)
+const ESlugCerradoRoute = ESlugCerradoRouteImport.update({
+  id: '/cerrado',
+  path: '/cerrado',
+  getParentRoute: () => ESlugRoute,
+} as any)
+const ESlugCompletoRoute = ESlugCompletoRouteImport.update({
+  id: '/completo',
+  path: '/completo',
+  getParentRoute: () => ESlugRoute,
+} as any)
+const ESlugGraciasRoute = ESlugGraciasRouteImport.update({
+  id: '/gracias',
+  path: '/gracias',
+  getParentRoute: () => ESlugRoute,
+} as any)
+const ESlugInscripcionRoute = ESlugInscripcionRouteImport.update({
+  id: '/inscripcion',
+  path: '/inscripcion',
+  getParentRoute: () => ESlugRoute,
+} as any)
+const OgCTokenRoute = OgCTokenRouteImport.update({
+  id: '/og/c/$token',
+  path: '/og/c/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedSesionesSessionIdPlanoRoute =
-  AuthenticatedSesionesSessionIdPlanoRouteImport.update({
-    id: '/$sessionId/plano',
-    path: '/$sessionId/plano',
-    getParentRoute: () => AuthenticatedSesionesRoute,
+const PortalEventosIndexRoute = PortalEventosIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PortalEventosRoute,
+} as any)
+const PortalEventosEventIdRoute = PortalEventosEventIdRouteImport.update({
+  id: '/$eventId',
+  path: '/$eventId',
+  getParentRoute: () => PortalEventosRoute,
+} as any)
+const AuthenticatedEventosEventIdEditarRoute =
+  AuthenticatedEventosEventIdEditarRouteImport.update({
+    id: '/editar',
+    path: '/editar',
+    getParentRoute: () => AuthenticatedEventosEventIdRoute,
   } as any)
 const AuthenticatedSesionesSessionIdAsignacionRoute =
   AuthenticatedSesionesSessionIdAsignacionRouteImport.update({
@@ -356,22 +351,27 @@ const AuthenticatedSesionesSessionIdAsignacionRoute =
     path: '/$sessionId/asignacion',
     getParentRoute: () => AuthenticatedSesionesRoute,
   } as any)
-const AuthenticatedEventosEventIdEditarRoute =
-  AuthenticatedEventosEventIdEditarRouteImport.update({
-    id: '/editar',
-    path: '/editar',
+const AuthenticatedSesionesSessionIdPlanoRoute =
+  AuthenticatedSesionesSessionIdPlanoRouteImport.update({
+    id: '/$sessionId/plano',
+    path: '/$sessionId/plano',
+    getParentRoute: () => AuthenticatedSesionesRoute,
+  } as any)
+const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
+  id: '/api/public/jobs/tick',
+  path: '/api/public/jobs/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedEventosEventIdSesionesSessionIdRoute =
+  AuthenticatedEventosEventIdSesionesSessionIdRouteImport.update({
+    id: '/sesiones/$sessionId',
+    path: '/sesiones/$sessionId',
     getParentRoute: () => AuthenticatedEventosEventIdRoute,
   } as any)
 const AuthenticatedEventosEventIdSesionesNuevaRoute =
   AuthenticatedEventosEventIdSesionesNuevaRouteImport.update({
     id: '/sesiones/nueva',
     path: '/sesiones/nueva',
-    getParentRoute: () => AuthenticatedEventosEventIdRoute,
-  } as any)
-const AuthenticatedEventosEventIdSesionesSessionIdRoute =
-  AuthenticatedEventosEventIdSesionesSessionIdRouteImport.update({
-    id: '/sesiones/$sessionId',
-    path: '/sesiones/$sessionId',
     getParentRoute: () => AuthenticatedEventosEventIdRoute,
   } as any)
 
@@ -739,25 +739,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/privacidad': {
-      id: '/privacidad'
-      path: '/privacidad'
-      fullPath: '/privacidad'
-      preLoaderRoute: typeof PrivacidadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/portal': {
-      id: '/portal'
-      path: '/portal'
-      fullPath: '/portal'
-      preLoaderRoute: typeof PortalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -767,165 +753,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/portal/': {
-      id: '/portal/'
-      path: '/'
-      fullPath: '/portal/'
-      preLoaderRoute: typeof PortalIndexRouteImport
-      parentRoute: typeof PortalRoute
-    }
-    '/t/$qrToken': {
-      id: '/t/$qrToken'
-      path: '/t/$qrToken'
-      fullPath: '/t/$qrToken'
-      preLoaderRoute: typeof TQrTokenRouteImport
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/portal/informes': {
-      id: '/portal/informes'
-      path: '/informes'
-      fullPath: '/portal/informes'
-      preLoaderRoute: typeof PortalInformesRouteImport
-      parentRoute: typeof PortalRoute
-    }
-    '/portal/incidencias': {
-      id: '/portal/incidencias'
-      path: '/incidencias'
-      fullPath: '/portal/incidencias'
-      preLoaderRoute: typeof PortalIncidenciasRouteImport
-      parentRoute: typeof PortalRoute
-    }
-    '/portal/eventos': {
-      id: '/portal/eventos'
-      path: '/eventos'
-      fullPath: '/portal/eventos'
-      preLoaderRoute: typeof PortalEventosRouteImport
-      parentRoute: typeof PortalRoute
-    }
-    '/f/$formSlug': {
-      id: '/f/$formSlug'
-      path: '/f/$formSlug'
-      fullPath: '/f/$formSlug'
-      preLoaderRoute: typeof FFormSlugRouteImport
+    '/privacidad': {
+      id: '/privacidad'
+      path: '/privacidad'
+      fullPath: '/privacidad'
+      preLoaderRoute: typeof PrivacidadRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/e/$slug': {
-      id: '/e/$slug'
-      path: '/e/$slug'
-      fullPath: '/e/$slug'
-      preLoaderRoute: typeof ESlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/c/$token': {
-      id: '/c/$token'
-      path: '/c/$token'
-      fullPath: '/c/$token'
-      preLoaderRoute: typeof CTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/usuarios': {
-      id: '/_authenticated/usuarios'
-      path: '/usuarios'
-      fullPath: '/usuarios'
-      preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/solicitudes': {
-      id: '/_authenticated/solicitudes'
-      path: '/solicitudes'
-      fullPath: '/solicitudes'
-      preLoaderRoute: typeof AuthenticatedSolicitudesRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/sesiones': {
-      id: '/_authenticated/sesiones'
-      path: '/sesiones'
-      fullPath: '/sesiones'
-      preLoaderRoute: typeof AuthenticatedSesionesRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/planos': {
-      id: '/_authenticated/planos'
-      path: '/planos'
-      fullPath: '/planos'
-      preLoaderRoute: typeof AuthenticatedPlanosRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/personas': {
-      id: '/_authenticated/personas'
-      path: '/personas'
-      fullPath: '/personas'
-      preLoaderRoute: typeof AuthenticatedPersonasRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/logs': {
-      id: '/_authenticated/logs'
-      path: '/logs'
-      fullPath: '/logs'
-      preLoaderRoute: typeof AuthenticatedLogsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/legal': {
-      id: '/_authenticated/legal'
-      path: '/legal'
-      fullPath: '/legal'
-      preLoaderRoute: typeof AuthenticatedLegalRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/informes': {
-      id: '/_authenticated/informes'
-      path: '/informes'
-      fullPath: '/informes'
-      preLoaderRoute: typeof AuthenticatedInformesRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/incidencias': {
-      id: '/_authenticated/incidencias'
-      path: '/incidencias'
-      fullPath: '/incidencias'
-      preLoaderRoute: typeof AuthenticatedIncidenciasRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/importaciones': {
-      id: '/_authenticated/importaciones'
-      path: '/importaciones'
-      fullPath: '/importaciones'
-      preLoaderRoute: typeof AuthenticatedImportacionesRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/diseno-entradas': {
-      id: '/_authenticated/diseno-entradas'
-      path: '/diseno-entradas'
-      fullPath: '/diseno-entradas'
-      preLoaderRoute: typeof AuthenticatedDisenoEntradasRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/control-acceso': {
-      id: '/_authenticated/control-acceso'
-      path: '/control-acceso'
-      fullPath: '/control-acceso'
-      preLoaderRoute: typeof AuthenticatedControlAccesoRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/comunicaciones': {
-      id: '/_authenticated/comunicaciones'
-      path: '/comunicaciones'
-      fullPath: '/comunicaciones'
-      preLoaderRoute: typeof AuthenticatedComunicacionesRouteImport
+    '/_authenticated/branding': {
+      id: '/_authenticated/branding'
+      path: '/branding'
+      fullPath: '/branding'
+      preLoaderRoute: typeof AuthenticatedBrandingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/clientes': {
@@ -935,137 +788,186 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClientesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/branding': {
-      id: '/_authenticated/branding'
-      path: '/branding'
-      fullPath: '/branding'
-      preLoaderRoute: typeof AuthenticatedBrandingRouteImport
+    '/_authenticated/comunicaciones': {
+      id: '/_authenticated/comunicaciones'
+      path: '/comunicaciones'
+      fullPath: '/comunicaciones'
+      preLoaderRoute: typeof AuthenticatedComunicacionesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/portal/eventos/': {
-      id: '/portal/eventos/'
-      path: '/'
-      fullPath: '/portal/eventos/'
-      preLoaderRoute: typeof PortalEventosIndexRouteImport
-      parentRoute: typeof PortalEventosRoute
+    '/_authenticated/control-acceso': {
+      id: '/_authenticated/control-acceso'
+      path: '/control-acceso'
+      fullPath: '/control-acceso'
+      preLoaderRoute: typeof AuthenticatedControlAccesoRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/planos/': {
-      id: '/_authenticated/planos/'
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/diseno-entradas': {
+      id: '/_authenticated/diseno-entradas'
+      path: '/diseno-entradas'
+      fullPath: '/diseno-entradas'
+      preLoaderRoute: typeof AuthenticatedDisenoEntradasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/importaciones': {
+      id: '/_authenticated/importaciones'
+      path: '/importaciones'
+      fullPath: '/importaciones'
+      preLoaderRoute: typeof AuthenticatedImportacionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/incidencias': {
+      id: '/_authenticated/incidencias'
+      path: '/incidencias'
+      fullPath: '/incidencias'
+      preLoaderRoute: typeof AuthenticatedIncidenciasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/informes': {
+      id: '/_authenticated/informes'
+      path: '/informes'
+      fullPath: '/informes'
+      preLoaderRoute: typeof AuthenticatedInformesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/legal': {
+      id: '/_authenticated/legal'
+      path: '/legal'
+      fullPath: '/legal'
+      preLoaderRoute: typeof AuthenticatedLegalRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/logs': {
+      id: '/_authenticated/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AuthenticatedLogsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/personas': {
+      id: '/_authenticated/personas'
+      path: '/personas'
+      fullPath: '/personas'
+      preLoaderRoute: typeof AuthenticatedPersonasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/planos': {
+      id: '/_authenticated/planos'
+      path: '/planos'
+      fullPath: '/planos'
+      preLoaderRoute: typeof AuthenticatedPlanosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/sesiones': {
+      id: '/_authenticated/sesiones'
+      path: '/sesiones'
+      fullPath: '/sesiones'
+      preLoaderRoute: typeof AuthenticatedSesionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/solicitudes': {
+      id: '/_authenticated/solicitudes'
+      path: '/solicitudes'
+      fullPath: '/solicitudes'
+      preLoaderRoute: typeof AuthenticatedSolicitudesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/usuarios': {
+      id: '/_authenticated/usuarios'
+      path: '/usuarios'
+      fullPath: '/usuarios'
+      preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/c/$token': {
+      id: '/c/$token'
+      path: '/c/$token'
+      fullPath: '/c/$token'
+      preLoaderRoute: typeof CTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/e/$slug': {
+      id: '/e/$slug'
+      path: '/e/$slug'
+      fullPath: '/e/$slug'
+      preLoaderRoute: typeof ESlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/f/$formSlug': {
+      id: '/f/$formSlug'
+      path: '/f/$formSlug'
+      fullPath: '/f/$formSlug'
+      preLoaderRoute: typeof FFormSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/': {
+      id: '/portal/'
       path: '/'
-      fullPath: '/planos/'
-      preLoaderRoute: typeof AuthenticatedPlanosIndexRouteImport
-      parentRoute: typeof AuthenticatedPlanosRoute
+      fullPath: '/portal/'
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/eventos': {
+      id: '/portal/eventos'
+      path: '/eventos'
+      fullPath: '/portal/eventos'
+      preLoaderRoute: typeof PortalEventosRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/incidencias': {
+      id: '/portal/incidencias'
+      path: '/incidencias'
+      fullPath: '/portal/incidencias'
+      preLoaderRoute: typeof PortalIncidenciasRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/informes': {
+      id: '/portal/informes'
+      path: '/informes'
+      fullPath: '/portal/informes'
+      preLoaderRoute: typeof PortalInformesRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/t/$qrToken': {
+      id: '/t/$qrToken'
+      path: '/t/$qrToken'
+      fullPath: '/t/$qrToken'
+      preLoaderRoute: typeof TQrTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/comunicaciones/cola': {
+      id: '/_authenticated/comunicaciones/cola'
+      path: '/cola'
+      fullPath: '/comunicaciones/cola'
+      preLoaderRoute: typeof AuthenticatedComunicacionesColaRouteImport
+      parentRoute: typeof AuthenticatedComunicacionesRoute
+    }
+    '/_authenticated/comunicaciones/envio': {
+      id: '/_authenticated/comunicaciones/envio'
+      path: '/envio'
+      fullPath: '/comunicaciones/envio'
+      preLoaderRoute: typeof AuthenticatedComunicacionesEnvioRouteImport
+      parentRoute: typeof AuthenticatedComunicacionesRoute
+    }
+    '/_authenticated/control-acceso/$sessionId': {
+      id: '/_authenticated/control-acceso/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/control-acceso/$sessionId'
+      preLoaderRoute: typeof AuthenticatedControlAccesoSessionIdRouteImport
+      parentRoute: typeof AuthenticatedControlAccesoRoute
     }
     '/_authenticated/eventos/': {
       id: '/_authenticated/eventos/'
       path: '/eventos'
       fullPath: '/eventos/'
       preLoaderRoute: typeof AuthenticatedEventosIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/portal/eventos/$eventId': {
-      id: '/portal/eventos/$eventId'
-      path: '/$eventId'
-      fullPath: '/portal/eventos/$eventId'
-      preLoaderRoute: typeof PortalEventosEventIdRouteImport
-      parentRoute: typeof PortalEventosRoute
-    }
-    '/og/c/$token': {
-      id: '/og/c/$token'
-      path: '/og/c/$token'
-      fullPath: '/og/c/$token'
-      preLoaderRoute: typeof OgCTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/e/$slug/inscripcion': {
-      id: '/e/$slug/inscripcion'
-      path: '/inscripcion'
-      fullPath: '/e/$slug/inscripcion'
-      preLoaderRoute: typeof ESlugInscripcionRouteImport
-      parentRoute: typeof ESlugRoute
-    }
-    '/e/$slug/gracias': {
-      id: '/e/$slug/gracias'
-      path: '/gracias'
-      fullPath: '/e/$slug/gracias'
-      preLoaderRoute: typeof ESlugGraciasRouteImport
-      parentRoute: typeof ESlugRoute
-    }
-    '/e/$slug/completo': {
-      id: '/e/$slug/completo'
-      path: '/completo'
-      fullPath: '/e/$slug/completo'
-      preLoaderRoute: typeof ESlugCompletoRouteImport
-      parentRoute: typeof ESlugRoute
-    }
-    '/e/$slug/cerrado': {
-      id: '/e/$slug/cerrado'
-      path: '/cerrado'
-      fullPath: '/e/$slug/cerrado'
-      preLoaderRoute: typeof ESlugCerradoRouteImport
-      parentRoute: typeof ESlugRoute
-    }
-    '/c/$token/entrada': {
-      id: '/c/$token/entrada'
-      path: '/entrada'
-      fullPath: '/c/$token/entrada'
-      preLoaderRoute: typeof CTokenEntradaRouteImport
-      parentRoute: typeof CTokenRoute
-    }
-    '/c/$token/cancelar': {
-      id: '/c/$token/cancelar'
-      path: '/cancelar'
-      fullPath: '/c/$token/cancelar'
-      preLoaderRoute: typeof CTokenCancelarRouteImport
-      parentRoute: typeof CTokenRoute
-    }
-    '/c/$token/cancelada': {
-      id: '/c/$token/cancelada'
-      path: '/cancelada'
-      fullPath: '/c/$token/cancelada'
-      preLoaderRoute: typeof CTokenCanceladaRouteImport
-      parentRoute: typeof CTokenRoute
-    }
-    '/_authenticated/solicitudes/$participantId': {
-      id: '/_authenticated/solicitudes/$participantId'
-      path: '/$participantId'
-      fullPath: '/solicitudes/$participantId'
-      preLoaderRoute: typeof AuthenticatedSolicitudesParticipantIdRouteImport
-      parentRoute: typeof AuthenticatedSolicitudesRoute
-    }
-    '/_authenticated/planos/$planId': {
-      id: '/_authenticated/planos/$planId'
-      path: '/$planId'
-      fullPath: '/planos/$planId'
-      preLoaderRoute: typeof AuthenticatedPlanosPlanIdRouteImport
-      parentRoute: typeof AuthenticatedPlanosRoute
-    }
-    '/_authenticated/informes/$eventId': {
-      id: '/_authenticated/informes/$eventId'
-      path: '/$eventId'
-      fullPath: '/informes/$eventId'
-      preLoaderRoute: typeof AuthenticatedInformesEventIdRouteImport
-      parentRoute: typeof AuthenticatedInformesRoute
-    }
-    '/_authenticated/importaciones/nueva': {
-      id: '/_authenticated/importaciones/nueva'
-      path: '/nueva'
-      fullPath: '/importaciones/nueva'
-      preLoaderRoute: typeof AuthenticatedImportacionesNuevaRouteImport
-      parentRoute: typeof AuthenticatedImportacionesRoute
-    }
-    '/_authenticated/importaciones/$batchId': {
-      id: '/_authenticated/importaciones/$batchId'
-      path: '/$batchId'
-      fullPath: '/importaciones/$batchId'
-      preLoaderRoute: typeof AuthenticatedImportacionesBatchIdRouteImport
-      parentRoute: typeof AuthenticatedImportacionesRoute
-    }
-    '/_authenticated/eventos/nuevo': {
-      id: '/_authenticated/eventos/nuevo'
-      path: '/eventos/nuevo'
-      fullPath: '/eventos/nuevo'
-      preLoaderRoute: typeof AuthenticatedEventosNuevoRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/eventos/$eventId': {
@@ -1075,47 +977,124 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEventosEventIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/control-acceso/$sessionId': {
-      id: '/_authenticated/control-acceso/$sessionId'
-      path: '/$sessionId'
-      fullPath: '/control-acceso/$sessionId'
-      preLoaderRoute: typeof AuthenticatedControlAccesoSessionIdRouteImport
-      parentRoute: typeof AuthenticatedControlAccesoRoute
+    '/_authenticated/eventos/nuevo': {
+      id: '/_authenticated/eventos/nuevo'
+      path: '/eventos/nuevo'
+      fullPath: '/eventos/nuevo'
+      preLoaderRoute: typeof AuthenticatedEventosNuevoRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/comunicaciones/envio': {
-      id: '/_authenticated/comunicaciones/envio'
-      path: '/envio'
-      fullPath: '/comunicaciones/envio'
-      preLoaderRoute: typeof AuthenticatedComunicacionesEnvioRouteImport
-      parentRoute: typeof AuthenticatedComunicacionesRoute
+    '/_authenticated/importaciones/$batchId': {
+      id: '/_authenticated/importaciones/$batchId'
+      path: '/$batchId'
+      fullPath: '/importaciones/$batchId'
+      preLoaderRoute: typeof AuthenticatedImportacionesBatchIdRouteImport
+      parentRoute: typeof AuthenticatedImportacionesRoute
     }
-    '/_authenticated/comunicaciones/cola': {
-      id: '/_authenticated/comunicaciones/cola'
-      path: '/cola'
-      fullPath: '/comunicaciones/cola'
-      preLoaderRoute: typeof AuthenticatedComunicacionesColaRouteImport
-      parentRoute: typeof AuthenticatedComunicacionesRoute
+    '/_authenticated/importaciones/nueva': {
+      id: '/_authenticated/importaciones/nueva'
+      path: '/nueva'
+      fullPath: '/importaciones/nueva'
+      preLoaderRoute: typeof AuthenticatedImportacionesNuevaRouteImport
+      parentRoute: typeof AuthenticatedImportacionesRoute
     }
-    '/api/public/jobs/tick': {
-      id: '/api/public/jobs/tick'
-      path: '/api/public/jobs/tick'
-      fullPath: '/api/public/jobs/tick'
-      preLoaderRoute: typeof ApiPublicJobsTickRouteImport
+    '/_authenticated/informes/$eventId': {
+      id: '/_authenticated/informes/$eventId'
+      path: '/$eventId'
+      fullPath: '/informes/$eventId'
+      preLoaderRoute: typeof AuthenticatedInformesEventIdRouteImport
+      parentRoute: typeof AuthenticatedInformesRoute
+    }
+    '/_authenticated/planos/': {
+      id: '/_authenticated/planos/'
+      path: '/'
+      fullPath: '/planos/'
+      preLoaderRoute: typeof AuthenticatedPlanosIndexRouteImport
+      parentRoute: typeof AuthenticatedPlanosRoute
+    }
+    '/_authenticated/planos/$planId': {
+      id: '/_authenticated/planos/$planId'
+      path: '/$planId'
+      fullPath: '/planos/$planId'
+      preLoaderRoute: typeof AuthenticatedPlanosPlanIdRouteImport
+      parentRoute: typeof AuthenticatedPlanosRoute
+    }
+    '/_authenticated/solicitudes/$participantId': {
+      id: '/_authenticated/solicitudes/$participantId'
+      path: '/$participantId'
+      fullPath: '/solicitudes/$participantId'
+      preLoaderRoute: typeof AuthenticatedSolicitudesParticipantIdRouteImport
+      parentRoute: typeof AuthenticatedSolicitudesRoute
+    }
+    '/c/$token/cancelada': {
+      id: '/c/$token/cancelada'
+      path: '/cancelada'
+      fullPath: '/c/$token/cancelada'
+      preLoaderRoute: typeof CTokenCanceladaRouteImport
+      parentRoute: typeof CTokenRoute
+    }
+    '/c/$token/cancelar': {
+      id: '/c/$token/cancelar'
+      path: '/cancelar'
+      fullPath: '/c/$token/cancelar'
+      preLoaderRoute: typeof CTokenCancelarRouteImport
+      parentRoute: typeof CTokenRoute
+    }
+    '/c/$token/entrada': {
+      id: '/c/$token/entrada'
+      path: '/entrada'
+      fullPath: '/c/$token/entrada'
+      preLoaderRoute: typeof CTokenEntradaRouteImport
+      parentRoute: typeof CTokenRoute
+    }
+    '/e/$slug/cerrado': {
+      id: '/e/$slug/cerrado'
+      path: '/cerrado'
+      fullPath: '/e/$slug/cerrado'
+      preLoaderRoute: typeof ESlugCerradoRouteImport
+      parentRoute: typeof ESlugRoute
+    }
+    '/e/$slug/completo': {
+      id: '/e/$slug/completo'
+      path: '/completo'
+      fullPath: '/e/$slug/completo'
+      preLoaderRoute: typeof ESlugCompletoRouteImport
+      parentRoute: typeof ESlugRoute
+    }
+    '/e/$slug/gracias': {
+      id: '/e/$slug/gracias'
+      path: '/gracias'
+      fullPath: '/e/$slug/gracias'
+      preLoaderRoute: typeof ESlugGraciasRouteImport
+      parentRoute: typeof ESlugRoute
+    }
+    '/e/$slug/inscripcion': {
+      id: '/e/$slug/inscripcion'
+      path: '/inscripcion'
+      fullPath: '/e/$slug/inscripcion'
+      preLoaderRoute: typeof ESlugInscripcionRouteImport
+      parentRoute: typeof ESlugRoute
+    }
+    '/og/c/$token': {
+      id: '/og/c/$token'
+      path: '/og/c/$token'
+      fullPath: '/og/c/$token'
+      preLoaderRoute: typeof OgCTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/sesiones/$sessionId/plano': {
-      id: '/_authenticated/sesiones/$sessionId/plano'
-      path: '/$sessionId/plano'
-      fullPath: '/sesiones/$sessionId/plano'
-      preLoaderRoute: typeof AuthenticatedSesionesSessionIdPlanoRouteImport
-      parentRoute: typeof AuthenticatedSesionesRoute
+    '/portal/eventos/': {
+      id: '/portal/eventos/'
+      path: '/'
+      fullPath: '/portal/eventos/'
+      preLoaderRoute: typeof PortalEventosIndexRouteImport
+      parentRoute: typeof PortalEventosRoute
     }
-    '/_authenticated/sesiones/$sessionId/asignacion': {
-      id: '/_authenticated/sesiones/$sessionId/asignacion'
-      path: '/$sessionId/asignacion'
-      fullPath: '/sesiones/$sessionId/asignacion'
-      preLoaderRoute: typeof AuthenticatedSesionesSessionIdAsignacionRouteImport
-      parentRoute: typeof AuthenticatedSesionesRoute
+    '/portal/eventos/$eventId': {
+      id: '/portal/eventos/$eventId'
+      path: '/$eventId'
+      fullPath: '/portal/eventos/$eventId'
+      preLoaderRoute: typeof PortalEventosEventIdRouteImport
+      parentRoute: typeof PortalEventosRoute
     }
     '/_authenticated/eventos/$eventId/editar': {
       id: '/_authenticated/eventos/$eventId/editar'
@@ -1124,18 +1103,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEventosEventIdEditarRouteImport
       parentRoute: typeof AuthenticatedEventosEventIdRoute
     }
-    '/_authenticated/eventos/$eventId/sesiones/nueva': {
-      id: '/_authenticated/eventos/$eventId/sesiones/nueva'
-      path: '/sesiones/nueva'
-      fullPath: '/eventos/$eventId/sesiones/nueva'
-      preLoaderRoute: typeof AuthenticatedEventosEventIdSesionesNuevaRouteImport
-      parentRoute: typeof AuthenticatedEventosEventIdRoute
+    '/_authenticated/sesiones/$sessionId/asignacion': {
+      id: '/_authenticated/sesiones/$sessionId/asignacion'
+      path: '/$sessionId/asignacion'
+      fullPath: '/sesiones/$sessionId/asignacion'
+      preLoaderRoute: typeof AuthenticatedSesionesSessionIdAsignacionRouteImport
+      parentRoute: typeof AuthenticatedSesionesRoute
+    }
+    '/_authenticated/sesiones/$sessionId/plano': {
+      id: '/_authenticated/sesiones/$sessionId/plano'
+      path: '/$sessionId/plano'
+      fullPath: '/sesiones/$sessionId/plano'
+      preLoaderRoute: typeof AuthenticatedSesionesSessionIdPlanoRouteImport
+      parentRoute: typeof AuthenticatedSesionesRoute
+    }
+    '/api/public/jobs/tick': {
+      id: '/api/public/jobs/tick'
+      path: '/api/public/jobs/tick'
+      fullPath: '/api/public/jobs/tick'
+      preLoaderRoute: typeof ApiPublicJobsTickRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/eventos/$eventId/sesiones/$sessionId': {
       id: '/_authenticated/eventos/$eventId/sesiones/$sessionId'
       path: '/sesiones/$sessionId'
       fullPath: '/eventos/$eventId/sesiones/$sessionId'
       preLoaderRoute: typeof AuthenticatedEventosEventIdSesionesSessionIdRouteImport
+      parentRoute: typeof AuthenticatedEventosEventIdRoute
+    }
+    '/_authenticated/eventos/$eventId/sesiones/nueva': {
+      id: '/_authenticated/eventos/$eventId/sesiones/nueva'
+      path: '/sesiones/nueva'
+      fullPath: '/eventos/$eventId/sesiones/nueva'
+      preLoaderRoute: typeof AuthenticatedEventosEventIdSesionesNuevaRouteImport
       parentRoute: typeof AuthenticatedEventosEventIdRoute
     }
   }
