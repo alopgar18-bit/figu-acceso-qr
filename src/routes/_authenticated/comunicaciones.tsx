@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { Plus, Pencil, Trash2, RotateCw, CheckCircle2, ExternalLink, Copy, Send, ListChecks } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invokeSendWhatsapp } from "@/lib/send-whatsapp-client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,7 +59,24 @@ function Page() {
       m.routeId === "/_authenticated/comunicaciones/envio" ||
       m.routeId === "/_authenticated/comunicaciones/cola",
   );
+  const [syncing, setSyncing] = useState(false);
+  const qc = useQueryClient();
   if (hasChild) return <Outlet />;
+
+  // Trae de Wati las plantillas aprobadas en Meta y oculta el resto.
+  const syncWati = async () => {
+    setSyncing(true);
+    try {
+      const r = await invokeSendWhatsapp<{ ok: boolean; message: string }>({ action: "sync_templates" });
+      if (r.ok) toast.success(r.message);
+      else toast.error(r.message);
+      await qc.invalidateQueries({ queryKey: ["communication_templates"] });
+    } catch (e) {
+      toast.error(`No se pudo sincronizar con Wati: ${e instanceof Error ? e.message : "error"}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const openNew = () => {
     setEditing(null);
@@ -81,6 +100,10 @@ function Page() {
             </Button>
             <Button variant="outline" asChild>
               <Link to="/comunicaciones/cola"><ListChecks className="h-4 w-4 mr-2" />Cola de envíos</Link>
+            </Button>
+            <Button variant="outline" onClick={syncWati} disabled={syncing}>
+              <RotateCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Sincronizando…" : "Sincronizar con Wati"}
             </Button>
             <Button onClick={openNew} className="uppercase tracking-wider">
               <Plus className="h-4 w-4 mr-2" />Nueva plantilla
