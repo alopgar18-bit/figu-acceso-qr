@@ -8,6 +8,7 @@ import { normalizarTelefonoES } from "../_shared/phone.ts";
 import { requireAdmin } from "../_shared/require-admin.ts";
 import {
   buildWatiParameters,
+  buildWatiParametersFor,
   formatFechaLarga,
   formatHora,
   watiSendTemplateBatch,
