@@ -130,8 +130,16 @@ export function renderTemplate(text: string, ctx: RenderContext): string {
     working = working.replace(/Hola\s+\{\{nombre\}\}\s*,/gi, "Hola,");
     working = working.replace(/Hola\s+\{\{nombre\}\}/gi, "Hola");
   }
-  return working.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-    const v = (ctx as Record<string, unknown>)[key];
+  // Alias usados por las plantillas aprobadas en Wati/Meta.
+  const entry = ctx.enlace_entrada ?? "";
+  const tokenMatch = entry.match(/\/c\/([^/?#]+)/);
+  const extra: Record<string, unknown> = {
+    programa: ctx.evento,
+    lugar: ctx.ubicacion,
+    enlace_cancelacion: tokenMatch ? `${PUBLIC_SITE_URL_FALLBACK}/c/${tokenMatch[1]}/cancelar` : "",
+  };
+  return working.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => {
+    const v = (ctx as Record<string, unknown>)[key] ?? extra[key];
     return v == null ? "" : String(v);
   });
 }

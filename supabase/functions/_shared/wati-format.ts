@@ -44,6 +44,7 @@ export interface InvitacionContext {
   fila: string;
   asiento: string;
   enlace_entrada: string;
+  enlace_cancelacion?: string;
   // Por sesión
   programa: string;
   fecha: string;
@@ -66,7 +67,20 @@ export function buildWatiParameters(ctx: InvitacionContext): Array<{ name: strin
     { name: "asiento", value: ctx.asiento },
     { name: "lugar", value: ctx.lugar },
     { name: "enlace_entrada", value: ctx.enlace_entrada },
+    { name: "enlace_cancelacion", value: ctx.enlace_cancelacion ?? "" },
   ];
+}
+
+// Parámetros en el orden exacto de las variables de una plantilla concreta.
+// Alias aceptados: evento→programa, ubicacion→lugar.
+export function buildWatiParametersFor(
+  ctx: InvitacionContext,
+  vars: string[],
+): Array<{ name: string; value: string }> {
+  const all = new Map(buildWatiParameters(ctx).map((p) => [p.name, p.value]));
+  all.set("evento", ctx.programa);
+  all.set("ubicacion", ctx.lugar);
+  return vars.map((v) => ({ name: v, value: all.get(v) ?? "" }));
 }
 
 export interface WatiSendResult {
