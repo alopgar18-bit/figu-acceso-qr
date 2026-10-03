@@ -22,7 +22,7 @@ import { submitPublicFormBySlug } from "@/lib/public-forms.functions";
 import { attendeeLabel } from "@/lib/participant-constants";
 import { classifyAppError } from "@/lib/app-error";
 
-function FormErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function FormErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error("[/f/$formSlug] errorComponent", error);
   const info = classifyAppError(error);
   return (
