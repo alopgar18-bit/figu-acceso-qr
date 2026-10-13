@@ -515,6 +515,35 @@ function QueuePage() {
       a.click();
       URL.revokeObjectURL(url);
       toast.success(`${ready.length} mensajes exportados (.eml)`);
+      // Marcar como exportados (.eml) para los KPIs, sin tocar estado ni envío.
+      try {
+        const ids = ready.map((l) => l.id);
+        const now = new Date().toISOString();
+        for (let i = 0; i < ids.length; i += 100) {
+          const chunk = ids.slice(i, i + 100);
+          const { data: metas } = await supabase
+            .from("communication_logs")
+            .select("id, metadata")
+            .in("id", chunk);
+          for (let j = 0; j < (metas ?? []).length; j += 20) {
+            await Promise.all(
+              (metas ?? []).slice(j, j + 20).map((m) =>
+                supabase
+                  .from("communication_logs")
+                  .update({
+                    metadata: {
+                      ...((m.metadata as Record<string, unknown>) ?? {}),
+                      eml_exported_at: now,
+                    },
+                  })
+                  .eq("id", m.id),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        console.error("No se pudo marcar la exportación .eml", e);
+      }
     } finally {
       setExportingEml(false);
     }

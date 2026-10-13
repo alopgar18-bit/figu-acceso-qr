@@ -47,6 +47,10 @@ export interface PersonDetail {
 
 export interface CommSummaryAggregate extends Omit<CommSummaryRow, "batch_id" | "batch_label" | "event_name" | "session_name" | "created_at"> {
   rows: CommSummaryRow[];
+  email_con_entrada: number;
+  email_sin_entrada: number;
+  eml_exportados: number;
+  eml_vip: number;
 }
 
 type Log = {
@@ -123,7 +127,35 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
       }
       rows.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 
-      return { rows, ...computeStats(logs), details: [] };
+      // Recuentos en servidor (sin descargar los cuerpos HTML).
+      const countQ = (sel = "id") => {
+        let q = supabase
+          .from("communication_logs")
+          .select(sel, { count: "exact", head: true })
+          .eq("channel", "email");
+        if (filters.eventId) q = q.eq("event_id", filters.eventId);
+        if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
+        if (!filters.includeArchived) q = q.is("archived_at", null);
+        return q;
+      };
+      const [conEntrada, emlTotal, emlVip] = await Promise.all([
+        countQ().eq("status", "enviado").ilike("body", "%/c/%"),
+        countQ().not("metadata->>eml_exported_at", "is", null),
+        countQ("id, event_participants!inner(attendee_type)")
+          .not("metadata->>eml_exported_at", "is", null)
+          .eq("event_participants.attendee_type", "vip"),
+      ]);
+      const stats = computeStats(logs);
+      const email_con_entrada = conEntrada.count ?? 0;
+      return {
+        rows,
+        ...stats,
+        email_con_entrada,
+        email_sin_entrada: Math.max(0, stats.enviados_email - email_con_entrada),
+        eml_exportados: emlTotal.count ?? 0,
+        eml_vip: emlVip.count ?? 0,
+        details: [],
+      };
     },
   });
 }
