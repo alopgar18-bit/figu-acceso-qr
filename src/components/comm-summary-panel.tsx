@@ -31,7 +31,7 @@ export function CommSummaryPanel() {
       { label: "Email · Con entrada", value: data?.email_con_entrada ?? 0, tone: "secondary" as const },
       { label: "Email · Sin entrada", value: data?.email_sin_entrada ?? 0, tone: "outline" as const },
       { label: "Descargados .eml", value: data?.eml_exportados ?? 0, tone: "outline" as const },
-      { label: "VIP · Descargados .eml", value: data?.eml_vip ?? 0, tone: "outline" as const },
+      { label: "VIP con entrada (.eml)", value: data?.eml_vip ?? 0, tone: "outline" as const },
       { label: "Email · Sin confirmación", value: data?.email_sin_confirmacion ?? 0, tone: "outline" as const },
       { label: "Enviados · WhatsApp", value: data?.enviados_whatsapp ?? 0, tone: "secondary" as const },
       { label: "WhatsApp · Confirmados Wassenger", value: data?.whatsapp_confirmados_wassenger ?? 0, tone: "secondary" as const },

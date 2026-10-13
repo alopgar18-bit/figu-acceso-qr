@@ -141,9 +141,16 @@ export function useCommSummary(filters: CommSummaryFilters = {}) {
       const [conEntrada, emlTotal, emlVip] = await Promise.all([
         countQ().eq("status", "enviado").ilike("body", "%/c/%"),
         countQ().not("metadata->>eml_exported_at", "is", null),
-        countQ("id, event_participants!inner(attendee_type)")
-          .not("metadata->>eml_exported_at", "is", null)
-          .eq("event_participants.attendee_type", "vip"),
+        (() => {
+          let q = supabase
+            .from("event_participants")
+            .select("id, tickets!inner(id)", { count: "exact", head: true })
+            .eq("attendee_type", "vip")
+            .eq("tickets.revoked", false);
+          if (filters.eventId) q = q.eq("event_id", filters.eventId);
+          if (filters.sessionId) q = q.eq("session_id", filters.sessionId);
+          return q;
+        })(),
       ]);
       const stats = computeStats(logs);
       const email_con_entrada = conEntrada.count ?? 0;
