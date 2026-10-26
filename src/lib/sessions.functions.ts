@@ -114,6 +114,7 @@ export const saveSession = createServerFn({ method: "POST" })
       inherit_event_fields: z.boolean(),
       field_requirements: z.record(z.unknown()),
       venue_plan_id: z.string().uuid().nullable(),
+      live_start_time: z.string().max(20).nullable().optional(),
     }),
   }).parse(d))
   .handler(async ({ data, context }) => {

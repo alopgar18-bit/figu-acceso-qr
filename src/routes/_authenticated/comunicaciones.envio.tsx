@@ -223,7 +223,7 @@ function BulkSendPage() {
           .maybeSingle(),
         supabase
           .from("event_sessions")
-          .select("id, name, starts_at, ends_at, doors_open_at, location_name, location_address")
+          .select("id, name, starts_at, ends_at, doors_open_at, live_start_time, location_name, location_address")
           .eq("id", previewSampleRow!.session_id!)
           .maybeSingle(),
       ]);
@@ -660,6 +660,7 @@ FIGURARTE Casting & Producción`,
             starts_at?: string | null;
             ends_at?: string | null;
             doors_open_at?: string | null;
+            live_start_time?: string | null;
             location_name?: string | null;
             location_address?: string | null;
           }
@@ -670,6 +671,7 @@ FIGURARTE Casting & Producción`,
             starts_at?: string | null;
             ends_at?: string | null;
             doors_open_at?: string | null;
+            live_start_time?: string | null;
             location_name?: string | null;
             location_address?: string | null;
           }
@@ -693,9 +695,11 @@ FIGURARTE Casting & Producción`,
       programa: ev?.name ?? "(programa)",
       sesion: ses?.name ?? "(nombre de la sesión)",
       fecha: fmtDate(ses?.starts_at) || "(fecha)",
+      fecha_larga: ses?.starts_at ? new Date(ses.starts_at).toLocaleDateString("es-ES", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).replace(",", "") : "(fecha)",
       hora_acceso: horaAcceso || "(hora)",
       hora_inicio: horaInicio || "(hora inicio)",
       hora_fin: horaFin || "(hora fin)",
+      hora_directo: ses?.live_start_time || "(hora directo sin rellenar)",
       ubicacion: lugar || "(ubicación)",
       lugar: lugar || "(lugar)",
       zona: sample.seat_zone ?? "",

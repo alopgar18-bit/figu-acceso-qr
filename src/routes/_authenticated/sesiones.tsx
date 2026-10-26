@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { SESSION_STATUS_OPTIONS, labelOf } from "@/lib/event-constants";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
 
 export const Route = createFileRoute("/_authenticated/sesiones")({
   component: Page,
@@ -27,10 +28,10 @@ function Page() {
       const { data, error } = await supabase
         .from("event_sessions")
         .select("*, events(id, name)")
-        .order("starts_at", { ascending: true })
-        .limit(200);
+        .order("starts_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
-      return data ?? [];
+      return sortSessionsUpcomingFirst(data);
     },
   });
 

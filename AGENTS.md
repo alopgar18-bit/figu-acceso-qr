@@ -1,0 +1,1 @@
+- Session lists in the admin use `sortSessionsUpcomingFirst` (src/lib/session-sort.ts): upcoming first, then past newest-first — keeps every dropdown consistent.

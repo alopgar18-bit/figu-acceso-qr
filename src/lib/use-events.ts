@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { saveSession } from "./sessions.functions";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
 
 export type EventRow = Database["public"]["Tables"]["events"]["Row"];
 export type EventInsert = Database["public"]["Tables"]["events"]["Insert"];
@@ -68,7 +69,7 @@ export function useEventSessions(eventId: string | undefined) {
         .eq("event_id", eventId!)
         .order("starts_at", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      return sortSessionsUpcomingFirst(data);
     },
   });
 }

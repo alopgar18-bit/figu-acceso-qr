@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
-import { renderTemplate, buildQrImageUrl, buildEntryUrl, buildTicketUrl, type RenderContext } from "./communication-constants";
+import { renderTemplate, buildQrImageUrl, buildEntryUrl, buildTicketUrl, formatSessionLongDate, type RenderContext } from "./communication-constants";
 
 type CompanionRow = {
   id: string;
@@ -126,7 +126,7 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
     const { data: session } = data.session_id
       ? await supabase
           .from("event_sessions")
-          .select("id, name, starts_at, ends_at, doors_open_at, location_name, location_address")
+          .select("id, name, starts_at, ends_at, doors_open_at, live_start_time, location_name, location_address")
           .eq("id", data.session_id)
           .single()
       : { data: null };
@@ -307,8 +307,10 @@ export const queueBulkInvitations = createServerFn({ method: "POST" })
         evento: event?.name ?? "",
         sesion: (session as { name?: string } | null)?.name ?? "",
         fecha: sessionDateStr,
+        fecha_larga: formatSessionLongDate(sessionStart),
         hora_acceso: accessTimeStr,
         hora_inicio: sessionTimeStr,
+        hora_directo: (session as { live_start_time?: string | null } | null)?.live_start_time ?? "",
         hora_fin: sessionEndStr,
         ubicacion,
         direccion,
@@ -576,6 +578,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
             starts_at: string;
             ends_at: string | null;
             doors_open_at: string | null;
+            live_start_time: string | null;
             location_name: string | null;
             location_address: string | null;
           }
@@ -587,7 +590,7 @@ export const resendInvitations = createServerFn({ method: "POST" })
       const { data: rows, error } = await supabase
         .from("event_participants")
         .select(
-          "id, person_id, event_id, session_id, confirmation_token, seat_zone, seat_row, seat_number, people(first_name,last_name,email,phone), events(name,location_name,location_address), event_sessions(name,starts_at,ends_at,doors_open_at,location_name,location_address)",
+          "id, person_id, event_id, session_id, confirmation_token, seat_zone, seat_row, seat_number, people(first_name,last_name,email,phone), events(name,location_name,location_address), event_sessions(name,starts_at,ends_at,doors_open_at,live_start_time,location_name,location_address)",
         )
         .in("id", ids);
       if (error) throw new Error(error.message);
@@ -742,8 +745,10 @@ export const resendInvitations = createServerFn({ method: "POST" })
         evento: p.events?.name ?? "",
         sesion: sess?.name ?? "",
         fecha: sessionDateStr,
+        fecha_larga: formatSessionLongDate(sessionStart),
         hora_acceso: accessTimeStr,
         hora_inicio: sessionTimeStr,
+        hora_directo: sess?.live_start_time ?? "",
         hora_fin: sessionEndStr,
         ubicacion,
         direccion,

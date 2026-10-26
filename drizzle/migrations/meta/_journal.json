@@ -8,6 +8,13 @@
       "when": 1789499463486,
       "tag": "0000_perf_comm_indexes_and_queue_status",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793035134753,
+      "tag": "0001_session_live_start_time",
+      "breakpoints": true
     }
   ]
 }

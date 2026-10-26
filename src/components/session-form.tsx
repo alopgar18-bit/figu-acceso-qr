@@ -51,6 +51,7 @@ type FormState = {
   inherit_event_fields: boolean;
   field_requirements: FieldRequirements;
   venue_plan_id: string | null;
+  live_start_time: string;
 };
 
 function initial(event: EventRow, session?: SessionRow | null): FormState {
@@ -80,6 +81,7 @@ function initial(event: EventRow, session?: SessionRow | null): FormState {
         ? ((session as { field_requirements?: unknown }).field_requirements as FieldRequirements)
         : {}) ?? {},
     venue_plan_id: (session as { venue_plan_id?: string | null } | null | undefined)?.venue_plan_id ?? null,
+    live_start_time: (session as { live_start_time?: string | null } | null | undefined)?.live_start_time ?? "",
   };
 }
 
@@ -135,6 +137,7 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
         inherit_event_fields: s.inherit_event_fields,
         field_requirements: s.inherit_event_fields ? {} : (s.field_requirements ?? {}),
         venue_plan_id: s.venue_plan_id,
+        live_start_time: s.live_start_time.trim() || null,
       };
       await upsert.mutateAsync({ id: session?.id, values: payload });
       toast.success(session ? "Sesión actualizada" : "Sesión creada");
@@ -169,6 +172,10 @@ export function SessionForm({ event, session }: { event: EventRow; session?: Ses
           <div>
             <Label>Hora de inicio *</Label>
             <Input name="starts_at" type="datetime-local" value={s.starts_at} onChange={(e) => update("starts_at", e.target.value)} required />
+          </div>
+          <div>
+            <Label>Inicio de grabación en directo</Label>
+            <Input value={s.live_start_time} onChange={(e) => update("live_start_time", e.target.value)} maxLength={20} placeholder="19:30" />
           </div>
           <div>
             <Label>Hora aproximada de fin</Label>
