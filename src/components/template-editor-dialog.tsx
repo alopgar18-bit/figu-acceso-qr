@@ -207,6 +207,14 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
             <div>
               <Label>Asunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto del email" />
+              {/\{\{\s*\w+\s*\}\}/.test(subject) && (
+                <p className="mt-1 rounded-md border bg-muted/40 px-2 py-1 text-xs">
+                  <span className="text-muted-foreground">
+                    Así se verá{selSession ? ` (${selSession.name})` : " (datos de ejemplo)"}:{" "}
+                  </span>
+                  <strong>{renderedSubject}</strong>
+                </p>
+              )}
             </div>
           )}
           {channel === "email" && (
