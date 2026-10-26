@@ -1014,6 +1014,7 @@ export type Database = {
           field_requirements: Json
           id: string
           inherit_event_fields: boolean
+          live_start_time: string | null
           location_address: string | null
           location_name: string | null
           max_companions_per_participant: number
@@ -1045,6 +1046,7 @@ export type Database = {
           field_requirements?: Json
           id?: string
           inherit_event_fields?: boolean
+          live_start_time?: string | null
           location_address?: string | null
           location_name?: string | null
           max_companions_per_participant?: number
@@ -1076,6 +1078,7 @@ export type Database = {
           field_requirements?: Json
           id?: string
           inherit_event_fields?: boolean
+          live_start_time?: string | null
           location_address?: string | null
           location_name?: string | null
           max_companions_per_participant?: number

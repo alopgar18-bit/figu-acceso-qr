@@ -1,0 +1,1 @@
+ALTER TABLE public.event_sessions ADD COLUMN IF NOT EXISTS live_start_time text;
