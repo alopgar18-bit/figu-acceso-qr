@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
 
 export type VisibilityPermissions = {
   see_email?: boolean;
@@ -131,7 +132,7 @@ export function useClientEventDetail(eventId: string | undefined) {
         confirmados: Array.from(statsBySession.values()).reduce((a, s) => a + s.confirmados, 0),
         checkins: Array.from(statsBySession.values()).reduce((a, s) => a + s.checkins, 0),
       };
-      return { event: evt.data, sessions: sessions.data ?? [], statsBySession, totals };
+      return { event: evt.data, sessions: sortSessionsUpcomingFirst(sessions.data), statsBySession, totals };
     },
   });
 }

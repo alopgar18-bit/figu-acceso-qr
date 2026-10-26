@@ -280,7 +280,7 @@ export function useEventReport(scope: ReportScope | null) {
 
       if (evt.error) throw evt.error;
 
-      const allSessions = (sessions.data ?? []).filter((s) => !sessionId || s.id === sessionId);
+      const allSessions = sortSessionsUpcomingFirst(sessions.data).filter((s) => !sessionId || s.id === sessionId);
       const sessionIds = new Set(allSessions.map((s) => s.id));
       const parts = participants.filter((p) => !sessionId || sessionIds.has(p.session_id));
       const consents: ConsentRow[] = [];
