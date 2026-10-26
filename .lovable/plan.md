@@ -23,6 +23,12 @@ La página pública de inscripción `/e/$slug` mantiene solo las futuras en orde
 - Las etiquetas que queden sin dato se resaltan para detectarlas antes de enviar.
 - Solo lectura: la vista previa no crea envíos ni toca la cola.
 
+## 5. Plantillas del 29 de octubre listas para reutilizar
+- "INVITACION 29.10": asunto pasa a "Tu invitación para {{evento}} {{fecha}}" y el cuerpo usa etiquetas para fecha, horas y la nueva `{{hora_directo}}` en lugar de textos fijos.
+- "LISTA DE ESPERA 29.10": asunto pasa a "Reserva anulada fuera de Aforo para {{evento}} {{fecha}}", con las mismas etiquetas en el cuerpo.
+- Antes de guardar, comprobaré con la vista previa de la sesión del 29 que el texto resultante es idéntico al actual (más la hora de directo). Rellenaré la hora de directo de la sesión del 29 si me la indicas.
+- Se mantiene el nombre de las plantillas; puedes renombrarlas después a algo genérico.
+
 ## Detalles técnicos
 - Migración: `ALTER TABLE event_sessions ADD COLUMN live_start_time text` (nullable, no rompe nada). Regenerar tipos.
 - `session-form.tsx`, `sessions.functions.ts` (guardar), `duplicate-session-dialog.tsx` (copiar).
