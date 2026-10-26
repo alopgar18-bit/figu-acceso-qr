@@ -1129,10 +1129,22 @@ FIGURARTE Casting & Producción`,
           <CardContent className="space-y-2 text-sm">
             <div><span className="text-muted-foreground">{isWhatsapp ? "Teléfono:" : "Para:"}</span> {previewSample.to}</div>
             {!isWhatsapp && (
-              <div><span className="text-muted-foreground">Asunto:</span> <strong>{previewSample.subject}</strong></div>
+              <div className="rounded-md border bg-muted/40 px-3 py-2">
+                <span className="text-muted-foreground">Asunto:</span> <strong>{previewSample.subject}</strong>
+              </div>
             )}
             <Separator className="my-2" />
-            <pre className="whitespace-pre-wrap font-sans bg-muted/40 p-3 rounded text-xs">{previewSample.body}</pre>
+            {!isWhatsapp && /<\/?[a-z][\s\S]*>/i.test(previewSample.body) ? (
+              <iframe
+                title="Vista previa del email"
+                srcDoc={previewSample.body}
+                className="w-full rounded border bg-background"
+                style={{ height: 560, border: 0 }}
+                sandbox=""
+              />
+            ) : (
+              <pre className="whitespace-pre-wrap font-sans bg-muted/40 p-3 rounded text-xs">{previewSample.body}</pre>
+            )}
           </CardContent>
         </Card>
       )}
