@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ParticipantStatus } from "./participant-constants";
 import { APPROVED_LIKE } from "./participant-constants";
 import { INCIDENT_TYPE_LABELS, INCIDENT_CATEGORY_LABELS, type IncidentType, type IncidentCategory } from "./incident-constants";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
 
 export type ReportScope = { eventId: string; sessionId?: string };
 
@@ -29,7 +30,7 @@ export function useEventSessionsLite(eventId: string | undefined) {
         .eq("event_id", eventId!)
         .order("starts_at", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; name: string; starts_at: string | null; capacity: number }>;
+      return sortSessionsUpcomingFirst((data ?? []) as Array<{ id: string; name: string; starts_at: string | null; capacity: number }>);
     },
   });
 }

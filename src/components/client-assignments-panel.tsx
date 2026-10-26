@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 
 import { supabase } from "@/integrations/supabase/client";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
 
 type Assignment = {
   id: string;
@@ -58,9 +59,9 @@ export function ClientAssignmentsPanel({ clientId }: { clientId: string }) {
     enabled: !!eventId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("event_sessions").select("id, name").eq("event_id", eventId).order("starts_at");
+        .from("event_sessions").select("id, name, starts_at").eq("event_id", eventId).order("starts_at");
       if (error) throw error;
-      return data ?? [];
+      return sortSessionsUpcomingFirst(data);
     },
   });
 

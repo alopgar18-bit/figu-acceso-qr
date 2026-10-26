@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { APPROVED_LIKE } from "./participant-constants";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
 
 export function useAssignedSessions() {
   return useQuery({
@@ -11,7 +12,7 @@ export function useAssignedSessions() {
         .select("*, events(id, name, status, location_name)")
         .order("starts_at", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      return sortSessionsUpcomingFirst(data);
     },
   });
 }

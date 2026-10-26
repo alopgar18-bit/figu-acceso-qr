@@ -12,6 +12,7 @@ import {
   Plus, ExternalLink, ArrowRight, Mail, Upload, BarChart3, Building2,
   ClipboardList, Clock, MapPin, Ticket, FileText, Activity, Sparkles,
 } from "lucide-react";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: "Superadministrador",
@@ -85,7 +86,7 @@ function useDashboardData() {
           supabase.from("incidents").select("id", { count: "exact", head: true }).eq("event_id", featured.id).eq("status", "abierta"),
           supabase.from("event_sessions").select("id, name, starts_at, doors_open_at, capacity, status").eq("event_id", featured.id).order("starts_at"),
         ]);
-        sessions = ses.data ?? [];
+        sessions = sortSessionsUpcomingFirst(ses.data);
         const capacidad = sessions.reduce((sum, x) => sum + (x.capacity ?? 0), 0);
         featuredStats = {
           solicitudes: s.count ?? 0,
