@@ -39,7 +39,8 @@ export const COMM_VARIABLES = [
   { token: "{{apellidos}}", description: "Apellidos" },
   { token: "{{evento}}", description: "Nombre del evento" },
   { token: "{{sesion}}", description: "Sesión asignada" },
-  { token: "{{fecha}}", description: "Fecha de la sesión" },
+  { token: "{{fecha}}", description: "Fecha de la sesión (29/10/2026)" },
+  { token: "{{fecha_larga}}", description: "Fecha en texto (jueves 29 de octubre)" },
   { token: "{{hora_acceso}}", description: "Hora de acceso (apertura de puertas)" },
   { token: "{{hora_inicio}}", description: "Hora de inicio de la sesión" },
   { token: "{{hora_directo}}", description: "Inicio de la grabación en directo" },
@@ -105,6 +106,7 @@ export interface RenderContext {
   evento?: string | null;
   sesion?: string | null;
   fecha?: string | null;
+  fecha_larga?: string | null;
   hora_acceso?: string | null;
   hora_inicio?: string | null;
   hora_directo?: string | null;
@@ -122,6 +124,21 @@ export interface RenderContext {
   telefono?: string | null;
   acompanantes?: string | null;
   acompanantes_html?: string | null;
+}
+
+const MADRID_TZ = "Europe/Madrid";
+export function formatSessionDate(iso?: string | null): string {
+  return iso ? new Date(iso).toLocaleDateString("es-ES", { timeZone: MADRID_TZ }) : "";
+}
+export function formatSessionLongDate(iso?: string | null): string {
+  return iso
+    ? new Date(iso).toLocaleDateString("es-ES", { timeZone: MADRID_TZ, weekday: "long", day: "numeric", month: "long" })
+    : "";
+}
+export function formatSessionTime(iso?: string | null): string {
+  return iso
+    ? new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: MADRID_TZ })
+    : "";
 }
 
 export function renderTemplate(text: string, ctx: RenderContext): string {

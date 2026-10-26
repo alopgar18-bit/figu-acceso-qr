@@ -16,8 +16,15 @@ import {
   renderTemplate,
   type CommChannel,
   type RenderContext,
+  formatSessionDate,
+  formatSessionLongDate,
+  formatSessionTime,
 } from "@/lib/communication-constants";
 import { useUpsertTemplate, type TemplateRow } from "@/lib/use-communications";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { sortSessionsUpcomingFirst } from "@/lib/session-sort";
+import { buildEntryUrl } from "@/lib/communication-constants";
 
 interface Props {
   open: boolean;
@@ -43,14 +50,47 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
     }
   }, [open, template]);
 
-  const insertVar = (token: string) => setBody((prev) => prev + token);
+  const [insertTarget, setInsertTarget] = useState<"body" | "subject">("body");
+  const insertVar = (token: string) =>
+    insertTarget === "subject" ? setSubject((prev) => prev + token) : setBody((prev) => prev + token);
+  const [previewSessionId, setPreviewSessionId] = useState<string>("demo");
+
+  const sessionsQ = useQuery({
+    queryKey: ["template-preview-sessions"],
+    enabled: open,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_sessions")
+        .select("id, name, starts_at, ends_at, doors_open_at, live_start_time, location_name, location_address, specific_instructions, events(name, location_name, location_address)")
+        .order("starts_at", { ascending: false })
+        .limit(300);
+      if (error) throw error;
+      return sortSessionsUpcomingFirst(data);
+    },
+  });
+  const sampleQ = useQuery({
+    queryKey: ["template-preview-sample", previewSessionId],
+    enabled: open && previewSessionId !== "demo",
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("event_participants")
+        .select("confirmation_token, seat_zone, seat_row, seat_number, people(first_name, last_name, phone)")
+        .eq("session_id", previewSessionId)
+        .not("seat_number", "is", null)
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+  });
 
   const QR_BLOCK = `\n<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:16px 0;">
   <img src="{{qr_image}}" alt="Código QR" width="240" height="240" style="display:block;border:1px solid #ececec;border-radius:8px;background:#fff;" />
   <div style="font-size:12px;color:#666;margin-top:8px;">Presenta este QR en el acceso.</div>
 </td></tr></table>\n`;
   const BUTTON_BLOCK = `\n<p style="text-align:center;margin:24px 0;"><a href="{{enlace_entrada}}" style="background:#111;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;">Abrir entrada</a></p>\n`;
-  const TIME_BLOCK = `\nFecha: {{fecha}}\nHora de acceso: {{hora_acceso}}\nHora de inicio: {{hora_inicio}}\nHora fin aprox.: {{hora_fin}}\n`;
+  const TIME_BLOCK = `\nFecha: {{fecha}}\nHora de acceso: {{hora_acceso}}\nHora de inicio: {{hora_inicio}}\nInicio del directo: {{hora_directo}}\nHora fin aprox.: {{hora_fin}}\n`;
   const HEADER_BLOCK = `<!doctype html><html lang="es"><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1a1a;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
@@ -63,14 +103,16 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
 </td></tr></table></td></tr></table></body></html>`;
 
   const isHtml = /<\/?[a-z][\s\S]*>/i.test(body);
-  const sampleCtx: RenderContext = {
+  const demoCtx: RenderContext = {
     nombre: "Rocío",
     apellidos: "Choquera",
     evento: "El Perro Andaluz by Manu Sánchez",
     sesion: "Sesión tarde",
     fecha: "21/05/2026",
+    fecha_larga: "jueves 21 de mayo",
     hora_acceso: "19:30",
     hora_inicio: "20:00",
+    hora_directo: "20:30",
     hora_fin: "22:30",
     ubicacion: "Teatro Alameda, Sevilla",
     enlace_entrada: "https://figurarte.app/c/demo-token/entrada",
@@ -80,6 +122,39 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
     instrucciones: "Recuerda llevar el DNI en vigor.",
     telefono: "",
   };
+  const selSession = (sessionsQ.data ?? []).find((x) => x.id === previewSessionId);
+  const MISSING = (k: string) => `[falta ${k}]`;
+  const sampleCtx: RenderContext = selSession
+    ? (() => {
+        const ev = selSession.events as { name?: string; location_name?: string | null; location_address?: string | null } | null;
+        const sm = sampleQ.data as { confirmation_token?: string | null; seat_zone?: string | null; seat_row?: string | null; seat_number?: string | null; people?: { first_name?: string; last_name?: string | null; phone?: string | null } | null } | null | undefined;
+        const enlace = buildEntryUrl(sm?.confirmation_token ?? null);
+        const ubic = selSession.location_name ?? ev?.location_name ?? selSession.location_address ?? ev?.location_address ?? "";
+        return {
+          nombre: sm?.people?.first_name ?? "Rocío",
+          apellidos: sm?.people?.last_name ?? "",
+          evento: ev?.name || MISSING("evento"),
+          sesion: selSession.name,
+          fecha: formatSessionDate(selSession.starts_at) || MISSING("fecha"),
+          fecha_larga: formatSessionLongDate(selSession.starts_at) || MISSING("fecha"),
+          hora_acceso: formatSessionTime(selSession.doors_open_at ?? selSession.starts_at) || MISSING("hora de acceso"),
+          hora_inicio: formatSessionTime(selSession.starts_at) || MISSING("hora de inicio"),
+          hora_directo: selSession.live_start_time || MISSING("hora de directo"),
+          hora_fin: formatSessionTime(selSession.ends_at) || MISSING("hora de fin"),
+          ubicacion: ubic || MISSING("ubicación"),
+          direccion: selSession.location_address ?? ev?.location_address ?? "",
+          zona: sm?.seat_zone ?? "",
+          fila: sm?.seat_row ?? "",
+          asiento: sm?.seat_number ?? "",
+          enlace_entrada: enlace || MISSING("enlace"),
+          enlace_confirmacion: enlace || MISSING("enlace"),
+          qr: sm?.confirmation_token ?? "",
+          qr_image: enlace ? buildQrImageUrl(enlace) : "",
+          instrucciones: selSession.specific_instructions ?? "",
+          telefono: sm?.people?.phone ?? "",
+        };
+      })()
+    : demoCtx;
   const renderedBody = renderTemplate(body || "", sampleCtx);
   const renderedSubject = renderTemplate(subject || "", sampleCtx);
 
@@ -154,6 +229,23 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
                 <p className="text-xs text-muted-foreground mt-1">Puedes pegar HTML directamente. Para texto plano, escribe sin etiquetas.</p>
               </TabsContent>
               <TabsContent value="preview">
+                <div className="mb-3">
+                  <Label className="text-xs">Previsualizar con sesión</Label>
+                  <Select value={previewSessionId} onValueChange={setPreviewSessionId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="demo">Datos de ejemplo</SelectItem>
+                      {(sessionsQ.data ?? []).map((x) => (
+                        <SelectItem key={x.id} value={x.id}>
+                          {(x.events as { name?: string } | null)?.name ?? ""} · {x.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selSession && (
+                    <p className="text-xs text-muted-foreground mt-1">Los datos que falten en la sesión aparecen como [falta …].</p>
+                  )}
+                </div>
                 {channel === "email" && renderedSubject && (
                   <div className="mb-2 text-sm"><span className="text-muted-foreground">Asunto: </span><strong>{renderedSubject}</strong></div>
                 )}
@@ -174,7 +266,16 @@ export function TemplateEditorDialog({ open, onOpenChange, template }: Props) {
             </Tabs>
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider">Variables disponibles</Label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="text-xs uppercase tracking-wider">Variables disponibles</Label>
+              {channel === "email" && (
+                <div className="flex gap-1 text-xs">
+                  <span className="text-muted-foreground self-center">Insertar en:</span>
+                  <Button type="button" size="sm" variant={insertTarget === "subject" ? "default" : "outline"} onClick={() => setInsertTarget("subject")}>Asunto</Button>
+                  <Button type="button" size="sm" variant={insertTarget === "body" ? "default" : "outline"} onClick={() => setInsertTarget("body")}>Cuerpo</Button>
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {COMM_VARIABLES.map((v) => (
                 <Badge
