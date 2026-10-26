@@ -1,8 +1,10 @@
 # Sesiones ordenadas, etiquetas en el asunto y vista previa por sesión
 
-## 1. Sesiones de la más reciente a la más antigua
-Todas las listas y desplegables de sesiones del panel (Sesiones, Envío masivo, Solicitudes, Informes, Control de acceso, Importaciones, Incidencias, Diseño de entradas, formularios, portal del cliente, asignación de equipo, inicio) pasan a ordenarse por fecha descendente.
-Excepción: la página pública de inscripción `/e/$slug`, donde el público elige sesión, se mantiene en orden cronológico (primero la próxima). Dímelo si también la quieres invertida.
+## 1. Sesiones: la próxima primero
+Todas las listas y desplegables de sesiones del panel (Sesiones, Envío masivo, Solicitudes, Informes, Control de acceso, Importaciones, Incidencias, Diseño de entradas, formularios, portal del cliente, asignación de equipo, inicio) siguen este orden:
+1. Arriba la próxima sesión que viene, y después el resto de futuras por fecha (la más cercana antes).
+2. Debajo, las sesiones ya pasadas, de la más reciente a la más antigua.
+La página pública de inscripción `/e/$slug` mantiene solo las futuras en orden cronológico, como ahora.
 
 ## 2. Nuevo campo de sesión "Inicio de grabación en directo"
 - Campo nuevo en el formulario de sesión (hora, texto tipo "19:30"), junto a hora de acceso y hora fin.
@@ -25,6 +27,6 @@ Excepción: la página pública de inscripción `/e/$slug`, donde el público el
 - Migración: `ALTER TABLE event_sessions ADD COLUMN live_start_time text` (nullable, no rompe nada). Regenerar tipos.
 - `session-form.tsx`, `sessions.functions.ts` (guardar), `duplicate-session-dialog.tsx` (copiar).
 - `communication-constants.ts`: añadir `{{hora_directo}}` a la lista de etiquetas y a `renderTemplate`; `bulk-send.functions.ts` incluir `live_start_time` en el contexto; `supabase/functions/send-email` y `_shared/wati-format.ts` aceptar el alias (WhatsApp Business solo si la plantilla de Meta usa esa variable).
-- Orden: cambiar `.order("starts_at", { ascending: true })` / `.order("starts_at")` a `ascending: false` en hooks y rutas listados, y ordenar en cliente los desplegables que agrupan sesiones.
+- Orden: función compartida `sortSessionsUpcomingFirst` (futuras ascendente, pasadas descendente, frontera = ahora) aplicada en cliente a todos los hooks y desplegables de sesiones; la consulta sigue trayendo por `starts_at`.
 - Vista previa: consulta ligera de una sesión + un participante de ejemplo con ticket; reutiliza `renderTemplate`.
 - No se publica ni se despliega durante una sesión en curso.
