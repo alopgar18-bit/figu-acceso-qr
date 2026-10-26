@@ -132,7 +132,9 @@ export function formatSessionDate(iso?: string | null): string {
 }
 export function formatSessionLongDate(iso?: string | null): string {
   return iso
-    ? new Date(iso).toLocaleDateString("es-ES", { timeZone: MADRID_TZ, weekday: "long", day: "numeric", month: "long" })
+    ? new Date(iso)
+        .toLocaleDateString("es-ES", { timeZone: MADRID_TZ, weekday: "long", day: "numeric", month: "long" })
+        .replace(",", "")
     : "";
 }
 export function formatSessionTime(iso?: string | null): string {
