@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
-import { renderTemplate, buildQrImageUrl, buildEntryUrl, buildTicketUrl, type RenderContext } from "./communication-constants";
+import { renderTemplate, buildQrImageUrl, buildEntryUrl, buildTicketUrl, formatSessionLongDate, type RenderContext } from "./communication-constants";
 
 type CompanionRow = {
   id: string;
