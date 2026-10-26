@@ -42,6 +42,7 @@ export const COMM_VARIABLES = [
   { token: "{{fecha}}", description: "Fecha de la sesión" },
   { token: "{{hora_acceso}}", description: "Hora de acceso (apertura de puertas)" },
   { token: "{{hora_inicio}}", description: "Hora de inicio de la sesión" },
+  { token: "{{hora_directo}}", description: "Inicio de la grabación en directo" },
   { token: "{{hora_fin}}", description: "Hora aproximada de finalización" },
   { token: "{{ubicacion}}", description: "Lugar / dirección" },
   { token: "{{direccion}}", description: "Dirección completa (calle, ciudad)" },
@@ -106,6 +107,7 @@ export interface RenderContext {
   fecha?: string | null;
   hora_acceso?: string | null;
   hora_inicio?: string | null;
+  hora_directo?: string | null;
   hora_fin?: string | null;
   ubicacion?: string | null;
   direccion?: string | null;
