@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { generateMissingTickets } from "@/lib/tickets.functions";
 import { queueBulkInvitations } from "@/lib/bulk-send.functions";
 import { useTemplates, useUpsertTemplate } from "@/lib/use-communications";
-import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel, buildEntryUrl } from "@/lib/communication-constants";
+import { renderTemplate, type RenderContext, SENDER_OPTIONS, DEFAULT_SENDER, COMM_CHANNEL_OPTIONS, type CommChannel, buildEntryUrl, buildQrImageUrl, formatSessionDate, formatSessionLongDate, formatSessionTime } from "@/lib/communication-constants";
 import { useEvents, useEventSessions } from "@/lib/use-events";
 import { PARTICIPANT_STATUS_OPTIONS, ATTENDEE_TYPE_OPTIONS, statusLabel } from "@/lib/participant-constants";
 import { WatiTestSendDialog } from "@/components/wati-test-send-dialog";
@@ -676,38 +676,36 @@ FIGURARTE Casting & Producción`,
             location_address?: string | null;
           }
         | undefined);
-    const TZ = "Europe/Madrid";
-    const fmtDate = (iso?: string | null) =>
-      iso ? new Date(iso).toLocaleDateString("es-ES", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
-    const fmtTime = (iso?: string | null) =>
-      iso ? new Date(iso).toLocaleTimeString("es-ES", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }) : "";
-    const horaInicio = fmtTime(ses?.starts_at);
-    const horaAcceso = ses?.doors_open_at ? fmtTime(ses.doors_open_at) : horaInicio;
-    const horaFin = fmtTime(ses?.ends_at);
-    const locName = (ses?.location_name ?? ev?.location_name ?? "").toString().trim();
-    const locAddr = (ses?.location_address ?? ev?.location_address ?? "").toString().trim();
-    const lugar = [locName, locAddr].filter(Boolean).join(", ");
+    // Mismos formatos que el envío real (bulk-send.functions.ts) para que la
+    // vista previa sea idéntica a lo que recibirá la persona.
+    const horaInicio = formatSessionTime(ses?.starts_at);
+    const horaAcceso = ses?.doors_open_at ? formatSessionTime(ses.doors_open_at) : horaInicio;
+    const horaFin = formatSessionTime(ses?.ends_at);
+    const ubicacion =
+      ses?.location_name ?? ev?.location_name ?? ses?.location_address ?? ev?.location_address ?? "";
+    const direccion = ses?.location_address ?? ev?.location_address ?? "";
     const enlace = buildEntryUrl(sample.confirmation_token ?? null) || "https://…/c/<token>/entrada";
-    const ctx = {
+    const ctx: RenderContext = {
       nombre: sample.people?.first_name ?? "",
       apellidos: sample.people?.last_name ?? "",
-      evento: ev?.name ?? "(nombre del evento)",
-      programa: ev?.name ?? "(programa)",
-      sesion: ses?.name ?? "(nombre de la sesión)",
-      fecha: fmtDate(ses?.starts_at) || "(fecha)",
-      fecha_larga: ses?.starts_at ? new Date(ses.starts_at).toLocaleDateString("es-ES", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).replace(",", "") : "(fecha)",
-      hora_acceso: horaAcceso || "(hora)",
-      hora_inicio: horaInicio || "(hora inicio)",
-      hora_fin: horaFin || "(hora fin)",
-      hora_directo: ses?.live_start_time || "(hora directo sin rellenar)",
-      ubicacion: lugar || "(ubicación)",
-      lugar: lugar || "(lugar)",
+      evento: ev?.name || "[falta evento]",
+      sesion: ses?.name || "[falta sesión]",
+      fecha: formatSessionDate(ses?.starts_at) || "[falta fecha]",
+      fecha_larga: formatSessionLongDate(ses?.starts_at) || "[falta fecha]",
+      hora_acceso: horaAcceso || "[falta hora de acceso]",
+      hora_inicio: horaInicio || "[falta hora de inicio]",
+      hora_fin: horaFin || "[falta hora de fin]",
+      hora_directo: ses?.live_start_time || "[falta hora de directo]",
+      ubicacion: ubicacion || "[falta ubicación]",
+      direccion,
       zona: sample.seat_zone ?? "",
       fila: sample.seat_row ?? "",
       asiento: sample.seat_number ?? "",
       enlace_entrada: enlace,
       enlace_confirmacion: enlace,
-    } as unknown as RenderContext;
+      qr: sample.confirmation_token ?? "",
+      qr_image: enlace.startsWith("http") && !isWhatsapp ? buildQrImageUrl(enlace) : enlace,
+    };
     return {
       to: isWhatsapp
         ? (sample.people?.phone ?? "(sin teléfono)")
@@ -1131,10 +1129,22 @@ FIGURARTE Casting & Producción`,
           <CardContent className="space-y-2 text-sm">
             <div><span className="text-muted-foreground">{isWhatsapp ? "Teléfono:" : "Para:"}</span> {previewSample.to}</div>
             {!isWhatsapp && (
-              <div><span className="text-muted-foreground">Asunto:</span> <strong>{previewSample.subject}</strong></div>
+              <div className="rounded-md border bg-muted/40 px-3 py-2">
+                <span className="text-muted-foreground">Asunto:</span> <strong>{previewSample.subject}</strong>
+              </div>
             )}
             <Separator className="my-2" />
-            <pre className="whitespace-pre-wrap font-sans bg-muted/40 p-3 rounded text-xs">{previewSample.body}</pre>
+            {!isWhatsapp && /<\/?[a-z][\s\S]*>/i.test(previewSample.body) ? (
+              <iframe
+                title="Vista previa del email"
+                srcDoc={previewSample.body}
+                className="w-full rounded border bg-background"
+                style={{ height: 560, border: 0 }}
+                sandbox=""
+              />
+            ) : (
+              <pre className="whitespace-pre-wrap font-sans bg-muted/40 p-3 rounded text-xs">{previewSample.body}</pre>
+            )}
           </CardContent>
         </Card>
       )}
