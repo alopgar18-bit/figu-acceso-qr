@@ -39,6 +39,9 @@ function Page() {
     queryKey: ["confirmation", token],
     queryFn: () => fetch({ data: { token } }),
     enabled: !isChildRoute,
+    retry: 4,
+    retryDelay: (n) => Math.min(800 * 2 ** n, 5000),
+    refetchOnWindowFocus: false,
   });
 
   const [companions, setCompanions] = useState<Companion[]>([]);

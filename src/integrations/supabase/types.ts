@@ -2381,6 +2381,15 @@ export type Database = {
         Returns: string[]
       }
       comm_queue_counts: { Args: never; Returns: Json }
+      dashboard_session_counts: {
+        Args: { _session_ids: string[] }
+        Returns: {
+          checkins: number
+          confirmados: number
+          session_id: string
+          solicitudes: number
+        }[]
+      }
       get_my_roles: {
         Args: never
         Returns: {
