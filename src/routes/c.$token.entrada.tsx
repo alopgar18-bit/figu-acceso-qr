@@ -68,9 +68,13 @@ function Page() {
   const navigate = useNavigate();
   const fetch = useServerFn(getConfirmation);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["confirmation", token],
     queryFn: () => fetch({ data: { token } }),
+    retry: 4,
+    retryDelay: (n) => Math.min(800 * 2 ** n, 5000),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -86,9 +90,29 @@ function Page() {
     }
   }, [data, navigate, token]);
 
+  if (isError && !data) {
+    return (
+      <div className="min-h-screen bg-muted/30 p-4 flex items-center justify-center">
+        <div className="max-w-sm text-center space-y-4">
+          <p className="text-lg font-semibold">Hay mucha gente abriendo su entrada ahora mismo</p>
+          <p className="text-sm text-muted-foreground">Tu entrada está bien. Pulsa el botón para volver a intentarlo.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="rounded-md bg-primary px-4 py-2 text-primary-foreground disabled:opacity-60"
+          >
+            {isFetching ? "Cargando…" : "Volver a intentarlo"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading || !data || !data.ok) {
     return (
       <div className="min-h-screen bg-muted/30 p-4">
+        <p className="text-center text-sm text-muted-foreground mb-3">Estamos cargando tu entrada, un momento…</p>
         <Skeleton className="h-[80vh] w-full max-w-md mx-auto" />
       </div>
     );

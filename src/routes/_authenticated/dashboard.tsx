@@ -46,7 +46,7 @@ function useDashboardData() {
         supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "publicado"),
         supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["solicitud_recibida", "lista_espera"]),
         supabase.from("event_participants").select("id", { count: "exact", head: true }).in("status", ["confirmado", "qr_generado", "acceso_validado"]),
-        supabase.from("checkins").select("id", { count: "exact", head: true }),
+        supabase.from("checkins").select("id", { count: "estimated", head: true }),
         supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "abierta"),
         supabase
           .from("event_sessions")
@@ -97,23 +97,20 @@ function useDashboardData() {
           ocupacion: capacidad > 0 ? Math.round(((ci.count ?? 0) / capacidad) * 100) : 0,
         };
 
-        // Per-session stats
-        const sessionsWithStats = await Promise.all(
-          sessions.map(async (sess) => {
-            const [sp, sc, scn] = await Promise.all([
-              supabase.from("event_participants").select("id", { count: "exact", head: true }).eq("session_id", sess.id),
-              supabase.from("event_participants").select("id", { count: "exact", head: true }).eq("session_id", sess.id).in("status", ["confirmado", "qr_generado", "acceso_validado"]),
-              supabase.from("checkins").select("id", { count: "exact", head: true }).eq("session_id", sess.id),
-            ]);
-            return {
-              ...sess,
-              solicitudes: sp.count ?? 0,
-              confirmados: sc.count ?? 0,
-              checkins: scn.count ?? 0,
-            };
-          })
-        );
-        sessions = sessionsWithStats;
+        // Per-session stats: una sola consulta resumida en la base de datos
+        const { data: counts } = await supabase.rpc("dashboard_session_counts", {
+          _session_ids: sessions.map((x) => x.id),
+        });
+        const byId = new Map((counts ?? []).map((r: any) => [r.session_id, r]));
+        sessions = sessions.map((sess) => {
+          const r: any = byId.get(sess.id);
+          return {
+            ...sess,
+            solicitudes: Number(r?.solicitudes ?? 0),
+            confirmados: Number(r?.confirmados ?? 0),
+            checkins: Number(r?.checkins ?? 0),
+          };
+        });
       }
 
       const { data: recent } = await supabase
