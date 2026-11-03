@@ -153,7 +153,32 @@ function QueuePage() {
    * Autoriza el envío: pasa de "programado" (preparado) a "pendiente" (autorizado)
    * solo los registros elegidos. Nada se envía nunca sin pasar por aquí.
    */
+  /**
+   * Revisión previa: avisa si algún mensaje a enviar tiene etiquetas sin rellenar
+   * ({{...}}) o enlaces vacíos. Devuelve false si el usuario decide no enviar.
+   */
+  const confirmLinkIssues = async (channels: CommChannel[], ids?: string[]): Promise<boolean> => {
+    const { data, error } = await supabase.rpc("comm_link_issues", {
+      _channels: channels as unknown as string[],
+      _ids: ids && ids.length > 0 ? ids : undefined,
+    });
+    if (error || !data) return true; // si la revisión falla, no bloqueamos el envío
+    const d = data as { checked?: number; unresolved?: number; empty_links?: number };
+    const unresolved = Number(d.unresolved ?? 0);
+    const empty = Number(d.empty_links ?? 0);
+    if (unresolved === 0 && empty === 0) return true;
+    const lines = [
+      "Revisa la plantilla antes de enviar:",
+      unresolved > 0 ? `• ${unresolved} mensajes tienen etiquetas sin rellenar ({{...}}).` : null,
+      empty > 0 ? `• ${empty} mensajes tienen algún enlace vacío (el invitado pulsará y no irá a ninguna parte).` : null,
+      "",
+      "¿Enviar de todas formas?",
+    ].filter((l) => l !== null);
+    return window.confirm(lines.join("\n"));
+  };
+
   const authorizeForSending = async (channels: CommChannel[], ids?: string[]): Promise<string[]> => {
+    if (!(await confirmLinkIssues(channels, ids))) throw new Error("__cancelled__");
     // La autorización se resuelve en el servidor en una sola operación,
     // para que no se agote por tiempo con miles de mensajes en cola.
     const { data, error } = await supabase.rpc("comm_authorize_queue", {
@@ -266,7 +291,8 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      toast.error(mensajeEnvio(e, "whatsapp"), { duration: 12000 });
+      if (e instanceof Error && e.message === "__cancelled__") toast.message("Envío cancelado. No se ha enviado nada.");
+      else toast.error(mensajeEnvio(e, "whatsapp"), { duration: 12000 });
     } finally {
       setSendingWa(false);
     }

@@ -2380,6 +2380,10 @@ export type Database = {
         Args: { _channels: string[]; _ids?: string[] }
         Returns: string[]
       }
+      comm_link_issues: {
+        Args: { _channels: string[]; _ids?: string[] }
+        Returns: Json
+      }
       comm_queue_counts: { Args: never; Returns: Json }
       dashboard_session_counts: {
         Args: { _session_ids: string[] }
