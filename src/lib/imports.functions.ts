@@ -96,6 +96,17 @@ const commitSchema = z.object({
       z.enum(["update", "create_here", "create_bis", "skip", "create_new"]),
     )
     .optional(),
+  /**
+   * Importación por tramos: el navegador envía las filas en bloques pequeños
+   * para no superar los límites de tiempo/peticiones del servidor.
+   * - Primer tramo: sin batchId (crea el lote) y con totalRows = total del Excel.
+   * - Siguientes: con el batchId devuelto.
+   * - isFinal marca el último tramo (cierra el lote).
+   * Sin estos campos se comporta como antes (un solo tramo final).
+   */
+  batchId: z.string().uuid().optional(),
+  totalRows: z.number().int().min(1).max(5000).optional(),
+  isFinal: z.boolean().optional(),
 });
 
 function genToken(): string {
