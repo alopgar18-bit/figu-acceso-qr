@@ -378,7 +378,7 @@ function ImportWizardPage() {
         qrGenerated: t.qrGenerated,
         noContactChannel: t.noContactChannel,
         errors: t.errors,
-        finalStatus: progress!.finalStatus ?? "completada",
+        finalStatus: (progress!.finalStatus ?? "completada") as Awaited<ReturnType<typeof commitImport>>["finalStatus"],
         seatsNotInPlan: t.seatsNotInPlan,
       };
       setImportProgress(null);
