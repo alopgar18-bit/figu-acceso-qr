@@ -124,24 +124,38 @@ export const commitImport = createServerFn({ method: "POST" })
     await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
     const actorEmail = (claims as { email?: string } | undefined)?.email ?? null;
 
-    // 1. Create batch
-    const { data: batch, error: batchErr } = await supabase
-      .from("import_batches")
-      .insert({
-        filename: data.filename,
-        source: data.source ?? null,
-        event_id: data.eventId,
-        session_id: data.sessionId,
-        total_rows: data.rows.length,
-        status: "procesando",
-        created_by: userId,
-      })
-      .select()
-      .single();
-    if (batchErr) throw new Error(`No se pudo crear el batch: ${batchErr.message}`);
+    // 1. Crear lote (primer tramo) o reutilizar el existente (tramos siguientes)
+    const isFinal = data.isFinal ?? !data.batchId;
+    let batch: { id: string; imported_rows: number; error_rows: number; errors: unknown };
+    if (data.batchId) {
+      const { data: existing, error: exErr } = await supabase
+        .from("import_batches")
+        .select("id, session_id, imported_rows, error_rows, errors")
+        .eq("id", data.batchId)
+        .single();
+      if (exErr || !existing) throw new Error("No se encontró el lote de importación en curso.");
+      if (existing.session_id !== data.sessionId) throw new Error("El lote no corresponde a esta sesión.");
+      batch = existing;
+    } else {
+      const { data: created, error: batchErr } = await supabase
+        .from("import_batches")
+        .insert({
+          filename: data.filename,
+          source: data.source ?? null,
+          event_id: data.eventId,
+          session_id: data.sessionId,
+          total_rows: data.totalRows ?? data.rows.length,
+          status: "procesando",
+          created_by: userId,
+        })
+        .select()
+        .single();
+      if (batchErr) throw new Error(`No se pudo crear el batch: ${batchErr.message}`);
+      batch = created;
+    }
 
-    // 2. Save mappings
-    if (data.mappings.length > 0) {
+    // 2. Save mappings (solo en el primer tramo)
+    if (!data.batchId && data.mappings.length > 0) {
       await supabase.from("import_mappings").insert(
         data.mappings.map((m) => ({
           batch_id: batch.id,
@@ -202,10 +216,20 @@ export const commitImport = createServerFn({ method: "POST" })
       `${normalize(first)}|${normalize(last)}`;
     const normDniLocal = (s: string | null | undefined) =>
       (s ?? "").toString().trim().toUpperCase().replace(/[\s-]/g, "");
-    const { data: sessionRoster } = await supabase
-      .from("event_participants")
-      .select("id, person_id, people:person_id(first_name, last_name)")
-      .eq("session_id", data.sessionId);
+    // Paginado: sin esto, en sesiones de más de 1.000 inscritos la detección
+    // de duplicados solo veía los primeros 1.000.
+    const sessionRoster: Array<{ id: string; person_id: string; people: unknown }> = [];
+    for (let from = 0; ; from += 1000) {
+      const { data: page, error: rErr } = await supabase
+        .from("event_participants")
+        .select("id, person_id, people:person_id(first_name, last_name, dni)")
+        .eq("session_id", data.sessionId)
+        .order("id")
+        .range(from, from + 999);
+      if (rErr) throw new Error(`No se pudo leer la sesión: ${rErr.message}`);
+      sessionRoster.push(...((page ?? []) as typeof sessionRoster));
+      if (!page || page.length < 1000) break;
+    }
     const nameToPersonId = new Map<string, string>();
     const sessionPersonIds = new Set<string>();
     for (const ep of sessionRoster ?? []) {
@@ -849,19 +873,28 @@ export const commitImport = createServerFn({ method: "POST" })
       }
     }
 
+    // Acumula con los tramos anteriores del mismo lote
+    const totalImported = (data.batchId ? batch.imported_rows ?? 0 : 0) + imported;
+    const totalErrored = (data.batchId ? batch.error_rows ?? 0 : 0) + errored;
+    const prevErrors = data.batchId && Array.isArray(batch.errors) ? (batch.errors as typeof errors) : [];
+    const allErrors = [...prevErrors, ...errors].slice(0, 200);
     const { data: finalBatch } = await supabase
       .from("import_batches")
       .update({
-        imported_rows: imported,
-        error_rows: errored,
-        errors: errors.slice(0, 200),
-        status:
-          errored > 0 && imported === 0
-            ? "fallida"
-            : errored > 0
-              ? "completada_con_errores"
-              : "completada",
-        completed_at: new Date().toISOString(),
+        imported_rows: totalImported,
+        error_rows: totalErrored,
+        errors: allErrors,
+        ...(isFinal
+          ? {
+              status:
+                totalErrored > 0 && totalImported === 0
+                  ? ("fallida" as const)
+                  : totalErrored > 0
+                    ? ("completada_con_errores" as const)
+                    : ("completada" as const),
+              completed_at: new Date().toISOString(),
+            }
+          : {}),
       })
       .eq("id", batch.id)
       .select()
@@ -900,7 +933,7 @@ export const commitImport = createServerFn({ method: "POST" })
       qrGenerated,
       noContactChannel,
       errors,
-      finalStatus: finalBatch?.status ?? "completada",
+      finalStatus: finalBatch?.status ?? (isFinal ? "completada" : "procesando"),
       seatsNotInPlan,
     };
   });
