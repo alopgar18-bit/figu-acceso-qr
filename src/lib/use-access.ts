@@ -21,7 +21,8 @@ export function useSessionDashboard(sessionId: string | undefined) {
   return useQuery({
     queryKey: ["access", "dashboard", sessionId],
     enabled: !!sessionId,
-    refetchInterval: 5000,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const [session, parts, checkins, incidents, last] = await Promise.all([
         supabase.from("event_sessions").select("id, name, capacity, starts_at, event_id, allow_companions").eq("id", sessionId!).single(),
