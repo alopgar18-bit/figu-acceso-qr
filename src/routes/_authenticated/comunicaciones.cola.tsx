@@ -291,7 +291,8 @@ function QueuePage() {
       await refetch();
       await refreshPendingCount();
     } catch (e) {
-      toast.error(mensajeEnvio(e, "whatsapp"), { duration: 12000 });
+      if (e instanceof Error && e.message === "__cancelled__") toast.message("Envío cancelado. No se ha enviado nada.");
+      else toast.error(mensajeEnvio(e, "whatsapp"), { duration: 12000 });
     } finally {
       setSendingWa(false);
     }
