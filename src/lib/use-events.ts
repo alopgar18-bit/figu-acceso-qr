@@ -92,25 +92,28 @@ export function useSession(sessionId: string | undefined) {
   });
 }
 
+// Resumen por sesión calculado en la base de datos (sin límite de 1.000 filas).
+// "checkins" = asistentes reales: check-ins válidos + acompañantes validados + entradas por incidencia.
 export function useSessionStats(eventId: string | undefined) {
   return useQuery({
     queryKey: ["session-stats", eventId],
     enabled: !!eventId,
+    staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("event_participants")
-        .select("session_id, status")
-        .eq("event_id", eventId!);
-      if (error) throw error;
+      const { data: ses, error: sErr } = await supabase.from("event_sessions").select("id").eq("event_id", eventId!);
+      if (sErr) throw sErr;
+      const ids = (ses ?? []).map((s) => s.id);
       const map = new Map<string, { solicitudes: number; aprobados: number; confirmados: number; checkins: number }>();
-      for (const p of data ?? []) {
-        const k = p.session_id;
-        const s = map.get(k) ?? { solicitudes: 0, aprobados: 0, confirmados: 0, checkins: 0 };
-        s.solicitudes += 1;
-        if (["aprobado", "invitacion_enviada", "pendiente_confirmacion", "confirmado", "qr_generado", "acceso_validado"].includes(p.status)) s.aprobados += 1;
-        if (["confirmado", "qr_generado", "acceso_validado"].includes(p.status)) s.confirmados += 1;
-        if (p.status === "acceso_validado") s.checkins += 1;
-        map.set(k, s);
+      if (ids.length === 0) return map;
+      const { data, error } = await supabase.rpc("session_summary_counts", { _session_ids: ids });
+      if (error) throw error;
+      for (const r of data ?? []) {
+        map.set(r.session_id, {
+          solicitudes: Number(r.solicitudes),
+          aprobados: Number(r.aprobados),
+          confirmados: Number(r.confirmados),
+          checkins: Number(r.asistentes),
+        });
       }
       return map;
     },

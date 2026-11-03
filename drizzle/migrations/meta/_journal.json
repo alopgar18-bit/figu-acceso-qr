@@ -22,6 +22,20 @@
       "when": 1793640881092,
       "tag": "0002_dashboard_session_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793731775196,
+      "tag": "0003_session_summary_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793731861285,
+      "tag": "0004_session_summary_counts_dedupe_incidents",
+      "breakpoints": true
     }
   ]
 }

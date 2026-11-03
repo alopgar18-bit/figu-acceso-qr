@@ -27,27 +27,24 @@ function randomToken(bytes = 24) {
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Caché en memoria del diseño de entrada (igual para toda una sesión): evita 3 lecturas por apertura.
+const designCache = new Map<string, { at: number; value: Json | null }>();
+const DESIGN_TTL_MS = 5 * 60_000;
+
 async function resolveTicketDesign(eventId: string, sessionId: string): Promise<Json | null> {
-  // Hierarchy: session > event > global default
-  const { data: sessionDesign } = await supabaseAdmin
-    .from("ticket_designs")
-    .select("design")
-    .eq("scope_session_id", sessionId)
-    .maybeSingle();
-  if (sessionDesign?.design) return sessionDesign.design as Json;
-  const { data: eventDesign } = await supabaseAdmin
-    .from("ticket_designs")
-    .select("design")
-    .eq("scope_event_id", eventId)
-    .maybeSingle();
-  if (eventDesign?.design) return eventDesign.design as Json;
-  const { data: globalDesign } = await supabaseAdmin
-    .from("ticket_designs")
-    .select("design")
-    .eq("is_global_default", true)
-    .maybeSingle();
-  if (globalDesign?.design) return globalDesign.design as Json;
-  return null;
+  const key = `${eventId}:${sessionId}`;
+  const hit = designCache.get(key);
+  if (hit && Date.now() - hit.at < DESIGN_TTL_MS) return hit.value;
+  // Jerarquía: sesión > evento > global. Las tres lecturas en paralelo.
+  const [s, e, g] = await Promise.all([
+    supabaseAdmin.from("ticket_designs").select("design").eq("scope_session_id", sessionId).maybeSingle(),
+    supabaseAdmin.from("ticket_designs").select("design").eq("scope_event_id", eventId).maybeSingle(),
+    supabaseAdmin.from("ticket_designs").select("design").eq("is_global_default", true).maybeSingle(),
+  ]);
+  const value = ((s.data?.design ?? e.data?.design ?? g.data?.design) as Json | undefined) ?? null;
+  if (designCache.size > 500) designCache.clear();
+  designCache.set(key, { at: Date.now(), value });
+  return value;
 }
 
 async function loadByToken(token: string) {
@@ -82,20 +79,15 @@ export const getConfirmation = createServerFn({ method: "GET" })
       return { ok: false as const, code: "no_disponible" as const, status: p.status };
     }
 
-    // Tickets, if any
-    const { data: tickets } = await supabaseAdmin
-      .from("tickets")
-      .select("*")
-      .eq("participant_id", p.id)
-      .eq("revoked", false);
-
-    const { data: companions } = await supabaseAdmin
-      .from("companions")
-      .select("*")
-      .eq("participant_id", p.id);
-
-    // Resolve ticket design from new library; fall back to legacy event.ticket_design jsonb
-    const resolved = await resolveTicketDesign(event.id, session.id);
+    // Entradas, acompañantes y diseño en paralelo (antes eran lecturas en serie)
+    const [{ data: tickets, error: tErr }, { data: companions, error: cErr }, resolved] = await Promise.all([
+      supabaseAdmin.from("tickets").select("*").eq("participant_id", p.id).eq("revoked", false),
+      supabaseAdmin.from("companions").select("*").eq("participant_id", p.id),
+      resolveTicketDesign(event.id, session.id),
+    ]);
+    // Si falla la lectura, lanzamos para que el cliente reintente en lugar de mostrar "sin entrada"
+    if (tErr) throw tErr;
+    if (cErr) throw cErr;
     const eventWithDesign: PublicEventSummary = {
       ...event,
       ticket_design: resolved ?? event.ticket_design ?? null,

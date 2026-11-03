@@ -2439,6 +2439,17 @@ export type Database = {
         }
         Returns: string
       }
+      session_summary_counts: {
+        Args: { _session_ids: string[] }
+        Returns: {
+          aprobados: number
+          asistentes: number
+          checkins: number
+          confirmados: number
+          session_id: string
+          solicitudes: number
+        }[]
+      }
       submit_public_form: { Args: { _payload: Json }; Returns: Json }
       whatsapp_queue_status: { Args: never; Returns: Json }
     }
