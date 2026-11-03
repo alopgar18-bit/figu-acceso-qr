@@ -7,7 +7,17 @@
 3. **Control de acceso**: se refresca cada 5 segundos y descarga todos los participantes y todos los check-ins de la sesión. Es la pantalla principal del día de grabación, así que **no se quita**; solo se aligera.
 4. **Comunicaciones e Informes**: ya se optimizaron. Quedan algunos recuentos lentos de los registros de envíos (3–8 s) cuando se abre la pantalla sin filtrar por sesión.
 
+5. **Entrada del invitado (lo que más reclamaciones genera)**: cada vez que un invitado abre su enlace, la plataforma consulta su entrada **entre 2 y 3 veces seguidas**: una al preparar la página, otra al mostrarla y otra más si entra por el enlace de confirmación y se le redirige. Cada una de esas consultas hace 6 lecturas a la base de datos, una detrás de otra. Cuando se envían cientos de correos o WhatsApps a la vez y todos abren el enlace en el mismo minuto, eso multiplica la carga por 15–18 y aparecen los errores. Ayer añadimos reintentos, pero no se ha quitado la causa.
+
 ## Propuesta
+
+### 0. Prioridad 1: entradas que abran siempre
+- **Una sola lectura por apertura**: los datos que se preparan al cargar la página se reutilizan al mostrarla, sin volver a pedirlos. La redirección desde el enlace de confirmación pasa los datos directamente.
+- **Lectura agrupada en la base de datos**: participante, sesión, evento, diseño de la entrada, QR y acompañantes se piden en una única consulta, en lugar de 6 seguidas.
+- **El diseño de la entrada se guarda en memoria unos minutos**, porque es igual para todos los invitados de una sesión.
+- **Mensajes claros en lugar de errores**: "Enlace no válido", "Entrada anulada" y "Sesión ya celebrada (entrada histórica)" se muestran como páginas explicativas, no como fallos.
+- **Revisión de enlaces enviados**: antes de cada envío masivo, la cola avisa si alguna plantilla tiene el enlace de entrada vacío o roto. Así no se repite el caso de los enlaces de cancelación vacíos.
+- **Prueba de carga**: simular 500 aperturas simultáneas en la vista previa y medir tiempos antes y después.
 
 ### A. Quitar lo que no se usa
 - **Panel de inicio**: lo sustituyo por una página sencilla de "Próximas sesiones": solo las 3–5 sesiones más cercanas, cada una con aforo, aprobados, asistentes reales y accesos directos a Control de acceso, Solicitudes e Informe. Sin refresco automático (hay un botón "Actualizar").
