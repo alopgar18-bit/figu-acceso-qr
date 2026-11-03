@@ -36,6 +36,13 @@
       "when": 1793731861285,
       "tag": "0004_session_summary_counts_dedupe_incidents",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793731957225,
+      "tag": "0005_session_summary_counts_per_session_access",
+      "breakpoints": true
     }
   ]
 }
