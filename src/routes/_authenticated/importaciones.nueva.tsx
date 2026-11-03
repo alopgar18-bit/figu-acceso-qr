@@ -97,6 +97,7 @@ function ImportWizardPage() {
   const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>("suffix_distinct");
   const [mapping, setMapping] = useState<Record<string, TargetField | "">>({});
   const [submitting, setSubmitting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<Awaited<ReturnType<typeof commitImport>> | null>(null);
   const [duplicateHits, setDuplicateHits] = useState<number | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -322,21 +323,69 @@ function ImportWizardPage() {
           perRowActions[String(a.rowIndex)] = act;
         }
       }
-      const res = await commit({
-        data: {
-          filename: parsed.filename,
-          source: source || null,
-          eventId,
-          sessionId,
-          defaultStatus,
-          defaultAttendeeType,
-          duplicateStrategy,
-          mappings: mappingsArr,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          rows: validRows as any,
-          perRowActions,
-        },
-      });
+      // Importación por tramos: cada bloque es una petición corta e independiente,
+      // así ningún límite de tiempo del servidor corta la importación a medias.
+      // Los grupos (titular + acompañantes) nunca se parten entre tramos.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allRows = validRows as any[];
+      const CHUNK = 20;
+      const chunks: any[][] = [];
+      let cur: any[] = [];
+      for (const r of allRows) {
+        if (cur.length >= CHUNK && r.role !== "acompanante") { chunks.push(cur); cur = []; }
+        cur.push(r);
+      }
+      if (cur.length) chunks.push(cur);
+
+      let batchId: string | undefined;
+      let res: Awaited<ReturnType<typeof commitImport>> | null = null;
+      const acc = { imported: 0, skipped: 0, updated: 0, errored: 0, qrGenerated: 0, noContactChannel: 0, seatsNotInPlan: 0, errors: [] as Array<{ row: number; reason: string }> };
+      let done = 0;
+      for (let i = 0; i < chunks.length; i++) {
+        setImportProgress({ done, total: allRows.length });
+        let attempt = 0;
+        // Reintentos con espera creciente ante cortes de red o picos de carga
+        for (;;) {
+          try {
+            res = await commit({
+              data: {
+                filename: parsed.filename,
+                source: source || null,
+                eventId,
+                sessionId,
+                defaultStatus,
+                defaultAttendeeType,
+                duplicateStrategy,
+                mappings: mappingsArr,
+                rows: chunks[i],
+                perRowActions,
+                batchId,
+                totalRows: allRows.length,
+                isFinal: i === chunks.length - 1,
+              },
+            });
+            break;
+          } catch (e) {
+            attempt++;
+            if (attempt >= 4) {
+              throw new Error(
+                `Se detuvo en el tramo ${i + 1} de ${chunks.length} (${done} de ${allRows.length} filas procesadas). ` +
+                  `Vuelve a lanzar la importación del mismo Excel: las filas ya importadas se actualizarán sin duplicarse. ` +
+                  (e instanceof Error ? e.message : ""),
+              );
+            }
+            await new Promise((r) => setTimeout(r, 1500 * attempt));
+          }
+        }
+        batchId = res!.batchId;
+        acc.imported += res!.imported; acc.skipped += res!.skipped; acc.updated += res!.updated;
+        acc.errored += res!.errored; acc.qrGenerated += res!.qrGenerated; acc.noContactChannel += res!.noContactChannel;
+        acc.seatsNotInPlan += Number(res!.seatsNotInPlan ?? 0);
+        acc.errors.push(...(res!.errors ?? []));
+        done += chunks[i].length;
+      }
+      setImportProgress(null);
+      res = { ...res!, ...acc, total: allRows.length };
       setResult(res);
       setStep(5);
       toast.success(`Importación completada: ${res.imported} de ${res.total}`);
@@ -344,6 +393,7 @@ function ImportWizardPage() {
       toast.error("Error en la importación", { description: err instanceof Error ? err.message : "Error" });
     } finally {
       setSubmitting(false);
+      setImportProgress(null);
     }
   }
 
