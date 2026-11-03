@@ -1,1 +1,2 @@
 - Session lists in the admin use `sortSessionsUpcomingFirst` (src/lib/session-sort.ts): upcoming first, then past newest-first — keeps every dropdown consistent.
+- Imports are committed in client-driven chunks (~20 rows, groups never split) against one batch via commitImport's batchId/isFinal: a single request for the whole Excel hits the worker's per-invocation limits and dies midway.
