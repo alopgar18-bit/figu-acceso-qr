@@ -175,7 +175,7 @@ export const queueImport = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const records = groups.map((rows, i) => {
-      let actions: Record<string, (typeof data.perRowActions & object)[string]> | undefined;
+      let actions: Record<string, string> | undefined;
       if (data.perRowActions) {
         actions = {};
         for (const r of rows) {
