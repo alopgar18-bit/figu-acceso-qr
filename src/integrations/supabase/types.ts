@@ -1377,6 +1377,72 @@ export type Database = {
           },
         ]
       }
+      import_chunks: {
+        Row: {
+          actor_email: string | null
+          attempts: number
+          batch_id: string
+          chunk_index: number
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          lock_expires_at: string | null
+          lock_owner: string | null
+          max_attempts: number
+          next_attempt_at: string | null
+          payload: Json
+          result: Json | null
+          row_count: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actor_email?: string | null
+          attempts?: number
+          batch_id: string
+          chunk_index: number
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          lock_expires_at?: string | null
+          lock_owner?: string | null
+          max_attempts?: number
+          next_attempt_at?: string | null
+          payload: Json
+          result?: Json | null
+          row_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actor_email?: string | null
+          attempts?: number
+          batch_id?: string
+          chunk_index?: number
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          lock_expires_at?: string | null
+          lock_owner?: string | null
+          max_attempts?: number
+          next_attempt_at?: string | null
+          payload?: Json
+          result?: Json | null
+          row_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       import_mappings: {
         Row: {
           batch_id: string
@@ -2344,6 +2410,36 @@ export type Database = {
       anonymize_person: {
         Args: { _person_id: string; _reason?: string }
         Returns: undefined
+      }
+      claim_import_chunk: {
+        Args: { _batch_id: string; _lock_seconds?: number; _owner: string }
+        Returns: {
+          actor_email: string | null
+          attempts: number
+          batch_id: string
+          chunk_index: number
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          lock_expires_at: string | null
+          lock_owner: string | null
+          max_attempts: number
+          next_attempt_at: string | null
+          payload: Json
+          result: Json | null
+          row_count: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "import_chunks"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_next_background_job: {
         Args: { _kinds?: string[]; _lock_seconds?: number; _owner: string }
