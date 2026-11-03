@@ -530,7 +530,9 @@ function ImportWizardPage() {
                   ) : (
                     <Check className="h-4 w-4 mr-2" />
                   )}
-                  Importar {willImport} filas
+                  {importProgress
+                    ? `Importando ${importProgress.done} de ${importProgress.total}… no cierres esta pestaña`
+                    : `Importar ${willImport} filas`}
                 </Button>
               );
             })()
