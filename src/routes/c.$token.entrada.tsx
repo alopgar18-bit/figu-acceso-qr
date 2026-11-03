@@ -18,15 +18,22 @@ const FALLBACK_OG_IMAGE = "https://storage.googleapis.com/gpt-engineer-file-uplo
 
 export const Route = createFileRoute("/c/$token/entrada")({
   component: Page,
-  loader: async ({ params }) => {
+  loader: async ({ params, context }) => {
+    // Una sola lectura por apertura: reutiliza la caché (navegación desde /c/$token)
+    // y entrega los datos al componente para que no vuelva a pedirlos.
     try {
-      const res = await getConfirmation({ data: { token: params.token } });
-      if (!res.ok) return { meta: null };
+      const key = ["confirmation", params.token];
+      type Res = Awaited<ReturnType<typeof getConfirmation>>;
+      const cached = context.queryClient.getQueryData<Res>(key);
+      const res = cached ?? (await getConfirmation({ data: { token: params.token } }));
+      if (!cached) context.queryClient.setQueryData(key, res);
+      if (!res.ok) return { meta: null, res };
       const { event, session } = res;
       const startsAt = new Date(session.starts_at);
       const dateStr = startsAt.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
       const location = session.location_name ?? event.location_name ?? null;
       return {
+        res,
         meta: {
           title: event.name,
           description: `Tu invitación para ${session.name} · ${dateStr}${location ? ` · ${location}` : ""}`,
@@ -34,7 +41,7 @@ export const Route = createFileRoute("/c/$token/entrada")({
         },
       };
     } catch {
-      return { meta: null };
+      return { meta: null, res: null };
     }
   },
   head: ({ loaderData, params }) => {
@@ -67,10 +74,12 @@ function Page() {
   const { token } = Route.useParams();
   const navigate = useNavigate();
   const fetch = useServerFn(getConfirmation);
+  const loaderData = Route.useLoaderData();
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["confirmation", token],
     queryFn: () => fetch({ data: { token } }),
+    initialData: loaderData?.res ?? undefined,
     retry: 4,
     retryDelay: (n) => Math.min(800 * 2 ** n, 5000),
     staleTime: 5 * 60_000,
