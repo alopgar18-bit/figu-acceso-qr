@@ -125,7 +125,7 @@ function Page() {
         <SummaryCard icon={<Users className="h-4 w-4" />} label="Aforo total" value={totals.capacity} />
         <SummaryCard icon={<Inbox className="h-4 w-4" />} label="Solicitudes" value={totals.solicitudes} />
         <SummaryCard icon={<UserCheck className="h-4 w-4" />} label="Confirmados" value={totals.confirmados} />
-        <SummaryCard icon={<ScanLine className="h-4 w-4" />} label="Check-ins" value={totals.checkins} />
+        <SummaryCard icon={<ScanLine className="h-4 w-4" />} label="Asistentes reales" value={totals.checkins} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
