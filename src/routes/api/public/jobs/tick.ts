@@ -78,6 +78,18 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
           }
         }
 
+        // Vigilante de importaciones: continúa los lotes cuyo navegador se
+        // cerró o cambió de página. Presupuesto corto para no pasar del límite.
+        let imports: string = "no_aplica";
+        try {
+          const { drainImportQueue } = await import("@/lib/import-queue.server");
+          const n = await drainImportQueue(supabaseAdmin, 12_000, 3);
+          imports = n > 0 ? `tramos_procesados:${n}` : "sin_pendientes";
+        } catch (err) {
+          imports = `error: ${err instanceof Error ? err.message : String(err)}`;
+          console.error("[jobs.tick] importaciones", err);
+        }
+
         // Vigilante: si quedan WhatsApp pendientes y no hay bloqueo de cola
         // vigente, relanza la cola sola (evita que un tramo caído la deje parada).
         let watchdog: string = "no_aplica";
@@ -138,7 +150,7 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
           console.error("[jobs.tick] watchdog email", err);
         }
 
-        return new Response(JSON.stringify({ processed: results.length, results, watchdog, watchdogEmail }), {
+        return new Response(JSON.stringify({ processed: results.length, results, imports, watchdog, watchdogEmail }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });

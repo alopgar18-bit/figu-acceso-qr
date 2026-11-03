@@ -1,2 +1,2 @@
 - Session lists in the admin use `sortSessionsUpcomingFirst` (src/lib/session-sort.ts): upcoming first, then past newest-first — keeps every dropdown consistent.
-- Imports are committed in client-driven chunks (~20 rows, groups never split) against one batch via commitImport's batchId/isFinal: a single request for the whole Excel hits the worker's per-invocation limits and dies midway.
+- Imports are queued server-side as ~20-row chunks in import_chunks (queueImport; groups never split) and processed one chunk per request by the open browser (processImportChunk) or the per-minute jobs tick, serialized per batch by claim_import_chunk: one request for the whole Excel dies on worker limits, and browser-only chunking stalls when the tab closes.
