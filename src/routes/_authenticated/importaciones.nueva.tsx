@@ -517,19 +517,29 @@ function ImportWizardPage() {
                   }).length
                 : validRows.length;
               return (
-                <Button
-                  onClick={handleCommit}
-                  disabled={submitting || analyzing || !analysis || willImport === 0}
-                >
-                  {submitting ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4 mr-2" />
+                <div className="flex flex-col items-end gap-1">
+                  <Button
+                    onClick={handleCommit}
+                    disabled={submitting || analyzing || !analysis || willImport === 0}
+                  >
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4 mr-2" />
+                    )}
+                    {importProgress
+                      ? `Importando ${importProgress.done} de ${importProgress.total}…`
+                      : `Importar ${willImport} filas`}
+                  </Button>
+                  {queuedBatchId && submitting && (
+                    <p className="text-xs text-muted-foreground">
+                      Puedes salir de esta página: la importación sigue sola en segundo plano.{" "}
+                      <Link to="/importaciones/$batchId" params={{ batchId: queuedBatchId }} className="underline">
+                        Ver el lote
+                      </Link>
+                    </p>
                   )}
-                  {importProgress
-                    ? `Importando ${importProgress.done} de ${importProgress.total}… no cierres esta pestaña`
-                    : `Importar ${willImport} filas`}
-                </Button>
+                </div>
               );
             })()
           ) : (
