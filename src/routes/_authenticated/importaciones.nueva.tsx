@@ -32,7 +32,7 @@ import {
   type AttendeeType,
   statusLabel,
 } from "@/lib/participant-constants";
-import { commitImport, analyzeImport } from "@/lib/imports.functions";
+import { commitImport, analyzeImport, queueImport, processImportChunk } from "@/lib/imports.functions";
 import {
   BLOCK_LABEL,
   BLOCK_DESCRIPTION,
@@ -83,7 +83,9 @@ type AnalysisResult = {
 
 function ImportWizardPage() {
   const navigate = useNavigate();
-  const commit = useServerFn(commitImport);
+  const queueRun = useServerFn(queueImport);
+  const processChunk = useServerFn(processImportChunk);
+  const [queuedBatchId, setQueuedBatchId] = useState<string | null>(null);
   const analyze = useServerFn(analyzeImport);
 
   const [step, setStep] = useState(0);
@@ -323,69 +325,63 @@ function ImportWizardPage() {
           perRowActions[String(a.rowIndex)] = act;
         }
       }
-      // Importación por tramos: cada bloque es una petición corta e independiente,
-      // así ningún límite de tiempo del servidor corta la importación a medias.
-      // Los grupos (titular + acompañantes) nunca se parten entre tramos.
+      // Importación en segundo plano: el servidor guarda el Excel en tramos y
+      // los procesa uno a uno. Mientras la pestaña esté abierta, el navegador
+      // va pidiendo tramos (más rápido); si se cierra, el vigilante automático
+      // continúa solo. Los grupos (titular + acompañantes) nunca se parten.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allRows = validRows as any[];
-      const CHUNK = 20;
-      const chunks: any[][] = [];
-      let cur: any[] = [];
-      for (const r of allRows) {
-        if (cur.length >= CHUNK && r.role !== "acompanante") { chunks.push(cur); cur = []; }
-        cur.push(r);
-      }
-      if (cur.length) chunks.push(cur);
+      const queued = await queueRun({
+        data: {
+          filename: parsed.filename,
+          source: source || null,
+          eventId,
+          sessionId,
+          defaultStatus,
+          defaultAttendeeType,
+          duplicateStrategy,
+          mappings: mappingsArr,
+          rows: allRows,
+          perRowActions,
+        },
+      });
+      setQueuedBatchId(queued.batchId);
+      setImportProgress({ done: 0, total: allRows.length });
 
-      let batchId: string | undefined;
-      let res: Awaited<ReturnType<typeof commitImport>> | null = null;
-      const acc = { imported: 0, skipped: 0, updated: 0, errored: 0, qrGenerated: 0, noContactChannel: 0, seatsNotInPlan: 0, errors: [] as Array<{ row: number; reason: string }> };
-      let done = 0;
-      for (let i = 0; i < chunks.length; i++) {
-        setImportProgress({ done, total: allRows.length });
-        let attempt = 0;
-        // Reintentos con espera creciente ante cortes de red o picos de carga
-        for (;;) {
-          try {
-            res = await commit({
-              data: {
-                filename: parsed.filename,
-                source: source || null,
-                eventId,
-                sessionId,
-                defaultStatus,
-                defaultAttendeeType,
-                duplicateStrategy,
-                mappings: mappingsArr,
-                rows: chunks[i],
-                perRowActions,
-                batchId,
-                totalRows: allRows.length,
-                isFinal: i === chunks.length - 1,
-              },
-            });
-            break;
-          } catch (e) {
-            attempt++;
-            if (attempt >= 4) {
-              throw new Error(
-                `Se detuvo en el tramo ${i + 1} de ${chunks.length} (${done} de ${allRows.length} filas procesadas). ` +
-                  `Vuelve a lanzar la importación del mismo Excel: las filas ya importadas se actualizarán sin duplicarse. ` +
-                  (e instanceof Error ? e.message : ""),
-              );
-            }
-            await new Promise((r) => setTimeout(r, 1500 * attempt));
-          }
+      let progress: Awaited<ReturnType<typeof processChunk>> | null = null;
+      let failures = 0;
+      for (;;) {
+        try {
+          progress = await processChunk({ data: { batchId: queued.batchId } });
+          failures = 0;
+        } catch {
+          failures++;
+          // El servidor sigue en segundo plano: solo esperamos y reintentamos.
+          await new Promise((r) => setTimeout(r, Math.min(15_000, 2000 * failures)));
+          continue;
         }
-        batchId = res!.batchId;
-        acc.imported += res!.imported; acc.skipped += res!.skipped; acc.updated += res!.updated;
-        acc.errored += res!.errored; acc.qrGenerated += res!.qrGenerated; acc.noContactChannel += res!.noContactChannel;
-        acc.seatsNotInPlan += Number(res!.seatsNotInPlan ?? 0);
-        acc.errors.push(...(res!.errors ?? []));
-        done += chunks[i].length;
+        setImportProgress({ done: progress.doneRows, total: progress.totalRows });
+        if (progress.complete) break;
+        if (progress.step !== "processed") {
+          // Otro proceso está con un tramo o toca esperar un reintento.
+          await new Promise((r) => setTimeout(r, 3000));
+        }
       }
+      const t = progress!.totals;
+      const res = {
+        batchId: queued.batchId,
+        total: allRows.length,
+        imported: t.imported,
+        skipped: t.skipped,
+        updated: t.updated,
+        errored: t.errored,
+        qrGenerated: t.qrGenerated,
+        noContactChannel: t.noContactChannel,
+        errors: t.errors,
+        finalStatus: progress!.finalStatus ?? "completada",
+        seatsNotInPlan: t.seatsNotInPlan,
+      };
       setImportProgress(null);
-      res = { ...res!, ...acc, total: allRows.length };
       setResult(res);
       setStep(5);
       toast.success(`Importación completada: ${res.imported} de ${res.total}`);
