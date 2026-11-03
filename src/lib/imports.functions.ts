@@ -222,7 +222,7 @@ export const commitImport = createServerFn({ method: "POST" })
     for (let from = 0; ; from += 1000) {
       const { data: page, error: rErr } = await supabase
         .from("event_participants")
-        .select("id, person_id, people:person_id(first_name, last_name, dni)")
+        .select("id, person_id, people:person_id(first_name, last_name)")
         .eq("session_id", data.sessionId)
         .order("id")
         .range(from, from + 999);
