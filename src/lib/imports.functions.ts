@@ -123,6 +123,131 @@ export const commitImport = createServerFn({ method: "POST" })
   });
 
 // ============================================================
+// Importación en segundo plano: el Excel se guarda en tramos y se
+// procesa tramo a tramo. Sigue sola aunque se cierre la pestaña.
+// ============================================================
+
+const queueSchema = commitSchema.omit({ batchId: true, isFinal: true, totalRows: true });
+
+export const queueImport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => queueSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId, claims } = context;
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
+    const actorEmail = (claims as { email?: string } | undefined)?.email ?? null;
+
+    const { data: batch, error: batchErr } = await supabase
+      .from("import_batches")
+      .insert({
+        filename: data.filename,
+        source: data.source ?? null,
+        event_id: data.eventId,
+        session_id: data.sessionId,
+        total_rows: data.rows.length,
+        status: "procesando",
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+    if (batchErr || !batch) throw new Error(`No se pudo crear el lote: ${batchErr?.message ?? ""}`);
+
+    if (data.mappings.length > 0) {
+      await supabase.from("import_mappings").insert(
+        data.mappings.map((m) => ({
+          batch_id: batch.id,
+          source_column: m.source_column,
+          target_field: m.target_field,
+          transform: m.transform ?? null,
+        })),
+      );
+    }
+
+    // Tramos de ~20 filas; un titular y sus acompañantes nunca se separan.
+    const CHUNK = 20;
+    const groups: Array<typeof data.rows> = [];
+    let cur: typeof data.rows = [];
+    for (const r of data.rows) {
+      if (cur.length >= CHUNK && r.role !== "acompanante") { groups.push(cur); cur = []; }
+      cur.push(r);
+    }
+    if (cur.length) groups.push(cur);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const records = groups.map((rows, i) => {
+      let actions: Record<string, (typeof data.perRowActions & object)[string]> | undefined;
+      if (data.perRowActions) {
+        actions = {};
+        for (const r of rows) {
+          const a = data.perRowActions[String(r.rowIndex)];
+          if (a) actions[String(r.rowIndex)] = a;
+        }
+      }
+      return {
+        batch_id: batch.id,
+        chunk_index: i,
+        row_count: rows.length,
+        created_by: userId,
+        actor_email: actorEmail,
+        payload: {
+          filename: data.filename,
+          source: data.source ?? null,
+          eventId: data.eventId,
+          sessionId: data.sessionId,
+          defaultStatus: data.defaultStatus,
+          defaultAttendeeType: data.defaultAttendeeType,
+          duplicateStrategy: data.duplicateStrategy,
+          mappings: [],
+          rows,
+          perRowActions: actions,
+          totalRows: data.rows.length,
+        } as never,
+      };
+    });
+    for (let i = 0; i < records.length; i += 50) {
+      const { error } = await supabaseAdmin.from("import_chunks").insert(records.slice(i, i + 50));
+      if (error) {
+        await supabaseAdmin.from("import_chunks").delete().eq("batch_id", batch.id);
+        await supabaseAdmin
+          .from("import_batches")
+          .update({ status: "fallida", completed_at: new Date().toISOString(), errors: [{ row: -1, reason: `No se pudo preparar la importación: ${error.message}` }] as never })
+          .eq("id", batch.id);
+        throw new Error(`No se pudo preparar la importación: ${error.message}`);
+      }
+    }
+    return { batchId: batch.id, chunks: records.length, totalRows: data.rows.length };
+  });
+
+/** Procesa el siguiente tramo del lote (si no lo está procesando ya otro) y devuelve el progreso. */
+export const processImportChunk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ batchId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { processNextImportChunk, getBatchProgress } = await import("./import-queue.server");
+    const r = await processNextImportChunk(supabaseAdmin, {
+      batchId: data.batchId,
+      owner: `browser-${userId}`,
+    });
+    const progress = await getBatchProgress(supabaseAdmin, data.batchId);
+    return { step: r.status, ...progress };
+  });
+
+/** Solo lectura del progreso de un lote encolado. */
+export const getImportProgress = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ batchId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { getBatchProgress } = await import("./import-queue.server");
+    return getBatchProgress(supabaseAdmin, data.batchId);
+  });
+
+// ============================================================
 // Audit backfill: rellena import_row_results para un batch
 // histórico a partir de las filas del Excel original.
 // No modifica event_participants ni tickets — sólo audita.
