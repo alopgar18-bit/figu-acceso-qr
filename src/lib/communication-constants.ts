@@ -157,8 +157,15 @@ export function renderTemplate(text: string, ctx: RenderContext): string {
   const extra: Record<string, unknown> = {
     programa: ctx.evento,
     lugar: ctx.ubicacion,
+    enlace_mapa: ctx.ubicacion
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(ctx.ubicacion))}`
+      : "",
     enlace_cancelacion: tokenMatch ? `${PUBLIC_SITE_URL_FALLBACK}/c/${tokenMatch[1]}/cancelar` : "",
   };
+  // Sin ubicación, el enlace al mapa queda como texto normal (nunca href vacío).
+  if (!ctx.ubicacion) {
+    working = working.replace(/<a\s+[^>]*href="\{\{\s*enlace_mapa\s*\}\}"[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+  }
   return working.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => {
     const v = (ctx as Record<string, unknown>)[key] ?? extra[key];
     return v == null ? "" : String(v);
