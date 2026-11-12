@@ -2539,6 +2539,11 @@ export type Database = {
         }
         Returns: string
       }
+      rotate_session_qr: { Args: { _session: string }; Returns: number }
+      seat_physical_key: {
+        Args: { _num: string; _row: string; _zone: string }
+        Returns: string
+      }
       session_summary_counts: {
         Args: { _session_ids: string[] }
         Returns: {
