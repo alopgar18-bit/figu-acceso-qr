@@ -57,6 +57,13 @@
       "when": 1793733922143,
       "tag": "0007_import_chunks_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794504341641,
+      "tag": "0008_tighten_seat_assignment_reads",
+      "breakpoints": true
     }
   ]
 }

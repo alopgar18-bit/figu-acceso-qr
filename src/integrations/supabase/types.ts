@@ -2411,6 +2411,10 @@ export type Database = {
         Args: { _person_id: string; _reason?: string }
         Returns: undefined
       }
+      can_view_session_seating: {
+        Args: { _session_id: string; _user_id: string }
+        Returns: boolean
+      }
       claim_import_chunk: {
         Args: { _batch_id: string; _lock_seconds?: number; _owner: string }
         Returns: {
