@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { UserCog, Plus, Mail, Phone, ShieldCheck, CircleSlash, Pencil } from "lucide-react";
+import { UserCog, Plus, Mail, Phone, ShieldCheck, CircleSlash, Pencil, KeyRound } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { createUser, updateUserRoles, updateUserClients } from "@/lib/users.functions";
+import { createUser, updateUserRoles, updateUserClients, setUserPassword } from "@/lib/users.functions";
 import { ClientAssignmentsPanel } from "@/components/client-assignments-panel";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
@@ -50,6 +50,7 @@ function Page() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [pwUser, setPwUser] = useState<{ id: string; email: string | null } | null>(null);
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin-users-with-roles"],
     queryFn: async () => {
@@ -158,6 +159,9 @@ function Page() {
                       <Button variant="ghost" size="sm" onClick={() => setEditingUserId(u.id)}>
                         <Pencil className="h-3.5 w-3.5 mr-1" />Editar
                       </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setPwUser({ id: u.id, email: u.email })}>
+                        <KeyRound className="h-3.5 w-3.5 mr-1" />Contraseña
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -174,6 +178,8 @@ function Page() {
           void qc.invalidateQueries({ queryKey: ["admin-users-with-roles"] });
         }}
       />
+
+      <PasswordDialog user={pwUser} onClose={() => setPwUser(null)} />
 
       <EditUserDialog
         user={users.find((u) => u.id === editingUserId) ?? null}
@@ -504,5 +510,58 @@ function EditUserDialogBody({
         </Button>
       </DialogFooter>
     </>
+  );
+}
+
+function PasswordDialog({
+  user,
+  onClose,
+}: {
+  user: { id: string; email: string | null } | null;
+  onClose: () => void;
+}) {
+  const setPwFn = useServerFn(setUserPassword);
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [saving, setSaving] = useState(false);
+  const close = () => { setPw(""); setPw2(""); onClose(); };
+  const submit = async () => {
+    if (!user) return;
+    if (pw.length < 8) return toast.error("La contraseña debe tener al menos 8 caracteres");
+    if (pw !== pw2) return toast.error("Las contraseñas no coinciden");
+    setSaving(true);
+    try {
+      await setPwFn({ data: { user_id: user.id, password: pw } });
+      toast.success("Contraseña actualizada");
+      close();
+    } catch (e) {
+      toast.error("No se pudo cambiar la contraseña", { description: e instanceof Error ? e.message : undefined });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Dialog open={!!user} onOpenChange={(v) => { if (!v) close(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Cambiar contraseña</DialogTitle>
+          <DialogDescription>{user?.email}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Nueva contraseña</Label>
+            <Input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Repite la contraseña</Label>
+            <Input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>Cancelar</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? "Guardando…" : "Guardar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
