@@ -497,7 +497,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
         .select("id, status, attendee_type, session_id, companions_count, submission_id, public_form_id, import_batch_id, seat_zone, seat_row, seat_number, created_at, approved_at, confirmed_at, internal_notes, people(first_name,last_name,dni,email,phone,birth_date,gender,city,province,country,source), event_sessions(id,name)")
         .eq("event_id", eventId);
       if (opts.sessionId) q = q.eq("session_id", opts.sessionId);
-      return q.range(from, to) as unknown as PromiseLike<{ data: PartFull[] | null; error: { message: string } | null }>;
+      return q.order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: PartFull[] | null; error: { message: string } | null }>;
     },
   );
   const filteredParts = participants;
@@ -511,6 +511,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
       supabase.from("companions")
         .select("id, participant_id, first_name, last_name, dni, email, phone, age, seat_zone, seat_row, seat_number")
         .in("participant_id", chunk)
+        .order("id", { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: CompFull[] | null; error: { message: string } | null }>,
     );
     companions.push(...rows);
@@ -528,7 +529,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
         .select("participant_id, session_id, checked_in_at, device_info, result, validator_id")
         .eq("event_id", eventId);
       if (opts.sessionId) q = q.eq("session_id", opts.sessionId);
-      return q.range(from, to) as unknown as PromiseLike<{ data: CheckinFull[] | null; error: { message: string } | null }>;
+      return q.order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CheckinFull[] | null; error: { message: string } | null }>;
     },
   );
   const okCheckins = checkins.filter((c) => (c.result ?? "ok") === "ok");
@@ -544,7 +545,7 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
         .select("id, participant_id, session_id, category, incident_type, title, description, created_at, walk_in_first_name, walk_in_last_name, walk_in_dni, walk_in_companions")
         .eq("event_id", eventId);
       if (opts.sessionId) q = q.eq("session_id", opts.sessionId);
-      return q.range(from, to) as unknown as PromiseLike<{ data: IncidentFull[] | null; error: { message: string } | null }>;
+      return q.order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: IncidentFull[] | null; error: { message: string } | null }>;
     },
   );
   const filteredIncidents = incidents;
@@ -582,11 +583,29 @@ export async function exportReportDetailExcel(data: ReportData, opts: { sessionI
     "Hora check-in", "Método", "Validador", "Vía", "Notas",
   ];
   const asisAoa: (string | number)[][] = [asisHeader];
-  // Sort by session/apellidos
-  const sortedParts = [...filteredParts].sort((a, b) =>
-    `${a.event_sessions?.name ?? ""}|${a.people?.last_name ?? ""}|${a.people?.first_name ?? ""}`
-      .localeCompare(`${b.event_sessions?.name ?? ""}|${b.people?.last_name ?? ""}|${b.people?.first_name ?? ""}`),
-  );
+  // Orden por sesión y butaca; sin butaca, al final de su sesión por apellidos.
+  const compareNumeric = (a: string | null, b: string | null) => {
+    const aNumber = Number(a);
+    const bNumber = Number(b);
+    return a?.trim() && b?.trim() && Number.isFinite(aNumber) && Number.isFinite(bNumber)
+      ? aNumber - bNumber
+      : (a ?? "").localeCompare(b ?? "", "es", { numeric: true });
+  };
+  const sortedParts = [...filteredParts].sort((a, b) => {
+    const sessionOrder = (a.event_sessions?.name ?? "").localeCompare(b.event_sessions?.name ?? "");
+    if (sessionOrder) return sessionOrder;
+    const aHasSeat = Boolean(a.seat_zone?.trim() && a.seat_row?.trim() && a.seat_number?.trim());
+    const bHasSeat = Boolean(b.seat_zone?.trim() && b.seat_row?.trim() && b.seat_number?.trim());
+    if (aHasSeat !== bHasSeat) return aHasSeat ? -1 : 1;
+    if (aHasSeat && bHasSeat) {
+      const seatOrder = (a.seat_zone ?? "").localeCompare(b.seat_zone ?? "")
+        || compareNumeric(a.seat_row, b.seat_row)
+        || compareNumeric(a.seat_number, b.seat_number);
+      if (seatOrder) return seatOrder;
+    }
+    return (a.people?.last_name ?? "").localeCompare(b.people?.last_name ?? "")
+      || (a.people?.first_name ?? "").localeCompare(b.people?.first_name ?? "");
+  });
   for (const p of sortedParts) {
     const ci = checkinByPart.get(p.id);
     if (!ci) continue;
