@@ -2589,6 +2589,7 @@ export type Database = {
         Args: { _num: string; _row: string; _zone: string }
         Returns: string
       }
+      session_seat_issues: { Args: { _session: string }; Returns: Json }
       session_seat_stats: { Args: { _session: string }; Returns: Json }
       session_summary_counts: {
         Args: { _session_ids: string[] }
