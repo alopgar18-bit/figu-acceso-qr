@@ -14,6 +14,7 @@ import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/us
 import { useSeatStats, type SeatStats } from "@/lib/use-seat-stats";
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
 import { exportReleasedSeatsExcel } from "@/lib/released-seats-export";
+import { exportSeatIssuesExcel } from "@/lib/seat-issues-export";
 
 
 export const Route = createFileRoute("/_authenticated/informes/$eventId")({
@@ -79,6 +80,23 @@ function EventReportPage() {
     } catch (e) {
       console.error(e);
       toast.error("Error generando el Excel de butacas liberadas");
+    }
+  };
+  const handleSeatIssues = async () => {
+    if (!data || !currentSessionId) return;
+    const session = list.find((s) => s.id === currentSessionId);
+    if (!session) return;
+    try {
+      const n = await exportSeatIssuesExcel({
+        sessionId: currentSessionId,
+        sessionName: session.name,
+        eventName: data.event.name,
+      });
+      if (n === 0) toast.info("Sin incidencias de butacas en esta sesión");
+      else toast.success(`${n} incidencias exportadas`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Error generando el Excel de incidencias");
     }
   };
   const handlePDF = async () => {
@@ -157,6 +175,14 @@ function EventReportPage() {
               title="Butacas liberadas por cancelaciones o rechazos, listas para reasignar"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />Butacas liberadas (Excel)
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSeatIssues}
+              disabled={!hasReport || !currentSessionId}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Incidencias de butacas (Excel)
             </Button>
 
             <Button size="sm" onClick={handlePDF} disabled={!hasReport}>
