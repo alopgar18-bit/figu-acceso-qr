@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Download, FileSpreadsheet, AlertTriangle, Activity, Users, CheckCircle2, Clock, Loader2, RefreshCw, MousePointerClick } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, AlertTriangle, Activity, Users, CheckCircle2, Clock, Loader2, RefreshCw, MousePointerClick, ChevronDown } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useEventReport, useEventSessionsLite, inferReportPhase } from "@/lib/use-reports";
+import { useSeatStats, type SeatStats } from "@/lib/use-seat-stats";
 import { exportReportExcel, exportReportPDF, exportReportDetailExcel } from "@/lib/report-export";
 import { exportReleasedSeatsExcel } from "@/lib/released-seats-export";
 
@@ -47,6 +49,7 @@ function EventReportPage() {
 
   const phase = data ? inferReportPhase(data.event.starts_at, data.event.ends_at) : "previo";
   const currentSessionId = scope?.sessionId;
+  const seatStats = useSeatStats(currentSessionId);
   const hasReport = !!data;
 
   const handleExcel = async () => {
@@ -170,6 +173,10 @@ function EventReportPage() {
       ) : isLoading || !data ? (
         <ReportSkeleton />
       ) : (
+        <>
+        {currentSessionId && !seatStats.isLoading && !seatStats.isError && seatStats.data?.mapa_cargado && (
+          <SeatStatsSection key={currentSessionId} stats={seatStats.data} />
+        )}
         <Tabs defaultValue={phase === "previo" ? "previo" : phase === "tiempo-real" ? "vivo" : "final"}>
         <TabsList>
           <TabsTrigger value="previo">Previo</TabsTrigger>
@@ -291,8 +298,61 @@ function EventReportPage() {
           </div>
         </TabsContent>
       </Tabs>
+      </>
       )}
     </div>
+  );
+}
+
+function SeatStatsSection({ stats }: { stats: SeatStats }) {
+  const zones = new Map<string, SeatStats["libres"]>();
+  for (const seat of stats.libres) {
+    const seats = zones.get(seat.zona) ?? [];
+    seats.push(seat);
+    zones.set(seat.zona, seats);
+  }
+
+  return (
+    <section className="mb-6 space-y-3" aria-labelledby="seat-stats-title">
+      <h2 id="seat-stats-title" className="text-lg font-semibold">Butacas</h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Stat label="Butacas del teatro" value={stats.butacas_mapa} hint="Plano de butacas asignables" />
+        <Stat label="Ocupadas" value={stats.butacas_ocupadas} />
+        <Stat label="Libres para reasignar" value={stats.butacas_libres} tone={stats.butacas_libres > 0 ? "warning" : "neutral"} hint="Butacas del plano sin nadie asignado" />
+        <Stat label="Cancelaciones" value={stats.cancelaciones} />
+        <Stat label="Cancelaciones ya reasignadas" value={stats.cancelaciones_reasignadas} hint="Su butaca ya la ocupa otra persona" />
+        <Stat label="Cancelaciones con butaca libre" value={stats.cancelaciones_libres} />
+        <Stat label="Pendientes de revisión" value={stats.pendientes_revision} />
+        <Stat label="Lista de espera" value={stats.lista_espera} />
+        {stats.butacas_dobles > 0 && <Stat label="Butacas con 2 personas" value={stats.butacas_dobles} tone="danger" />}
+        {stats.personas_fuera_mapa > 0 && <Stat label="Personas fuera del plano" value={stats.personas_fuera_mapa} tone="warning" hint="Asignadas a una butaca que no está en el plano" />}
+        {stats.personas_sin_butaca > 0 && <Stat label="Personas sin butaca" value={stats.personas_sin_butaca} tone="warning" />}
+      </div>
+      <Collapsible>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="group">
+            <ChevronDown className="mr-2 h-4 w-4 group-data-[state=open]:rotate-180" />
+            Ver butacas libres ({stats.butacas_libres})
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-2 max-h-64 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {Array.from(zones, ([zone, seats]) => (
+              <div key={zone}>
+                <h3 className="font-semibold mb-1">{zone}</h3>
+                <ul className="space-y-1 text-muted-foreground">
+                  {seats.map((seat, index) => (
+                    <li key={`${seat.fila}-${seat.butaca}-${index}`}>
+                      Fila {seat.fila} · butaca {seat.butaca}{seat.area ? ` (${seat.area})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </section>
   );
 }
 
