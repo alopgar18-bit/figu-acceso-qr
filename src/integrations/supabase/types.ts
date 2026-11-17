@@ -2110,6 +2110,47 @@ export type Database = {
         }
         Relationships: []
       }
+      venue_assignable_seats: {
+        Row: {
+          area: string | null
+          created_at: string
+          id: string
+          seat_family: string | null
+          seat_number: string
+          seat_row: string
+          seat_zone: string
+          venue_id: string
+        }
+        Insert: {
+          area?: string | null
+          created_at?: string
+          id?: string
+          seat_family?: string | null
+          seat_number: string
+          seat_row: string
+          seat_zone: string
+          venue_id: string
+        }
+        Update: {
+          area?: string | null
+          created_at?: string
+          id?: string
+          seat_family?: string | null
+          seat_number?: string
+          seat_row?: string
+          seat_zone?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_assignable_seats_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_plans: {
         Row: {
           created_at: string
@@ -2548,6 +2589,7 @@ export type Database = {
         Args: { _num: string; _row: string; _zone: string }
         Returns: string
       }
+      session_seat_stats: { Args: { _session: string }; Returns: Json }
       session_summary_counts: {
         Args: { _session_ids: string[] }
         Returns: {
