@@ -64,6 +64,13 @@
       "when": 1794504341641,
       "tag": "0008_tighten_seat_assignment_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795369515509,
+      "tag": "0009_seat_key_full_zone",
+      "breakpoints": true
     }
   ]
 }
