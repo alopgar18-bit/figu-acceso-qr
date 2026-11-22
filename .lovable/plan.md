@@ -17,3 +17,6 @@ Si un mismo palco aparece escrito con nombres distintos en Excel y plano (p. ej.
 
 ## Técnico
 Migración: `seat_physical_key` -> `upper(unaccent-like normalización de btrim(zone)) | lower(btrim(row)) | btrim(num)`; `prevent_duplicate_seat`, `session_seat_stats`, `session_seat_issues` heredan la clave. Aplicar fuera de horario de grabación.
+
+## ¿Borrar la importación y repetirla?
+No lo recomiendo. Las 119 filas con error no se llegaron a crear, así que no hay nada que limpiar. Borrar el lote eliminaría también las filas que entraron bien, junto con sus entradas, QR y butacas, y quizá ya se haya avisado a esas personas. Reimportar el mismo Excel es más seguro: lo ya creado se reconoce y no se toca, y solo se crean las filas que faltan.
