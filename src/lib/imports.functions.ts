@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole } from "./role-guards";
 import { runCommitChunk } from "./import-commit.server";
+import { buildImportDuplicateReport, importNameKey, type DuplicateReportEntry } from "./import-duplicates";
 
 const rowSchema = z.object({
   rowIndex: z.number().int().min(0),
@@ -75,7 +76,7 @@ const commitSchema = z.object({
   defaultAttendeeType: z
     .enum(["publico", "figurante", "casting", "vip", "prensa", "equipo", "acompanante", "otro"])
     .default("publico"),
-  duplicateStrategy: z.enum(["skip", "update_person", "new_participation", "suffix_distinct"]),
+  duplicateStrategy: z.enum(["report_only", "skip", "update_person", "new_participation", "suffix_distinct"]),
   mappings: z
     .array(
       z.object({
@@ -119,7 +120,7 @@ export const commitImport = createServerFn({ method: "POST" })
     const { supabase, userId, claims } = context;
     await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
     const actorEmail = (claims as { email?: string } | undefined)?.email ?? null;
-    return runCommitChunk(supabase, userId, actorEmail, data);
+    return runCommitChunk(supabase, userId, actorEmail, { ...data, duplicateStrategy: "report_only" });
   });
 
 // ============================================================
@@ -196,7 +197,7 @@ export const queueImport = createServerFn({ method: "POST" })
           sessionId: data.sessionId,
           defaultStatus: data.defaultStatus,
           defaultAttendeeType: data.defaultAttendeeType,
-          duplicateStrategy: data.duplicateStrategy,
+          duplicateStrategy: "report_only",
           mappings: [],
           rows,
           perRowActions: actions,
@@ -521,6 +522,9 @@ const analyzeSchema = z.object({
         dni: z.string().trim().max(30).optional().nullable(),
         email: z.string().trim().max(255).optional().nullable(),
         phone: z.string().trim().max(40).optional().nullable(),
+        seat_zone: z.string().trim().max(40).optional().nullable(),
+        seat_row: z.string().trim().max(20).optional().nullable(),
+        seat_number: z.string().trim().max(20).optional().nullable(),
       }),
     )
     .min(1)
@@ -538,180 +542,54 @@ export const analyzeImport = createServerFn({ method: "POST" })
       "coordinador",
     ]);
 
-    const normStr = (s: string | null | undefined) =>
-      (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
-    const normDni = (s: string | null | undefined) =>
-      (s ?? "").toString().trim().toUpperCase().replace(/[\s-]/g, "");
-    const normEmail = (s: string | null | undefined) =>
-      (s ?? "").toString().trim().toLowerCase();
-    const normPhone = (s: string | null | undefined) => {
-      const d = (s ?? "").toString().replace(/\D/g, "");
-      return d.length >= 9 ? d.slice(-9) : d;
-    };
-    const nameKey = (f: string | null | undefined, l: string | null | undefined) =>
-      `${normStr(f)}|${normStr(l)}`;
+    const { readImportRoster } = await import("./import-duplicates.server");
+    const roster = await readImportRoster(supabase, data.sessionId);
+    const incoming: DuplicateReportEntry[] = data.rows.map((r) => ({
+      first_name: r.first_name, last_name: r.last_name ?? null, dni: r.dni ?? null,
+      email: r.email ?? null, phone: r.phone ?? null, seat_zone: r.seat_zone ?? null,
+      seat_row: r.seat_row ?? null, seat_number: r.seat_number ?? null,
+      participant_id: null, row_number: r.rowIndex, origin: "archivo", outcome: null, note: null,
+    }));
+    const report = buildImportDuplicateReport(incoming, roster);
+    const duplicateIndexes = new Set(report.entries.filter((r) => r.origin === "archivo").map((r) => r.row_number));
+    const rows = data.rows.map((r) => {
+      const hit = roster.find((p) => importNameKey(p.first_name, p.last_name) === importNameKey(r.first_name, r.last_name));
+      const duplicate = duplicateIndexes.has(r.rowIndex);
+      return { rowIndex: r.rowIndex, block: duplicate ? "B" as const : "A" as const,
+        match_reason: duplicate ? "name" as const : null,
+        existing: hit ? { participantId: hit.participant_id ?? undefined, sessionId: data.sessionId, status: hit.outcome } : null };
+    });
+    return { rows, counts: { A: rows.filter((r) => r.block === "A").length,
+      B: rows.filter((r) => r.block === "B").length, C: 0, D: 0, B_with_ticket: 0, C_with_ticket: 0 }, report };
 
-    // AISLAMIENTO POR SESIÓN: sólo miramos el roster de la sesión destino.
-    // Las coincidencias en otras sesiones del evento se ignoran a efectos de
-    // duplicado (se tratan como participantes nuevos con VIS si el DNI ya
-    // existe en otra sesión).
-    const { data: roster } = await supabase
-      .from("event_participants")
-      .select(
-        "id, session_id, status, person_id, people:person_id(first_name, last_name, dni, email, phone), event_sessions:session_id(name), tickets(id)",
-      )
-      .eq("session_id", data.sessionId);
+  });
 
-    // DNIs del Excel que ya están asociados a participantes en OTRA sesión
-    // del mismo evento — se etiquetan como aviso en el bloque A.
-    const rowDnisAn = new Set<string>();
-    for (const r of data.rows) {
-      const d = normDni(r.dni);
-      if (d) rowDnisAn.add(d);
+/** Informe orientativo del lote: no modifica asistentes, entradas ni butacas. */
+export const getImportDuplicateReport = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ batchId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireRole(supabase, userId, ["superadmin", "admin_figurarte", "coordinador"]);
+    const { data: batch, error } = await supabase.from("import_batches").select("session_id").eq("id", data.batchId).single();
+    if (error || !batch?.session_id) throw new Error("No se encontró la sesión de la importación.");
+    const { readImportAudit, readImportRoster } = await import("./import-duplicates.server");
+    const [audit, roster] = await Promise.all([readImportAudit(supabase, data.batchId), readImportRoster(supabase, batch.session_id)]);
+    const incoming: DuplicateReportEntry[] = audit.map((r) => {
+      const raw = (r.raw_row ?? {}) as Record<string, unknown>;
+      const str = (key: string) => typeof raw[key] === "string" ? raw[key] as string : null;
+      return { first_name: str("first_name") ?? "", last_name: str("last_name"), dni: str("dni"), email: str("email"), phone: str("phone"),
+        seat_zone: str("seat_zone"), seat_row: str("seat_row"), seat_number: str("seat_number"),
+        participant_id: r.participant_id, row_number: r.row_number, origin: "archivo", outcome: r.outcome,
+        note: r.error_message ?? r.match_reason };
+    });
+    // Un tramo reintentado puede tener varias anotaciones de la misma fila.
+    const byRow = new Map<number | null, DuplicateReportEntry>();
+    for (const row of incoming) {
+      const previous = byRow.get(row.row_number);
+      if (!previous?.participant_id || row.participant_id) byRow.set(row.row_number, row);
     }
-    const dniInOtherSess = new Set<string>();
-    if (rowDnisAn.size > 0) {
-      const arrDn = [...rowDnisAn];
-      const CH = 200;
-      for (let i = 0; i < arrDn.length; i += CH) {
-        const slice = arrDn.slice(i, i + CH);
-        const { data: ppl } = await supabase
-          .from("people")
-          .select("id, dni")
-          .in("dni", slice as string[]);
-        const idByDni = new Map<string, string>();
-        for (const p of ppl ?? []) {
-          const k = normDni(p.dni as string | null);
-          if (k) idByDni.set(k, p.id as string);
-        }
-        const ids = [...idByDni.values()];
-        if (ids.length === 0) continue;
-        for (let j = 0; j < ids.length; j += CH) {
-          const idsChunk = ids.slice(j, j + CH);
-          const { data: parts } = await supabase
-            .from("event_participants")
-            .select("person_id, session_id")
-            .eq("event_id", data.eventId)
-            .in("person_id", idsChunk as string[]);
-          for (const pp of parts ?? []) {
-            if ((pp.session_id as string) === data.sessionId) continue;
-            for (const [dni, pid] of idByDni.entries()) {
-              if (pid === (pp.person_id as string)) dniInOtherSess.add(dni);
-            }
-          }
-        }
-      }
-    }
-
-    type RosterEntry = {
-      participantId: string;
-      sessionId: string;
-      sessionName: string | null;
-      personId: string;
-      status: string | null;
-      hasTicket: boolean;
-    };
-    const byDni = new Map<string, RosterEntry[]>();
-    const byName = new Map<string, RosterEntry[]>();
-    const push = (m: Map<string, RosterEntry[]>, k: string, e: RosterEntry) => {
-      if (!k) return;
-      const a = m.get(k);
-      if (a) a.push(e);
-      else m.set(k, [e]);
-    };
-    for (const ep of roster ?? []) {
-      const ppl = ep.people as {
-        first_name?: string | null;
-        last_name?: string | null;
-        dni?: string | null;
-        email?: string | null;
-        phone?: string | null;
-      } | null;
-      if (!ppl) continue;
-      const sess = ep.event_sessions as { name?: string | null } | null;
-      const tk = ep.tickets as { id: string }[] | null;
-      const entry: RosterEntry = {
-        participantId: ep.id as string,
-        sessionId: (ep.session_id as string | null) ?? "",
-        sessionName: sess?.name ?? null,
-        personId: ep.person_id as string,
-        status: (ep.status as string | null) ?? null,
-        hasTicket: Array.isArray(tk) && tk.length > 0,
-      };
-      push(byDni, normDni(ppl.dni), entry);
-      push(byName, nameKey(ppl.first_name, ppl.last_name), entry);
-    }
-
-    // (Bloque D eliminado: el aislamiento por sesión ya no reutiliza
-    // personas fuera del evento — las filas nuevas quedan en el bloque A.)
-
-    type Block = "A" | "B" | "C" | "D";
-    type MatchReason = "dni" | "name" | null;
-    type RowAnalysis = {
-      rowIndex: number;
-      block: Block;
-      match_reason: MatchReason;
-      existing: {
-        participantId?: string;
-        personId?: string;
-        sessionId?: string | null;
-        sessionName?: string | null;
-        status?: string | null;
-        hasTicket?: boolean;
-      } | null;
-      dni_in_other_session?: boolean;
-    };
-
-    const analyses: RowAnalysis[] = [];
-    const counts = {
-      A: 0,
-      B: 0,
-      C: 0,
-      D: 0,
-      B_with_ticket: 0,
-      C_with_ticket: 0,
-    };
-
-    for (const r of data.rows) {
-      const dni = normDni(r.dni);
-      const nk = nameKey(r.first_name, r.last_name);
-      const dniHit = dni ? byDni.get(dni) : undefined;
-      const nameHit = byName.get(nk);
-      const hit = dniHit?.[0] ?? nameHit?.[0];
-      const reason: MatchReason = dniHit ? "dni" : nameHit ? "name" : null;
-
-      if (hit) {
-        // Coincidencia dentro de la sesión destino → Bloque B.
-        analyses.push({
-          rowIndex: r.rowIndex,
-          block: "B",
-          match_reason: reason,
-          existing: {
-            participantId: hit.participantId,
-            personId: hit.personId,
-            sessionId: hit.sessionId,
-            sessionName: hit.sessionName,
-            status: hit.status,
-            hasTicket: hit.hasTicket,
-          },
-        });
-        counts.B++;
-        if (hit.hasTicket) counts.B_with_ticket++;
-      } else {
-        // Bloque A: fila nueva para esta sesión. Marcamos si el DNI ya está
-        // usado en otra sesión del evento (se importará como VIS).
-        analyses.push({
-          rowIndex: r.rowIndex,
-          block: "A",
-          match_reason: null,
-          existing: null,
-          dni_in_other_session: dni ? dniInOtherSess.has(dni) : false,
-        });
-        counts.A++;
-      }
-    }
-
-    return { rows: analyses, counts };
+    return buildImportDuplicateReport([...byRow.values()].sort((a, b) => (a.row_number ?? 0) - (b.row_number ?? 0)), roster);
   });
 
 // ============================================================

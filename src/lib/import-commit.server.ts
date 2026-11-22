@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { CommitInput } from "./imports.functions";
+import { importRowId } from "./import-duplicates";
 
 /**
  * Núcleo de la importación de un tramo de filas. Se usa tanto desde la
@@ -161,7 +162,7 @@ export async function runCommitChunk(
       if (d) rowDnis.add(d);
     }
     const dniInOtherSession = new Set<string>();
-    if (rowDnis.size > 0) {
+    if (data.duplicateStrategy !== "report_only" && rowDnis.size > 0) {
       const arr = [...rowDnis];
       const CH = 200;
       for (let i = 0; i < arr.length; i += CH) {
@@ -274,11 +275,12 @@ export async function runCommitChunk(
 
     async function insertNewPerson(
       row: typeof data.rows[number],
-      opts: { omitDni?: boolean } = {},
+      opts: { omitDni?: boolean; id?: string } = {},
     ): Promise<string> {
       const { data: created, error: pErr } = await supabase
         .from("people")
         .insert({
+          ...(opts.id ? { id: opts.id } : {}),
           first_name: row.first_name,
           last_name: row.last_name ?? null,
           dni: opts.omitDni ? null : (row.dni ?? null),
@@ -288,15 +290,26 @@ export async function runCommitChunk(
           city: row.city ?? null,
           province: row.province ?? null,
           gender: row.gender ?? null,
-          notes: row.notes ?? null,
+          notes: opts.omitDni && opts.id && row.dni
+            ? [row.notes, `DNI aportado en importación: ${row.dni} (compartido; pendiente de revisión)`].filter(Boolean).join("\n")
+            : row.notes ?? null,
           source: data.source ?? `import:${data.filename}`,
           created_by: userId,
         })
         .select("id")
         .single();
       if (pErr) {
+        if (opts.id && pErr.code === "23505") {
+          const { data: existing, error } = await supabase.from("people").select("id").eq("id", opts.id).maybeSingle();
+          if (error) throw new Error("No se pudo comprobar la fila ya importada.");
+          if (existing) return existing.id;
+          if (!opts.omitDni && row.dni && /uq_people_dni|people_dni|dni/i.test(pErr.message)) {
+            return insertNewPerson(row, { ...opts, omitDni: true });
+          }
+        }
         // DNI ya existente → reutilizar en vez de fallar.
         if (
+          !opts.id &&
           !opts.omitDni &&
           (pErr.code === "23505" || /uq_people_dni|people_dni/.test(pErr.message))
         ) {
@@ -311,6 +324,7 @@ export async function runCommitChunk(
     async function insertParticipationFor(
       personId: string,
       row: typeof data.rows[number],
+      participantId?: string,
     ): Promise<{ id: string; status: string; reused?: boolean }> {
       const status = row.initial_status ?? data.defaultStatus;
       const approvedLike =
@@ -367,6 +381,7 @@ export async function runCommitChunk(
       const { data: participant, error: partErr } = await supabase
         .from("event_participants")
         .insert({
+          ...(participantId ? { id: participantId } : {}),
           event_id: data.eventId,
           session_id: data.sessionId,
           person_id: personId,
@@ -494,6 +509,33 @@ export async function runCommitChunk(
 
     for (const row of data.rows) {
       try {
+        if (data.duplicateStrategy === "report_only") {
+          const participantId = await importRowId(batch.id, row.rowIndex, "participante");
+          const { data: previous, error: previousError } = await supabase.from("event_participants")
+            .select("id, status").eq("id", participantId).maybeSingle();
+          if (previousError) throw new Error("No se pudo comprobar el reintento de la fila.");
+          if (previous) {
+            await maybeGenerateTicketFor(previous.id, previous.status, row);
+            const { data: person, error } = await supabase.from("people").select("dni")
+              .eq("id", await importRowId(batch.id, row.rowIndex, "persona")).single();
+            if (error) throw new Error("No se pudo verificar el DNI de la fila recuperada.");
+            imported++;
+            logRow(row, "inserted", previous.id, row.dni && !person.dni
+              ? "DNI compartido: inscripción independiente; DNI original conservado en observaciones e informe"
+              : "Fila recuperada del mismo lote; sin duplicar inscripción");
+            continue;
+          }
+          const personId = await insertNewPerson(row, { id: await importRowId(batch.id, row.rowIndex, "persona") });
+          const part = await insertParticipationFor(personId, row, participantId);
+          await maybeGenerateTicketFor(part.id, part.status, row);
+          const { data: person, error: personError } = await supabase.from("people").select("dni").eq("id", personId).single();
+          if (personError) throw new Error("No se pudo verificar el DNI importado.");
+          imported++;
+          logRow(row, "inserted", part.id, row.dni && !person.dni
+            ? "DNI compartido: inscripción independiente; DNI original conservado en observaciones e informe"
+            : "Inscripción independiente; posibles coincidencias disponibles en el informe");
+          continue;
+        }
         // ---- Rama nueva: acción explícita por fila (paso "Análisis") ----
         const explicitAction = data.perRowActions?.[String(row.rowIndex)];
         if (explicitAction) {
@@ -763,17 +805,32 @@ export async function runCommitChunk(
 
     // Persist row-level audit log. Chunked to avoid hitting payload limits.
     if (rowResults.length > 0) {
+      if (data.duplicateStrategy === "report_only") {
+        const { error } = await supabase.from("import_row_results").delete()
+          .eq("batch_id", batch.id).in("row_number", data.rows.map((r) => r.rowIndex));
+        if (error) throw new Error("No se pudo preparar la auditoría de las filas importadas.");
+      }
       const CHUNK = 500;
       for (let i = 0; i < rowResults.length; i += CHUNK) {
-      await supabase
+      const { error } = await supabase
         .from("import_row_results")
         .insert(rowResults.slice(i, i + CHUNK) as never);
+      if (error && data.duplicateStrategy === "report_only") throw new Error("No se pudo guardar el informe de importación.");
       }
     }
 
     // Acumula con los tramos anteriores del mismo lote
-    const totalImported = (data.batchId ? batch.imported_rows ?? 0 : 0) + imported;
-    const totalErrored = (data.batchId ? batch.error_rows ?? 0 : 0) + errored;
+    let totalImported = (data.batchId ? batch.imported_rows ?? 0 : 0) + imported;
+    let totalErrored = (data.batchId ? batch.error_rows ?? 0 : 0) + errored;
+    if (data.duplicateStrategy === "report_only" && data.batchId) {
+      const [created, failed] = await Promise.all([
+        supabase.from("event_participants").select("id", { count: "exact", head: true }).eq("import_batch_id", batch.id),
+        supabase.from("import_row_results").select("id", { count: "exact", head: true }).eq("batch_id", batch.id).eq("outcome", "errored"),
+      ]);
+      if (created.error || failed.error) throw new Error("No se pudo comprobar el total importado.");
+      totalImported = created.count ?? 0;
+      totalErrored = failed.count ?? 0;
+    }
     const prevErrors = data.batchId && Array.isArray(batch.errors) ? (batch.errors as typeof errors) : [];
     const allErrors = [...prevErrors, ...errors].slice(0, 200);
     const { data: finalBatch } = await supabase

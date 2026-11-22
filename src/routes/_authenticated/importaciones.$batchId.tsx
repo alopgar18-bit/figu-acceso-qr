@@ -19,8 +19,16 @@ import { getImportBatchRowResults, backfillBatchRowResults, repairImportBatch } 
 import { useDeleteImportBatch } from "@/lib/use-admin-delete";
 import { DangerousActionDialog } from "@/components/dangerous-action-dialog";
 import { BulkProgressCard } from "@/components/bulk-progress-card";
+import { ImportDuplicateSummary } from "@/components/import-duplicate-summary";
 
 export const Route = createFileRoute("/_authenticated/importaciones/$batchId")({
+  head: () => ({ meta: [
+    { title: "Detalle de importación | FIGURARTE Gatekeeper" },
+    { name: "description", content: "Resultados e informe de posibles duplicados de la importación de invitados." },
+    { property: "og:title", content: "Detalle de importación | FIGURARTE Gatekeeper" },
+    { property: "og:description", content: "Resultados e informe de posibles duplicados de la importación de invitados." },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
+  ] }),
   component: BatchDetailPage,
 });
 
@@ -314,6 +322,8 @@ function BatchDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {batch.completed_at && <div className="mb-6"><ImportDuplicateSummary batchId={batchId} filename={batch.filename} /></div>}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

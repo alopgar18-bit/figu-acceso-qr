@@ -5,7 +5,6 @@ import { read, utils } from "xlsx";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check, FileSpreadsheet, Upload, AlertTriangle, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -34,22 +33,24 @@ import {
 } from "@/lib/participant-constants";
 import { commitImport, analyzeImport, queueImport, processImportChunk } from "@/lib/imports.functions";
 import {
-  BLOCK_LABEL,
-  BLOCK_DESCRIPTION,
-  ACTION_LABEL,
-  actionsForBlock,
-  type DuplicateBlock,
-  type RowAction,
-} from "@/lib/import-constants";
-import {
   FIELD_DEFS,
   resolveFieldRequirements,
   type FieldKey,
   type FieldRule,
 } from "@/lib/field-requirements";
+import { type ImportDuplicateReport } from "@/lib/import-duplicates";
+import { exportImportDuplicateReport } from "@/lib/import-duplicates-export";
+import { ImportDuplicateSummary } from "@/components/import-duplicate-summary";
 import { useKeepSessionAlive } from "@/hooks/use-keep-session-alive";
 
 export const Route = createFileRoute("/_authenticated/importaciones/nueva")({
+  head: () => ({ meta: [
+    { title: "Nueva importación | FIGURARTE Gatekeeper" },
+    { name: "description", content: "Importa invitados y revisa posibles duplicados sin compartir butacas." },
+    { property: "og:title", content: "Nueva importación | FIGURARTE Gatekeeper" },
+    { property: "og:description", content: "Importa invitados y revisa posibles duplicados sin compartir butacas." },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
+  ] }),
   component: ImportWizardPage,
 });
 
@@ -65,7 +66,7 @@ const STEPS = ["Archivo", "Evento", "Mapeo", "Validación", "Análisis", "Result
 
 type AnalysisRow = {
   rowIndex: number;
-  block: DuplicateBlock;
+  block: "A" | "B" | "C" | "D";
   match_reason: "dni" | "email" | "phone" | "name" | null;
   existing: {
     participantId?: string;
@@ -77,6 +78,7 @@ type AnalysisRow = {
   } | null;
 };
 type AnalysisResult = {
+  report: ImportDuplicateReport;
   rows: AnalysisRow[];
   counts: { A: number; B: number; C: number; D: number; B_with_ticket: number; C_with_ticket: number };
 };
@@ -96,7 +98,7 @@ function ImportWizardPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [defaultStatus, setDefaultStatus] = useState<ParticipantStatus>("pendiente_revision");
   const [defaultAttendeeType, setDefaultAttendeeType] = useState<AttendeeType>("publico");
-  const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>("suffix_distinct");
+  const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>("report_only");
   const [mapping, setMapping] = useState<Record<string, TargetField | "">>({});
   const [submitting, setSubmitting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
@@ -107,14 +109,6 @@ function ImportWizardPage() {
 
   // Mantiene viva la sesión mientras se analiza/importa un fichero grande.
   useKeepSessionAlive(submitting || analyzing);
-  const [blockActions, setBlockActions] = useState<Record<DuplicateBlock, RowAction>>({
-    A: "create_new",
-    B: "update",
-    C: "create_here",
-    D: "create_new",
-  });
-  const [rowOverrides, setRowOverrides] = useState<Record<number, RowAction>>({});
-
   const { data: events = [] } = useEvents();
   const { data: sessions = [] } = useEventSessions(eventId || undefined);
 
@@ -288,25 +282,13 @@ function ImportWizardPage() {
   }, [mapping, requiredImportTargets]);
 
   async function preflightDuplicates() {
-    if (validRows.length === 0) {
-      setDuplicateHits(0);
-      return;
-    }
-    const dnis = Array.from(new Set(validRows.map((r) => r.dni as string | null).filter((v): v is string => !!v))).slice(0, 200);
-    const emails = Array.from(new Set(validRows.map((r) => r.email as string | null).filter((v): v is string => !!v))).slice(0, 200);
-    const orParts: string[] = [];
-    if (dnis.length > 0) orParts.push(`dni.in.(${dnis.map((d) => `"${d}"`).join(",")})`);
-    if (emails.length > 0) orParts.push(`email.in.(${emails.map((e) => `"${e}"`).join(",")})`);
-    if (orParts.length === 0) { setDuplicateHits(0); return; }
-    const { data, error } = await supabase
-      .from("people")
-      .select("id")
-      .or(orParts.join(","));
-    if (error) {
-      setDuplicateHits(null);
-      return;
-    }
-    setDuplicateHits(data?.length ?? 0);
+    if (!eventId || !sessionId || !validRows.length) { setDuplicateHits(0); return; }
+    try {
+      const res = await analyze({ data: { eventId, sessionId, rows: validRows.map((r) => ({
+        rowIndex: r.rowIndex, first_name: String(r.first_name ?? ""), last_name: (r.last_name as string | null) ?? null,
+      })) } });
+      setDuplicateHits(res.report.possibleDuplicateRows);
+    } catch { setDuplicateHits(null); }
   }
 
   async function handleCommit() {
@@ -316,15 +298,6 @@ function ImportWizardPage() {
       const mappingsArr = Object.entries(mapping)
         .filter(([, v]) => v)
         .map(([source_column, target_field]) => ({ source_column, target_field: target_field as string, transform: null }));
-      // Construye perRowActions a partir del análisis (bloque + overrides).
-      let perRowActions: Record<string, RowAction> | undefined;
-      if (analysis) {
-        perRowActions = {};
-        for (const a of analysis.rows) {
-          const act = rowOverrides[a.rowIndex] ?? blockActions[a.block];
-          perRowActions[String(a.rowIndex)] = act;
-        }
-      }
       // Importación en segundo plano: el servidor guarda el Excel en tramos y
       // los procesa uno a uno. Mientras la pestaña esté abierta, el navegador
       // va pidiendo tramos (más rápido); si se cierra, el vigilante automático
@@ -342,7 +315,7 @@ function ImportWizardPage() {
           duplicateStrategy,
           mappings: mappingsArr,
           rows: allRows,
-          perRowActions,
+
         },
       });
       setQueuedBatchId(queued.batchId);
@@ -367,7 +340,8 @@ function ImportWizardPage() {
           await new Promise((r) => setTimeout(r, 3000));
         }
       }
-      const t = progress!.totals;
+      if (!progress) throw new Error("No se pudo leer el resultado de la importación.");
+      const t = progress.totals;
       const res = {
         batchId: queued.batchId,
         total: allRows.length,
@@ -378,7 +352,7 @@ function ImportWizardPage() {
         qrGenerated: t.qrGenerated,
         noContactChannel: t.noContactChannel,
         errors: t.errors,
-        finalStatus: (progress!.finalStatus ?? "completada") as Awaited<ReturnType<typeof commitImport>>["finalStatus"],
+        finalStatus: (progress.finalStatus ?? "completada") as Awaited<ReturnType<typeof commitImport>>["finalStatus"],
         seatsNotInPlan: t.seatsNotInPlan,
       };
       setImportProgress(null);
@@ -404,10 +378,12 @@ function ImportWizardPage() {
         dni: (r.dni as string | null) ?? null,
         email: (r.email as string | null) ?? null,
         phone: (r.phone as string | null) ?? null,
+        seat_zone: (r.seat_zone as string | null) ?? null,
+        seat_row: (r.seat_row as string | null) ?? null,
+        seat_number: (r.seat_number as string | null) ?? null,
       }));
       const res = await analyze({ data: { eventId, sessionId, rows: slim } });
       setAnalysis(res as AnalysisResult);
-      setRowOverrides({});
     } catch (err) {
       toast.error("No se pudo analizar", {
         description: err instanceof Error ? err.message : "Error",
@@ -479,15 +455,14 @@ function ImportWizardPage() {
           analysis={analysis}
           analyzing={analyzing}
           onRunAnalysis={runAnalysis}
-          blockActions={blockActions}
-          setBlockActions={setBlockActions}
-          rowOverrides={rowOverrides}
-          setRowOverrides={setRowOverrides}
           validRows={validRows}
+          filename={parsed.filename}
         />
       )}
 
       {step === 5 && result && (
+        <div className="space-y-6">
+        <ImportDuplicateSummary batchId={result.batchId} filename={parsed?.filename ?? "importacion"} />
         <ResultStep
           result={result}
           eventId={eventId}
@@ -496,11 +471,11 @@ function ImportWizardPage() {
             setParsed(null);
             setResult(null);
             setAnalysis(null);
-            setRowOverrides({});
-            setStep(0);
+                  setStep(0);
           }}
           onViewBatch={() => navigate({ to: "/importaciones/$batchId", params: { batchId: result.batchId } })}
         />
+        </div>
       )}
 
       {step < 5 && (
@@ -510,17 +485,12 @@ function ImportWizardPage() {
           </Button>
           {step === 4 ? (
             (() => {
-              const willImport = analysis
-                ? analysis.rows.filter((r) => {
-                    const act = rowOverrides[r.rowIndex] ?? blockActions[r.block];
-                    return act !== "skip";
-                  }).length
-                : validRows.length;
+              const willImport = validRows.length;
               return (
                 <div className="flex flex-col items-end gap-1">
                   <Button
                     onClick={handleCommit}
-                    disabled={submitting || analyzing || !analysis || willImport === 0}
+                    disabled={submitting || analyzing || willImport === 0}
                   >
                     {submitting ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -864,10 +834,6 @@ function ValidationStep({
   const preview = normalized.rows.slice(0, 20);
   const errSet = new Set(normalized.errors.map((e) => e.row));
   void resolved;
-  const willOverwrite =
-    duplicateHits !== null &&
-    duplicateHits > 0 &&
-    (duplicateStrategy === "update_person" || duplicateStrategy === "skip");
   return (
     <div className="space-y-6">
       <div className="grid gap-3 md:grid-cols-4">
@@ -875,39 +841,12 @@ function ValidationStep({
         <StatCard label="Válidas" value={validRows.length} tone="success" />
         <StatCard label="Con errores" value={normalized.errors.length} tone={normalized.errors.length > 0 ? "danger" : "neutral"} />
         <StatCard
-          label="Duplicados detectados"
+          label="Posibles duplicados"
           value={duplicateHits === null ? "—" : duplicateHits}
           tone={duplicateHits && duplicateHits > 0 ? "warning" : "neutral"}
           action={<Button size="sm" variant="outline" onClick={onPreflight}>Comprobar</Button>}
         />
       </div>
-
-      {willOverwrite && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>
-            {duplicateHits} filas con nombre+apellido ya existentes en esta sesión
-          </AlertTitle>
-          <AlertDescription className="space-y-2">
-            <p>
-              Estrategia actual: <strong>{DUPLICATE_STRATEGIES.find((d) => d.value === duplicateStrategy)?.label}</strong>.
-              {" "}
-              {duplicateStrategy === "update_person"
-                ? "Estas filas se fusionarán con la persona existente y su asiento se sobrescribirá con el de la fila importada (podría dejar butacas huérfanas en el plano)."
-                : "Estas filas se saltarán sin importar."}
-            </p>
-            <div className="flex gap-2 pt-1">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setDuplicateStrategy("suffix_distinct")}
-              >
-                Cambiar a "Tratar como personas distintas (VIS 2, VIS 3…)"
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {IMPORT_QR_STATES.includes(defaultStatus) && (
         <Alert>
@@ -974,233 +913,39 @@ function ValidationStep({
   );
 }
 
-function AnalysisStep({
-  analysis,
-  analyzing,
-  onRunAnalysis,
-  blockActions,
-  setBlockActions,
-  rowOverrides,
-  setRowOverrides,
-  validRows,
-}: {
-  analysis: AnalysisResult | null;
-  analyzing: boolean;
-  onRunAnalysis: () => void;
-  blockActions: Record<DuplicateBlock, RowAction>;
-  setBlockActions: (u: Record<DuplicateBlock, RowAction>) => void;
-  rowOverrides: Record<number, RowAction>;
-  setRowOverrides: (u: Record<number, RowAction>) => void;
-  validRows: Array<Record<string, unknown> & { rowIndex: number }>;
+function AnalysisStep({ analysis, analyzing, onRunAnalysis, validRows, filename }: {
+  analysis: AnalysisResult | null; analyzing: boolean; onRunAnalysis: () => void;
+  validRows: Array<Record<string, unknown> & { rowIndex: number }>; filename: string;
 }) {
-  const [expanded, setExpanded] = useState<DuplicateBlock | null>(null);
-  const rowsByIdx = useMemo(() => {
-    const m = new Map<number, Record<string, unknown> & { rowIndex: number }>();
-    for (const r of validRows) m.set(r.rowIndex, r);
-    return m;
-  }, [validRows]);
-
-  if (analyzing || !analysis) {
-    return (
-      <Card>
-        <CardContent className="pt-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Analizando duplicados contra el evento…
-          </div>
-          <Button variant="outline" size="sm" onClick={onRunAnalysis} disabled={analyzing}>
-            Reintentar
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const blocks: DuplicateBlock[] = ["A", "B", "C", "D"];
-  const rowsByBlock: Record<DuplicateBlock, AnalysisRow[]> = { A: [], B: [], C: [], D: [] };
-  for (const r of analysis.rows) rowsByBlock[r.block].push(r);
-
-  const willImport = analysis.rows.filter((r) => {
-    const act = rowOverrides[r.rowIndex] ?? blockActions[r.block];
-    return act !== "skip";
-  }).length;
-
+  if (analyzing || !analysis) return (
+    <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
+      <span>{analyzing ? "Analizando posibles duplicados…" : "No se pudo obtener el informe."}</span>
+      <Button variant="outline" size="sm" onClick={onRunAnalysis} disabled={analyzing}>Reintentar</Button>
+    </div>
+  );
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2">
-        <StatCard
-          label="Nuevos en esta sesión (A)"
-          value={analysis.counts.A}
-          tone="success"
-          action={
-            (() => {
-              const visCount = analysis.rows.filter(
-                (r) => r.block === "A" && (r as AnalysisRow & { dni_in_other_session?: boolean }).dni_in_other_session,
-              ).length;
-              return visCount > 0 ? (
-                <span className="text-xs text-muted-foreground">
-                  {visCount} con DNI en otra sesión → VIS
-                </span>
-              ) : null;
-            })()
-          }
-        />
-        <StatCard
-          label="Ya en esta sesión (B)"
-          value={analysis.counts.B}
-          tone={analysis.counts.B_with_ticket > 0 ? "danger" : "warning"}
-          action={
-            analysis.counts.B_with_ticket > 0 ? (
-              <span className="text-xs text-destructive">
-                {analysis.counts.B_with_ticket} con entrada enviada
-              </span>
-            ) : null
-          }
-        />
+      <div className="grid gap-3 md:grid-cols-3">
+        <StatCard label="Filas a importar" value={validRows.length} />
+        <StatCard label="Grupos de posibles duplicados" value={analysis.report.groups} />
+        <StatCard label="Filas para revisar" value={analysis.report.possibleDuplicateRows} />
       </div>
-      <p className="text-xs text-muted-foreground">
-        Aislamiento por sesión activo: los solicitantes son exclusivos de la sesión destino. Si un DNI ya está en otra sesión del mismo evento, se importa como persona VIS (nuevo participante independiente).
-      </p>
-
-      <Alert>
-        <AlertTitle>Se importarán {willImport} de {analysis.rows.length} filas</AlertTitle>
-        <AlertDescription>
-          Elige qué hacer con cada bloque de duplicados. Puedes sobreescribir fila a fila expandiendo el bloque.
-        </AlertDescription>
-      </Alert>
-
-      {blocks.map((block) => {
-        const rows = rowsByBlock[block];
-        if (rows.length === 0) return null;
-        const { options, default: defaultAction } = actionsForBlock(block);
-        const current = blockActions[block] ?? defaultAction;
-        const isOpen = expanded === block;
-        return (
-          <Card key={block}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Badge variant="outline">{block}</Badge>
-                    {BLOCK_LABEL[block]}
-                    <Badge variant="secondary">{rows.length}</Badge>
-                  </CardTitle>
-                  <CardDescription className="mt-1">{BLOCK_DESCRIPTION[block]}</CardDescription>
-                </div>
-                <div className="min-w-[240px]">
-                  {options.length === 1 ? (
-                    <Badge>{ACTION_LABEL[options[0]]}</Badge>
-                  ) : (
-                    <Select
-                      value={current}
-                      onValueChange={(v) =>
-                        setBlockActions({ ...blockActions, [block]: v as RowAction })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {options.map((o) => (
-                          <SelectItem key={o} value={o}>
-                            {ACTION_LABEL[o]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setExpanded(isOpen ? null : block)}
-              >
-                {isOpen ? "Ocultar detalle" : "Ver detalle por fila"}
-              </Button>
-              {isOpen && (
-                <ScrollArea className="h-[320px] mt-3">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">#</TableHead>
-                        <TableHead>Nombre</TableHead>
-                        <TableHead>Motivo</TableHead>
-                        <TableHead>Coincidencia</TableHead>
-                        <TableHead>Acción</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map((r) => {
-                        const src = rowsByIdx.get(r.rowIndex);
-                        const act = rowOverrides[r.rowIndex] ?? current;
-                        return (
-                          <TableRow key={r.rowIndex}>
-                            <TableCell className="tabular-nums">{r.rowIndex}</TableCell>
-                            <TableCell className="text-xs">
-                              {String(src?.first_name ?? "")} {String(src?.last_name ?? "")}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {r.match_reason ? (
-                                <Badge variant="outline">{r.match_reason}</Badge>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {r.existing?.sessionName && (
-                                <div>{r.existing.sessionName}</div>
-                              )}
-                              {r.existing?.status && (
-                                <div className="text-muted-foreground">
-                                  {statusLabel(r.existing.status as never)}
-                                </div>
-                              )}
-                              {r.existing?.hasTicket && (
-                                <Badge variant="destructive" className="mt-1">
-                                  entrada enviada
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {options.length === 1 ? (
-                                <span className="text-xs">{ACTION_LABEL[options[0]]}</span>
-                              ) : (
-                                <Select
-                                  value={act}
-                                  onValueChange={(v) =>
-                                    setRowOverrides({
-                                      ...rowOverrides,
-                                      [r.rowIndex]: v as RowAction,
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {options.map((o) => (
-                                      <SelectItem key={o} value={o}>
-                                        {ACTION_LABEL[o]}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+      <Button variant="outline" onClick={() => exportImportDuplicateReport(analysis.report, filename)}>
+        <FileSpreadsheet className="h-4 w-4 mr-2" />Informe de posibles duplicados (Excel)
+      </Button>
+      {analysis.report.entries.length > 0 && (
+        <ScrollArea className="h-80">
+          <Table>
+            <TableHeader><TableRow><TableHead>Grupo</TableHead><TableHead>Nombre</TableHead><TableHead>Origen</TableHead><TableHead>Zona</TableHead><TableHead>Fila</TableHead><TableHead>Butaca</TableHead></TableRow></TableHeader>
+            <TableBody>{analysis.report.entries.map((r, i) => (
+              <TableRow key={i}><TableCell>{r.group}</TableCell><TableCell>{r.first_name} {r.last_name}</TableCell>
+                <TableCell>{r.origin === "archivo" ? `Archivo · fila ${r.row_number}` : "Ya en la sesión"}</TableCell>
+                <TableCell>{r.seat_zone ?? "—"}</TableCell><TableCell>{r.seat_row ?? "—"}</TableCell><TableCell>{r.seat_number ?? "—"}</TableCell>
+              </TableRow>
+            ))}</TableBody>
+          </Table>
+        </ScrollArea>
+      )}
     </div>
   );
 }
