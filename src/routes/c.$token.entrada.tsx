@@ -30,7 +30,7 @@ export const Route = createFileRoute("/c/$token/entrada")({
       if (!res.ok) return { meta: null, res };
       const { event, session } = res;
       const startsAt = new Date(session.starts_at);
-      const dateStr = startsAt.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+      const dateStr = startsAt.toLocaleString("es-ES", { timeZone: "Europe/Madrid", dateStyle: "long", timeStyle: "short" });
       const location = session.location_name ?? event.location_name ?? null;
       return {
         res,
@@ -155,19 +155,20 @@ function Page() {
 
             <div className="space-y-2 text-sm">
               <InfoLine icon={<CalendarDays className="h-4 w-4" />}>
-                {startsAt.toLocaleString("es-ES", { dateStyle: "full" })}
+                {startsAt.toLocaleString("es-ES", { timeZone: "Europe/Madrid", dateStyle: "full" })}
               </InfoLine>
               <InfoLine icon={<Clock className="h-4 w-4" />}>
                 <div className="space-y-0.5">
                   {doorsAt && (
-                    <div>Acceso: {doorsAt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</div>
+                    <div>Acceso: {doorsAt.toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" })}</div>
                   )}
-                  <div>Inicio: {startsAt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</div>
+                  <div>Inicio: {startsAt.toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" })}</div>
                   {session.ends_at && (
                     <div className="text-muted-foreground">
-                      Fin aprox.: {new Date(session.ends_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                      Fin aprox.: {new Date(session.ends_at).toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" })}
                     </div>
                   )}
+                  <div className="text-xs text-muted-foreground">Hora peninsular (Sevilla)</div>
                 </div>
               </InfoLine>
               {(session.location_name || event.location_name) && (

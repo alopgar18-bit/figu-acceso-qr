@@ -143,8 +143,8 @@ function Page() {
         <CardHeader><CardTitle className="text-base uppercase tracking-wider">Detalles de la sesión</CardTitle></CardHeader>
         <CardContent className="space-y-3 text-sm">
           <InfoRow icon={<CalendarDays className="h-4 w-4" />} label="Sesión" value={session.name} />
-          <InfoRow icon={<Clock className="h-4 w-4" />} label="Fecha y hora" value={startsAt.toLocaleString("es-ES", { dateStyle: "full", timeStyle: "short" })} />
-          {doorsAt && <InfoRow icon={<Clock className="h-4 w-4" />} label="Apertura de puertas" value={doorsAt.toLocaleString("es-ES", { timeStyle: "short" })} />}
+          <InfoRow icon={<Clock className="h-4 w-4" />} label="Fecha y hora" value={startsAt.toLocaleString("es-ES", { timeZone: "Europe/Madrid", dateStyle: "full", timeStyle: "short" })} />
+          {doorsAt && <InfoRow icon={<Clock className="h-4 w-4" />} label="Apertura de puertas" value={doorsAt.toLocaleString("es-ES", { timeZone: "Europe/Madrid", timeStyle: "short" })} />}
           {(session.location_name || event.location_name) && (
             <InfoRow icon={<MapPin className="h-4 w-4" />} label="Ubicación" value={`${session.location_name ?? event.location_name}${session.location_address || event.location_address ? ` · ${session.location_address ?? event.location_address}` : ""}`} />
           )}

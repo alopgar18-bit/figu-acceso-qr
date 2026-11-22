@@ -100,8 +100,8 @@ function DashboardPage() {
                     <div className="text-xs uppercase tracking-wider text-muted-foreground truncate">{s.event_name}</div>
                     <div className="font-bold text-lg truncate">{s.name}</div>
                     <div className="text-sm text-muted-foreground flex flex-wrap gap-3 mt-1">
-                      <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}</span>
-                      <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span>
+                      <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{d.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid", weekday: "long", day: "numeric", month: "long" })}</span>
+                      <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{d.toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-4 text-center">
