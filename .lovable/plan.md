@@ -9,7 +9,7 @@ Solo el contenido de dos plantillas de correo HTML que ya existen (no se toca c�
 Las plantillas antiguas de fechas concretas (22.10, 15.10…) no se tocan.
 
 ## Texto 01 — Entrada (con etiquetas)
-- Título: Tu invitación para {{evento}} {{fecha_larga}}
+- Asunto del correo: Tu invitación para {{evento}} {{fecha_larga}} (no se repite como título dentro del correo)
 - "¡Ya queda menos para formar parte de la grabación en directo del programa {{evento}}!" + párrafo de ilusión.
 - "La grabación será {{fecha_larga}}"
 - Horario con viñetas "• ":
@@ -25,7 +25,7 @@ Las plantillas antiguas de fechas concretas (22.10, 15.10…) no se tocan.
 - Cierre: "Gracias por formar parte del público de {{evento}}."
 
 ## Texto 02 — Lista de espera / En reserva
-- Título: Tu invitación está en estado pendiente para {{evento}} {{fecha_larga}}.
+- Asunto del correo: Tu invitación está en estado pendiente para {{evento}} {{fecha_larga}} (no se repite como título dentro del correo)
 - Aforo limitado + enlace al formulario https://16escalones.es/publico/ (como botón/enlace).
 - Hoy se han enviado las invitaciones; las entradas liberadas se asignan a los siguientes de la lista.
 - Si hay asientos se comunicará; sin correo con entrada y QR no hay acceso al teatro.
