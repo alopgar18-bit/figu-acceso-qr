@@ -168,7 +168,6 @@ function Page() {
                       Fin aprox.: {new Date(session.ends_at).toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" })}
                     </div>
                   )}
-                  <div className="text-xs text-muted-foreground">Hora peninsular (Sevilla)</div>
                 </div>
               </InfoLine>
               {(session.location_name || event.location_name) && (
